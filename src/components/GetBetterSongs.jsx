@@ -185,7 +185,7 @@ const GetBetterSongs = ({ isConnected }) => {
           &&
           (!(playListLink.length === 0)
             ?
-            <a href={playListLink} target="_blank" rel='norefferer' className='underline text-brand'>{playListLink}</a>
+            <a href={playListLink} target="_blank" rel='norefferer' className='underline text-brand whitespace-normal'>{playListLink}</a>
             :
             <p>Ooops! Something Went Wrong</p>)}
       </section>}
