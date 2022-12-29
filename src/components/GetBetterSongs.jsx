@@ -148,6 +148,10 @@ const GetBetterSongs = ({ isConnected }) => {
     }
   }
 
+  useEffect(() => {
+    !isConnected && setIsLoading(false)
+  }, [isConnected])
+
   return (
     <div className='p-4 flex flex-col gap-10 items-center justify-center'>
       <section className='flex flex-col items-center'>

@@ -16,22 +16,17 @@ export const spotifyApi = new SpotifyWebApi({
 
 const App = () => {
   const [isConnected, setIsConnected] = useState(false)
-  const [elaspedTimeForAccessToken, setElaspedTimeForAccessToken] = useState(NaN);
 
   useEffect(() => {
     const hash = window.location.hash;
-    let tokenSet = window.localStorage.getItem('token');
-
-    if (!tokenSet && hash) {
-      setElaspedTimeForAccessToken(Date.now() / 1000)
+    let tokenSet;
+    if (hash) {
       tokenSet = hash
         .substring(1)
         .split('&')
         .find((elem) => elem.startsWith('access_token'))
         .split('=')[1];
-
-      window.location.hash = '';
-      window.localStorage.setItem('token', tokenSet);
+      window.location.hash = ''
     }
 
     if (tokenSet === undefined || tokenSet === '' || tokenSet === null) return;
@@ -39,31 +34,7 @@ const App = () => {
     setIsConnected(true);
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentTime = Date.now() / 1000
-      const timeLeft = currentTime - elaspedTimeForAccessToken
-      if (timeLeft >= 3600) {
-        refreshAccessToken();
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [elaspedTimeForAccessToken]);
-
-  function refreshAccessToken() {
-    spotifyApi.refreshAccessToken()
-      .then(data => {
-        setElaspedTimeForAccessToken(Date.now() / 1000)
-        spotifyApi.setAccessToken(data.body['access_token']);
-        window.localStorage.setItem('token', data.body['access_token']);
-      })
-      .catch(err => {
-        console.log('Error refreshing access token:', err);
-      });
-  };
-
   function logOut() {
-    window.localStorage.removeItem("token")
     setIsConnected(false)
   }
 
