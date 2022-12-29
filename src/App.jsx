@@ -62,11 +62,16 @@ const App = () => {
       });
   };
 
+  function logOut() {
+    window.localStorage.removeItem("token")
+    setIsConnected(false)
+  }
+
   return (
     <div className='h-screen flex flex-col gap-10'>
       <Header />
       <div className='h-[85%] flex flex-col gap-4 items-center justify-center'>
-        {!isConnected && <Login />}
+        {isConnected ? <p className='bg-brand md:min-w-[40vw] md:max-w-[50%] min-w-[300px] flex items-center justify-center rounded text-white h-10' onClick={logOut}>Logout</p> : <Login />}
         <GetBetterSongs isConnected={isConnected} />
       </div>
       <Footer />
