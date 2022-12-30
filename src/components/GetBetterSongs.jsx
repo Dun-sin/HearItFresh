@@ -4,7 +4,7 @@ import { Configuration, OpenAIApi } from 'openai'
 import { Icon } from '@iconify/react';
 
 import { spotifyApi } from '../App';
-import Input from './input';
+import Input from './Input';
 
 const configuration = new Configuration({
   apiKey: import.meta.env.VITE_API_KEY
