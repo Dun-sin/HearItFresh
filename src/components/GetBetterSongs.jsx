@@ -4,6 +4,7 @@ import { Configuration, OpenAIApi } from 'openai'
 import { Icon } from '@iconify/react';
 
 import { spotifyApi } from '../App';
+import Input from './input';
 
 const configuration = new Configuration({
   apiKey: import.meta.env.VITE_API_KEY
@@ -15,6 +16,10 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [playListLink, setPlayListLink] = useState(null)
   const [buttonClick, setButtonClicked] = useState(false)
+  const [errorMessages, setErrorMessages] = useState({
+    notCorrectSpotifyLink: null,
+    notCorrectFormatForArtist: null,
+  })
 
   const spotifyPlaylist = useRef(null)
   const artistName = useRef(null)
@@ -44,6 +49,12 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
   const getSimilarArtists = async (artists) => {
     setIsLoading(true)
+
+    if (buttonClick === true) {
+      setIsLoading(false)
+      return
+    }
+    setButtonClicked(true)
     try {
       const response = await openai.createCompletion({
         model: "text-davinci-003",
@@ -55,7 +66,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
         presence_penalty: 0,
       });
 
-      const artistList = response.data.choices[0].text.trimStart().split(", ");
+      const artistList = response.data.choices[0].text.replace(/:\n/g, "").trimStart().split(", ");
 
       const getArtistTopTracksPromises = artistList.map(getArtistTopTracks);
       const tracks = await Promise.all(getArtistTopTracksPromises);
@@ -71,14 +82,11 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
         })
 
       setIsLoading(false)
-      setTimeout(() => {
-        logOut()
-      }, 60000)
+      timeSignOut()
     } catch (err) {
       console.log(err)
-      setTimeout(() => {
-        logOut()
-      }, 60000)
+      setIsLoading(false)
+      timeSignOut()
     }
   }
 
@@ -93,18 +101,17 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     if (artistNameValue === '' && spotifyPlayListValue === '') return
     artistName.current.value === '' && handleIfItsAPlaylistLink(spotifyPlayListValue)
     spotifyPlaylist.current.value === '' && handleIfItsAListOfArtist(artistNameValue)
-    setButtonClicked(true)
   }
 
   async function handleIfItsAPlaylistLink(link) {
-    link = link.trim();
-    if (!link.includes('https://open.spotify.com/playlist/')) return
-
-    if (link.includes('?')) {
-      link = link.substring(link.lastIndexOf('/') + 1, link.indexOf('?'));
-    } else {
-      link = link.substring(link.lastIndexOf('/') + 1)
+    if (!isSpotifyPlaylistLink(link)) {
+      setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: true });
+      return;
     }
+
+    setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
+
+    link = getPlaylistIdFromLink()
 
     const playlistTracks = await Promise.resolve(getAllTracksInAPlaylist(link));
     const trackArtists = playlistTracks.flat().map(item => item.track.artists);
@@ -113,25 +120,47 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
 
     getSimilarArtists(uniqueArtistNames)
+
+    // handle logic for if the link is correct
+    function isSpotifyPlaylistLink() {
+      return link.trim().startsWith('https://open.spotify.com/playlist/');
+    }
+
+    // handle logic for if getting the playlist id from the link
+    function getPlaylistIdFromLink() {
+      if (link.includes('?')) {
+        return link.substring(link.lastIndexOf('/') + 1, link.indexOf('?'));
+      }
+
+      return link.substring(link.lastIndexOf('/') + 1);
+    }
   }
 
   function handleIfItsAListOfArtist(artists) {
-    artists = artists.trim()
-    if (!artists.includes(',')) return
+    if (!isListOfArtists(artists)) {
+      setErrorMessages({ ...errorMessages, notCorrectFormatForArtist: true });
+      return;
+    }
 
-    const array = artists.split(',')
-    getSimilarArtists(array)
+    setErrorMessages({ ...errorMessages, notCorrectFormatForArtist: false });
+
+    const artistArray = artists.trim().split(',');
+    getSimilarArtists(artistArray);
+
+    function isListOfArtists(artists) {
+      return artists.trim().includes(',');
+    }
   }
 
   async function getArtistTopTracks(artist) {
     try {
-      spotifyApi.track
       const result = [];
       const data = await spotifyApi.searchArtists(artist, { limit: 1, offset: 0 });
       const _data = await spotifyApi.getArtistTopTracks(data.body.artists.items[0].id, 'US');
       _data.body.tracks.forEach(song => result.push(song.uri))
       return result
     } catch (err) {
+
       return err
     }
 
@@ -164,55 +193,81 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     }
   }
 
+  function timeSignOut() {
+    setTimeout(() => {
+      logOut()
+    }, 60000)
+  }
+
   return (
     <div className='p-4 flex flex-col gap-10 items-center justify-center'>
       <section className='flex flex-col items-center'>
-        <label htmlFor="artistName" className='md:min-w-[40vw] md:max-w-[50%] min-w-[300px] block mb-1'>
-          <h3>Give Me Your Favourite Artists <span className='opacity-60'>(at least 2)</span></h3>
-          <input type="text" placeholder='Seperated By a Comma e.g BTS, Travis Scott, Drake' name='artistName' className='w-full h-10 rounded p-2 outline-none border-2 focus:border-brand' onFocus={onInputFocus} ref={artistName} />
-        </label>
+        <div>
+          <Input
+            label='Give Me Your Favourite Artists'
+            placeholder='Seperated By a Comma e.g BTS, Travis Scott, Drake'
+            name='artistName'
+            refDefination={artistName}
+            onInputFocus={onInputFocus}
+          />
+          {errorMessages.notCorrectFormatForArtist === true && <p className='text-base text-red-500'>Seems like you either just gave a single artist or you didn't seperate them by a ','</p>}
+        </div>
+
 
         <p className='my-2'>OR</p>
 
-        <label htmlFor="spotifyPlaylist" className='md:min-w-[40vw] md:max-w-[50%] min-w-[300px] block mb-1'>
-          <h3>Paste a Spotify Playlist</h3>
-          <input type="text" placeholder='e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk' name='spotifyPlaylist' className='w-full h-10 rounded p-2 outline-none border-2 focus:border-brand' onFocus={onInputFocus} ref={spotifyPlaylist} />
-        </label>
+        <div>
+          <Input
+            label='Paste a Spotify Playlist'
+            placeholder='e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk'
+            name='spotifyPlaylist'
+            refDefination={spotifyPlaylist}
+            onInputFocus={onInputFocus}
+          />
+          {errorMessages.notCorrectSpotifyLink === true && <p className='text-base text-red-500'>Not a correct spotify link</p>}
+        </div>
 
-        {isLoading ?
-          'Please Wait For the Result' :
-          isConnected ?
-            <button onClick={handleButton} className={`bg-brand text-white p-2 rounded mt-4 ${buttonClick && 'hidden'}`}>Get Fresh Songs</button>
-            :
-            <p>Please Connect Your Spotify</p>}
+        {isLoading ? (
+          'Please Wait For the Result'
+        ) : isConnected ? (
+          <button
+            onClick={handleButton}
+            className={`bg-brand text-white p-2 rounded mt-4 ${buttonClick &&
+              'hidden'}`}
+          >
+            Get Fresh Songs
+          </button>
+        ) : (
+          <p>Please Connect Your Spotify</p>
+        )}
 
       </section>
-
-      {!isLoading && <section className='bg-gray-200 md:min-w-[40vw] md:max-w-[50%] min-w-[300px] p-4 rounded'>
-        {playListLink !== null
-          &&
-          <>
-            <div className='text-base flex justify-between items-center mb-1'>
-              <div>
-                <p>Check Your Account For The Playlist Or Click On</p>
-                <p>The Playlist link:</p>
+      {!isLoading &&
+        <section className='bg-gray-200 md:min-w-[40vw] md:max-w-[50%] min-w-[300px] p-4 rounded'>
+          {playListLink !== null
+            &&
+            <>
+              <div className='text-base flex justify-between items-center mb-1'>
+                <div>
+                  <p>Check Your Account For The Playlist Or Click On</p>
+                  <p>The Playlist link:</p>
+                </div>
+                {
+                  (playListLink.length !== 0)
+                  &&
+                  <Icon icon="pajamas:copy-to-clipboard" height='18' width='18' color="teal" inline={true} className='cursor-pointer' onClick={copyToClipboard} />}
               </div>
               {
-                (playListLink.length !== 0)
-                &&
-                <Icon icon="pajamas:copy-to-clipboard" height='18' width='18' color="teal" inline={true} className='cursor-pointer' onClick={copyToClipboard} />}
-            </div>
-            {
-              !(playListLink.length === 0)
-                ?
-                <a href={playListLink} target="_blank" rel='norefferer' className='underline text-brand whitespace-normal'>{playListLink}</a>
-                :
-                <p>Ooops! Something Went Wrong</p>
-            }
-          </>
-        }
+                !(playListLink.length === 0)
+                  ?
+                  <a href={playListLink} target="_blank" rel='norefferer' className='underline text-brand whitespace-normal'>{playListLink}</a>
+                  :
+                  <p>Ooops! Something Went Wrong</p>
+              }
+            </>
+          }
 
-      </section>}
+        </section>}
     </div>
   )
 }
