@@ -36,7 +36,12 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
   }, [isLoading])
 
   useEffect(() => {
-    !isConnected && setIsLoading(false)
+    if (!isConnected) {
+      setIsLoading(false)
+    }
+
+    spotifyPlaylist.current.disabled = true
+    artistName.current.disabled = true
   }, [isConnected])
 
 
@@ -236,10 +241,10 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
             </div>
           </div>
 
-          <label htmlFor="oppositeArtists" className='flex gap-1 text-fxs'>
+          {isConnected && <label htmlFor="oppositeArtists" className='flex gap-1 text-fxs'>
             <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={handleGetDiffientTypesOfArtists} />
             <h3>Get songs from a different genre</h3>
-          </label>
+          </label>}
         </section>
 
         {isLoading ? (
