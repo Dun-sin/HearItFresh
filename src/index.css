@@ -17,4 +17,11 @@
 body {
   font-family: 'Inter', sans-serif;
   user-select: none;
+  min-height: fill-available;
+  min-height: -webkit-fill-available;
+}
+
+html {
+  height: fill-available;
+  height: -webkit-fill-available;
 }
