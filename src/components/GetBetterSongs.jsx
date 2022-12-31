@@ -20,6 +20,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     notCorrectSpotifyLink: null,
     notCorrectFormatForArtist: null,
   })
+  const [getDifferentTypesOfArtists, setGetDifferentTypesOfArtists] = useState(null)
 
   const spotifyPlaylist = useRef(null)
   const artistName = useRef(null)
@@ -58,7 +59,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     try {
       const response = await openai.createCompletion({
         model: "text-davinci-003",
-        prompt: `Name 10 musicians similar in genre and music style to the following artist ${artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1)} seperated by a comma, but don't include ${artists.slice(0, -1).join(', ') + ' or ' + artists.slice(-1)}`,
+        prompt: `Name 10 musicians ${getDifferentTypesOfArtists ? 'completely different' : 'similar'} in genre and music style to the following artist ${artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1)} seperated by a comma, but don't include ${artists.slice(0, -1).join(', ') + ' or ' + artists.slice(-1)}`,
         max_tokens: 1024,
         temperature: 1,
         top_p: 1,
@@ -101,6 +102,14 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     if (artistNameValue === '' && spotifyPlayListValue === '') return
     artistName.current.value === '' && handleIfItsAPlaylistLink(spotifyPlayListValue)
     spotifyPlaylist.current.value === '' && handleIfItsAListOfArtist(artistNameValue)
+  }
+
+  const handleGetDiffientTypesOfArtists = (e) => {
+    if (e.target.checked) {
+      setGetDifferentTypesOfArtists(true)
+    } else {
+      setGetDifferentTypesOfArtists(false)
+    }
   }
 
   async function handleIfItsAPlaylistLink(link) {
@@ -201,38 +210,44 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
   return (
     <div className='p-4 flex flex-col gap-10 items-center justify-center'>
-      <section className='flex flex-col items-center'>
-        <div>
-          <Input
-            label='Give Me Your Favourite Artists'
-            placeholder='Seperated By a Comma e.g BTS, Travis Scott, Drake'
-            name='artistName'
-            refDefination={artistName}
-            onInputFocus={onInputFocus}
-          />
-          {errorMessages.notCorrectFormatForArtist === true && <p className='text-base text-red-500'>Seems like you either just gave a single artist or you didn't seperate them by a ','</p>}
-        </div>
+      <section className='flex flex-col items-center gap-5'>
+        <section className='flex flex-col'>
+          <div className='flex flex-col items-center'>
+            <div>
+              <Input
+                label='Give Me Your Favourite Artists'
+                placeholder='Seperated By a Comma e.g BTS, Travis Scott, Drake'
+                name='artistName'
+                refDefination={artistName}
+                onInputFocus={onInputFocus}
+              />
+              {errorMessages.notCorrectFormatForArtist === true && <p className='text-base text-red-500'>Seems like you either just gave a single artist or you didn't seperate them by a ','</p>}
+            </div>
+            <p className='my-2'>OR</p>
+            <div>
+              <Input
+                label='Paste a Spotify Playlist'
+                placeholder='e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk'
+                name='spotifyPlaylist'
+                refDefination={spotifyPlaylist}
+                onInputFocus={onInputFocus}
+              />
+              {errorMessages.notCorrectSpotifyLink === true && <p className='text-base text-red-500'>Not a correct spotify link</p>}
+            </div>
+          </div>
 
-
-        <p className='my-2'>OR</p>
-
-        <div>
-          <Input
-            label='Paste a Spotify Playlist'
-            placeholder='e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk'
-            name='spotifyPlaylist'
-            refDefination={spotifyPlaylist}
-            onInputFocus={onInputFocus}
-          />
-          {errorMessages.notCorrectSpotifyLink === true && <p className='text-base text-red-500'>Not a correct spotify link</p>}
-        </div>
+          <label htmlFor="oppositeArtists" className='flex gap-1 text-sm'>
+            <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={handleGetDiffientTypesOfArtists} />
+            <h3>Find Artists Who Belong to a Different Genre</h3>
+          </label>
+        </section>
 
         {isLoading ? (
           'Please Wait For the Result'
         ) : isConnected ? (
           <button
             onClick={handleButton}
-            className={`bg-brand text-white p-2 rounded mt-4 ${buttonClick &&
+            className={`bg-brand text-white p-2 rounded ${buttonClick &&
               'hidden'}`}
           >
             Get Fresh Songs
