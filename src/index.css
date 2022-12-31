@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* generated through https://utopia.fyi/type/calculator/ */
+:root {
+  --step--2: clamp(0.55rem, calc(0.47rem + 0.39vw), 0.79rem);
+  --step--1: clamp(0.59rem, calc(0.49rem + 0.49vw), 0.89rem);
+  --step-0: clamp(0.63rem, calc(0.50rem + 0.61vw), 1.00rem);
+  --step-1: clamp(0.67rem, calc(0.52rem + 0.75vw), 1.13rem);
+  --step-2: clamp(0.71rem, calc(0.53rem + 0.91vw), 1.27rem);
+  --step-3: clamp(0.76rem, calc(0.54rem + 1.08vw), 1.42rem);
+  --step-4: clamp(0.81rem, calc(0.55rem + 1.29vw), 1.60rem);
+  --step-5: clamp(0.86rem, calc(0.56rem + 1.53vw), 1.80rem);
+}
+
 body {
   font-family: 'Inter', sans-serif;
   user-select: none;

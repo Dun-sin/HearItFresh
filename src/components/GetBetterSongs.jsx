@@ -221,7 +221,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
                 refDefination={artistName}
                 onInputFocus={onInputFocus}
               />
-              {errorMessages.notCorrectFormatForArtist === true && <p className='text-base text-red-500'>Seems like you either just gave a single artist or you didn't seperate them by a ','</p>}
+              {errorMessages.notCorrectFormatForArtist === true && <p className='text-fsm text-red-500'>Seems like you either just gave a single artist or you didn't seperate them by a ','</p>}
             </div>
             <p className='my-2'>OR</p>
             <div>
@@ -232,13 +232,13 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
                 refDefination={spotifyPlaylist}
                 onInputFocus={onInputFocus}
               />
-              {errorMessages.notCorrectSpotifyLink === true && <p className='text-base text-red-500'>Not a correct spotify link</p>}
+              {errorMessages.notCorrectSpotifyLink === true && <p className='text-fsm text-red-500'>Not a correct spotify link</p>}
             </div>
           </div>
 
-          <label htmlFor="oppositeArtists" className='flex gap-1 text-sm'>
+          <label htmlFor="oppositeArtists" className='flex gap-1 text-fxs'>
             <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={handleGetDiffientTypesOfArtists} />
-            <h3>Find Artists Who Belong to a Different Genre</h3>
+            <h3>Get songs from a different genre</h3>
           </label>
         </section>
 
@@ -253,7 +253,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
             Get Fresh Songs
           </button>
         ) : (
-          <p>Please Connect Your Spotify</p>
+          <p className='text-fmd'>Please Connect Your Spotify</p>
         )}
 
       </section>
@@ -262,7 +262,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
           {playListLink !== null
             &&
             <>
-              <div className='text-base flex justify-between items-center mb-1'>
+              <div className='text-fmd flex justify-between items-center mb-1'>
                 <div>
                   <p>Check Your Account For The Playlist Or Click On</p>
                   <p>The Playlist link:</p>
