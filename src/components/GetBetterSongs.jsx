@@ -38,10 +38,14 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
   useEffect(() => {
     if (!isConnected) {
       setIsLoading(false)
+
+      spotifyPlaylist.current.disabled = true
+      artistName.current.disabled = true
+      return
     }
 
-    spotifyPlaylist.current.disabled = true
-    artistName.current.disabled = true
+    spotifyPlaylist.current.disabled = false
+    artistName.current.disabled = false
   }, [isConnected])
 
 
