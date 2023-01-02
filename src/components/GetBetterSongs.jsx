@@ -263,11 +263,12 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
                   <p>Check Your Account For The Playlist Or Click On</p>
                   <p>The Playlist link:</p>
                 </div>
-                {
-                  (playListLink.length !== 0)
-                  &&
-                  <Icon icon="pajamas:copy-to-clipboard" height='18' width='18' color="teal" inline={true} className='cursor-pointer' onClick={copyToClipboard} />}
-              </div>
+              <a href={playListData.link} target="_blank" rel='norefferer' className='flex gap-1 items-center'>
+                <Icon icon="logos:spotify-icon" width="20" height="20" />
+                <div className='flex flex-col'>
+                  <span className='text-fxs font-medium'>Open on Spotify</span>
+                  <span className='underline text-brand whitespace-normal text-fxs mt-[-5px]'>{playListData.name}</span>
+                </div>
               {
                 !(playListLink.length === 0)
                   ?
