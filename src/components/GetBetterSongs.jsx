@@ -15,7 +15,10 @@ const openai = new OpenAIApi(configuration);
 
 const GetBetterSongs = ({ isConnected, logOut }) => {
   const [isLoading, setIsLoading] = useState(false)
-  const [playListLink, setPlayListLink] = useState(null)
+  const [playListData, setPlayListData] = useState({
+    link: '',
+    name: ''
+  })
   const [buttonClick, setButtonClicked] = useState(false)
   const [errorMessages, setErrorMessages] = useState({
     notCorrectSpotifyLink: null,
@@ -53,9 +56,9 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
   const copyToClipboard = async () => {
     if ('clipboard' in navigator) {
-      return await navigator.clipboard.writeText(playListLink);
+      return await navigator.clipboard.writeText(playListData.link);
     } else {
-      return document.execCommand('copy', true, playListLink);
+      return document.execCommand('copy', true, playListData.link);
     }
   }
 
@@ -92,13 +95,16 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
       const nonEmptyTracks = tracks.flat().filter(Boolean);
 
-      const { id, link } = await Promise.resolve(createPlayList(artistList.slice(0, -1).join(', ') + ' and ' + artistList.slice(-1)))
+      const { id, link, name } = await Promise.resolve(createPlayList(artistList.slice(0, -1).join(', ') + ' and ' + artistList.slice(-1)))
+
 
       const playListID = id.substring("spotify:playlist:".length)
       addTracksToPlayList(nonEmptyTracks, playListID)
-        .then(data => setPlayListLink(link))
+        .then(data => setPlayListData(
+          { link, name }
+        ))
         .catch(err => {
-          console.log(err)
+          return err
         })
 
       setIsLoading(false)
@@ -224,7 +230,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
             </div>
           </div>
 
-          {isConnected && <div>
+          {isConnected && <div className='flex flex-col gap-1'>
             <label htmlFor="oppositeArtists" className='flex gap-1 text-fxs'>
               <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={getDiffientTypesOfArtists} />
               <h3>Get songs from a different genre</h3>
@@ -243,7 +249,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
         ) : isConnected ? (
           <button
             onClick={handleButton}
-            className={`bg-brand text-white p-2 rounded ${buttonClick &&
+            className={`bg-brand text-white text-fsm p-2 rounded ${buttonClick &&
               'hidden'}`}
           >
             Get Fresh Songs
@@ -280,3 +286,4 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 }
 
 export default GetBetterSongs
+// TODO: simplify the useEffect for disabling the inputs
