@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Configuration, OpenAIApi } from 'openai'
 import { Icon } from '@iconify/react';
 
-import { getAllTracksInAPlaylist, createPlayList, addTracksToPlayList, getFiveArtistsAlbums, getTwoAlbumTracks } from '../../lib/spotify';
+import { getAllTracksInAPlaylist, createPlayList, addTracksToPlayList } from '../../lib/spotify';
+import { getAllTracks, getEveryAlbum } from '../../lib/utils';
 
 import Input from './Input';
 
@@ -85,21 +86,13 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
       const artistList = response.data.choices[0].text.replace(/:\n/g, "").trimStart().split(", ");
 
-      const getArtistAlbums = artistList.map(getFiveArtistsAlbums)
-      const albumArray = await Promise.all(getArtistAlbums)
-      const albums = albumArray.flat()
-
-      const getAlbumTracks = albums.map(getTwoAlbumTracks)
-      const trackArray = await Promise.all(getAlbumTracks);
-      const tracks = trackArray.flat()
-
-      const nonEmptyTracks = tracks.flat().filter(Boolean);
+      const albums = await getEveryAlbum(artistList)
+      const tracks = await getAllTracks(albums)
 
       const { id, link, name } = await Promise.resolve(createPlayList(artistList.slice(0, -1).join(', ') + ' and ' + artistList.slice(-1)))
-
-
       const playListID = id.substring("spotify:playlist:".length)
-      addTracksToPlayList(nonEmptyTracks, playListID)
+
+      addTracksToPlayList(tracks, playListID)
         .then(data => setPlayListData(
           { link, name }
         ))
