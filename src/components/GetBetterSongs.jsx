@@ -259,7 +259,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
             <>
               <div className='text-fmd flex justify-between items-center mb-1'>
                 <p className='text-fsm'>Check Your Spotify For The Playlist Or</p>
-                <Icon icon="pajamas:copy-to-clipboard" height='18' width='18' color="teal" inline={true} className='cursor-pointer' onClick={copyToClipboard} />
+                <Icon icon="pajamas:copy-to-clipboard" height='18' width='18' color="teal" inline={true} className='cursor-pointer' onClick={() => copyToClipboard(playListData.link)} />
               </div>
               <a href={playListData.link} target="_blank" rel='norefferer' className='flex gap-1 items-center'>
                 <Icon icon="logos:spotify-icon" width="20" height="20" />
