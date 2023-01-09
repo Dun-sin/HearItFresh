@@ -4,7 +4,7 @@ import { Configuration, OpenAIApi } from 'openai'
 import { Icon } from '@iconify/react';
 
 import { getAllTracksInAPlaylist, createPlayList, addTracksToPlayList } from '../../lib/spotify';
-import { getAllTracks, getEveryAlbum } from '../../lib/utils';
+import { getAllTracks, getEveryAlbum, copyToClipboard } from '../../lib/utils';
 
 import Input from './Input';
 
@@ -54,15 +54,6 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
   }, [isConnected])
 
-
-  const copyToClipboard = async () => {
-    if ('clipboard' in navigator) {
-      return await navigator.clipboard.writeText(playListData.link);
-    } else {
-      return document.execCommand('copy', true, playListData.link);
-    }
-  }
-
   const getSimilarArtists = async (artists) => {
     setIsLoading(true)
 
@@ -72,7 +63,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     }
     setButtonClicked(true)
     try {
-      const prompt = `Name musicians that ${isNotPopularArtists ? 'not popular' : 'popular'} and are ${isDifferentTypesOfArtists ? 'different' : 'similar'} in genre to the following artist ${artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1)} seperated by a comma list 10 of them, but don't repeat the artists i listed`
+      const prompt = `Name musicians that ${isNotPopularArtists ? 'not popular' : 'popular'} and are ${isDifferentTypesOfArtists ? 'different' : 'similar'} in genre to the following artist ${artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1)} seperated by a comma list 20 of them, but don't repeat the artists i listed`
 
       const response = await openai.createCompletion({
         model: "text-davinci-003",
@@ -187,8 +178,6 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     }
   }
 
-
-
   function timeSignOut() {
     setTimeout(() => {
       logOut()
@@ -273,7 +262,8 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
             <p className='text-fsm text-red-500'>{isConnected ? buttonClick && 'Ooops! Something Went Wrong' : ''}</p>
           }
 
-        </section>}
+        </section>
+      }
     </div>
   )
 }
