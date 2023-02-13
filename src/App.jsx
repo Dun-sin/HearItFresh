@@ -4,7 +4,7 @@ import SpotifyWebApi from 'spotify-web-api-node'
 
 import Header from './components/Header';
 import Footer from './components/Footer';
-import GetBetterSongs from './components/GetBetterSongs';
+import GeneratePlaylist from './components/GeneratePlaylist';
 import Login from './components/Login';
 
 export const spotifyApi = new SpotifyWebApi({
@@ -43,8 +43,8 @@ const App = () => {
     <div className='h-screen flex flex-col gap-10'>
       <Header />
       <div className='h-[85%] flex flex-col gap-4 items-center justify-center'>
-        {isConnected ? <p className='bg-brand md:min-w-[40vw] md:max-w-[50%] min-w-[300px] flex items-center justify-center rounded text-white h-10' onClick={logOut}>Logout</p> : <Login />}
-        <GetBetterSongs isConnected={isConnected} logOut={logOut} />
+        {isConnected ? <p className='bg-brand md:min-w-[40vw] md:max-w-[50%] min-w-[300px] flex items-center justify-center rounded text-white h-10 cursor-pointer' onClick={logOut}>Logout</p> : <Login />}
+        <GeneratePlaylist isConnected={isConnected} logOut={logOut} />
       </div>
       <Footer />
     </div>
