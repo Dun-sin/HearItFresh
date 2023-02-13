@@ -222,7 +222,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
           {isConnected && <div className='flex flex-col gap-1'>
             <label htmlFor="oppositeArtists" className='flex gap-1 text-fxs'>
-              <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={getDiffientTypesOfArtists} />
+              <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={getDiffientTypesOfArtists} aria-label='oppositeArtists' />
               <h3>Get songs from a different genre</h3>
             </label>
             <label htmlFor="nonePopularArtists" className='flex gap-1 text-fxs'>
