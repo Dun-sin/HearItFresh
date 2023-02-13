@@ -137,15 +137,20 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
 
     setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
 
-    link = getPlaylistIdFromLink()
+    try {
+      link = getPlaylistIdFromLink()
 
-    const playlistTracks = await Promise.resolve(getAllTracksInAPlaylist(link));
-    const trackArtists = playlistTracks.flat().map(item => item.track.artists);
-    const artistNames = trackArtists.flat().map(item => item.name);
-    const uniqueArtistNames = [... new Set(artistNames)];
+      const playlistTracks = await getAllTracksInAPlaylist(link);
+      const trackArtists = playlistTracks.flat().map(item => item.track.artists);
+      const artistNames = trackArtists.flat().map(item => item.name);
+      const uniqueArtistNames = [...new Set(artistNames)];
 
-
-    getSimilarArtists(uniqueArtistNames)
+      getSimilarArtists(uniqueArtistNames);
+    } catch (err) {
+      console.log(err)
+      setIsLoading(false)
+      timeSignOut()
+    }
 
     // handle logic for if the link is correct
     function isSpotifyPlaylistLink() {
