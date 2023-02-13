@@ -63,7 +63,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     }
     setButtonClicked(true)
     try {
-      const prompt = `Name musicians that ${isNotPopularArtists ? 'not popular' : 'popular'} and are ${isDifferentTypesOfArtists ? 'different' : 'similar'} in genre to the following artist ${artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1)} seperated by a comma list 20 of them, but don't repeat the artists i listed`
+      const prompt = `List 20 ${isDifferentTypesOfArtists ? 'different' : 'similar'} musicians who are ${isNotPopularArtists ? 'not popular' : 'popular'} to the following artists: ${artists.join(', ')}. Ensure that none of the artists listed overlap with the ones provided and make sure the result is not list form but is seperated by a comma `
 
       const response = await openai.createCompletion({
         model: "text-davinci-003",
@@ -167,6 +167,7 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
     }
   }
 
+
   function handleIfItsAListOfArtist(artists) {
     if (!isListOfArtists(artists)) {
       setErrorMessages({ ...errorMessages, notCorrectFormatForArtist: true });
@@ -182,6 +183,8 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
       return artists.trim().includes(',');
     }
   }
+
+
 
   function timeSignOut() {
     setTimeout(() => {
@@ -264,7 +267,8 @@ const GetBetterSongs = ({ isConnected, logOut }) => {
               </a>
             </>
             :
-            <p className='text-fsm text-red-500'>{isConnected ? buttonClick && 'Ooops! Something Went Wrong' : ''}</p>
+            <p className='text-fsm text-red-500'>{
+              isConnected ? buttonClick && 'Ooops! Something Went Wrong, try to login again' : ''}</p>
           }
 
         </section>
