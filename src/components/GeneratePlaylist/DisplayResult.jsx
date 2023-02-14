@@ -23,7 +23,7 @@ const DisplayResult = ({ isLoading, isConnected, playListData, buttonClick, erro
               </a>
             </>
             :
-            <p className='text-fsm text-red-500'>{
+            <p className='text-fxs text-red-500'>{
               isConnected ? buttonClick && errorMessages.error !== null && errorMessages.error : ''}</p>
           }
 

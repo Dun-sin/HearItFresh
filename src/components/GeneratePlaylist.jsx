@@ -36,11 +36,9 @@ const GeneratePlaylist = ({ isConnected, logOut }) => {
     const disabled = isLoading.state || !isConnected;
     spotifyPlaylist.current.disabled = disabled;
     artistName.current.disabled = disabled;
-  }, [isLoading, isConnected]);
+  }, [isLoading.state, isConnected]);
 
   const getSimilarArtists = async (artists) => {
-    setIsLoading((prevState) => ({ ...prevState, state: true }));
-
     if (buttonClick === true) {
       setIsLoading({ state: false, message: null })
       return
@@ -96,7 +94,10 @@ const GeneratePlaylist = ({ isConnected, logOut }) => {
     const artistNameValue = artistName.current.value;
     const spotifyPlayListValue = spotifyPlaylist.current.value;
 
+
+    setIsLoading((prevState) => ({ ...prevState, state: true }));
     if (!artistNameValue && !spotifyPlayListValue) {
+      setIsLoading((prevState) => ({ ...prevState, state: false }));
       return;
     }
 
@@ -107,33 +108,35 @@ const GeneratePlaylist = ({ isConnected, logOut }) => {
 
     if (!spotifyPlayListValue) {
       handleIfItsAListOfArtist(artistNameValue);
+      return;
     }
   };
 
   async function handleIfItsAPlaylistLink(link) {
     if (!isValidPlaylistLink(link)) {
       setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: true });
+      setIsLoading((prevState) => ({ ...prevState, state: false }));
       return;
     }
 
-    setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
+    setErrorMessages((prevState) => ({ ...prevState, notCorrectSpotifyLink: false }));
 
     try {
-      setIsLoading({ ...isLoading, message: 'Extracting Playlist Link' })
+      setIsLoading((prevState) => ({ ...prevState, message: `Extracting Playlist Link` }));
       const playlistId = extractPlaylistId(link);
 
-      setIsLoading({ ...isLoading, message: 'Getting All Tracks In The Playlist' })
+      setIsLoading((prevState) => ({ ...prevState, message: `Getting All Tracks In The Playlist` }));
       const playlistTracks = await getAllTracksInAPlaylist(playlistId);
 
-      setIsLoading({ ...isLoading, message: `Getting all Artist's In The Playlist` })
+      setIsLoading((prevState) => ({ ...prevState, message: `Getting all Artist's In The Playlist` }));
       const trackArtists = playlistTracks.flat().map(item => item.track.artists);
       const artistNames = trackArtists.flat().map(item => item.name);
       const uniqueArtistNames = [...new Set(artistNames)];
 
       getSimilarArtists(uniqueArtistNames);
     } catch (err) {
-      console.error(err);
-      setErrorMessages({ ...errorMessages, error: 'Error Occured While Generating A Playlist, Try To Login Again' });
+      setIsLoading((prevState) => ({ ...prevState, state: false }));
+      setErrorMessages((prevState) => ({ ...prevState, error: 'Error Occured While Generating A Playlist, Try To Login Again' }));
       timeSignOut();
     }
   }
@@ -141,6 +144,7 @@ const GeneratePlaylist = ({ isConnected, logOut }) => {
   function handleIfItsAListOfArtist(artists) {
     if (!artists.trim().includes(',')) {
       setErrorMessages({ ...errorMessages, notCorrectFormatForArtist: true });
+      setIsLoading((prevState) => ({ ...prevState, state: false }));
       return;
     }
 
