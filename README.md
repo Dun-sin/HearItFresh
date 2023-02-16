@@ -12,7 +12,7 @@
 ## 💫 Features
 
 - Authentication of users is carried out through Spotify Login.
-- Create playlists using artist, track, or playlist seeds as a basis.
+- Create new playlists using your favourite artists or an existing playlist
 - Get better results by changing the parameters to either getting a playlist of different artists opposite to your taste or get less popular artists
 - Your Spotify library will automatically receive newly added playlists.
 
