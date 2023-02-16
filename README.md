@@ -5,7 +5,7 @@
 </div>
 
 <h1 align="center">HearItFresh</h1>
-<h2 align="center">Explore fresh music inspired by the Spotify playlists you ❤️</h2> 
+<h2 align="center">Discover new tracks with Hear It Fresh! This user-friendly web app generates personalized Spotify playlists based on your favourite artists or a Spotify playlist link. Explore fresh music.</h2>
 
 
 
