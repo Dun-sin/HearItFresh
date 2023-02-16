@@ -14,7 +14,7 @@
 - Authentication of users is carried out through Spotify Login.
 - Create playlists using artist, track, or playlist seeds as a basis.
 - Use a personal playlist as a basis to generate new playlists.
-- Tune parameters like different genre, none popular artists etc. to further customize the playlist
+- Get better results by changing the parameters to either getting a playlist of different artists opposite to your taste or get less popular artists
 - Your Spotify library will automatically receive newly added playlists.
 
 ## 👨‍💻 Usage
