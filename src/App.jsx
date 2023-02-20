@@ -43,7 +43,7 @@ const App = () => {
     <div className='h-screen flex flex-col gap-10'>
       <Header />
       <div className='h-[85%] flex flex-col gap-4 items-center justify-center'>
-        {isConnected ? <p className='bg-brand md:min-w-[40vw] md:max-w-[50%] min-w-[300px] flex items-center justify-center rounded text-white h-10 cursor-pointer' onClick={logOut}>Logout</p> : <Login />}
+        {isConnected ? <p className='bg-brand sm:min-w-[40vw] max-w-[500px] min-w-[300px] flex items-center justify-center rounded text-white h-10 cursor-pointer' onClick={logOut}>Logout</p> : <Login />}
         <GeneratePlaylist isConnected={isConnected} logOut={logOut} />
       </div>
       <Footer />
