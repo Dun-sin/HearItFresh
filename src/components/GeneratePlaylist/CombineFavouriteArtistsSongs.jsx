@@ -124,7 +124,7 @@ const CombineFavouriteArtistsSongs = ({ logOut }) => {
               onClick={handleButton}
               className={`bg-brand text-white text-fsm p-2 rounded`}
             >
-              Get Fresh Songs
+              Combine Songs
             </button>
         }
       </section>
