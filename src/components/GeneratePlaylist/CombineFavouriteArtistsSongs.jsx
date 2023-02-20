@@ -47,11 +47,9 @@ const CombineFavouriteArtistsSongs = ({ logOut }) => {
     try {
       setIsLoading({ state: true, message: 'Getting the albums of each artist' })
       const albums = await getEveryAlbum(artists)
-      console.log(albums.length)
 
       setIsLoading((prevState) => ({ ...prevState, message: 'Getting All Tracks' }));
       const tracks = await getAllTracks(albums, maxTracksPerAlbum)
-      console.log(tracks.length)
 
       setIsLoading((prevState) => ({ ...prevState, message: 'Creating The PlayList' }));
       const { id, link, name } = await Promise.resolve(createPlayList(artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1), 'old'));
