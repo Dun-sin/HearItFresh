@@ -26,7 +26,7 @@ const GeneratePlaylist = ({ isConnected, logOut }) => {
         content === null &&
         <div className="h-full flex flex-col my-6 justify-center items-center">
           <h2 className="font-semibold text-fmd">Select one of the two options below</h2>
-          <div className="h-full flex sm:gap-4 px-3 flex-wrap justify-center relative">
+          <div className="h-full flex sm:gap-4 flex-col sm:flex-row gap-[10px] px-3 sm:flex-wrap relative sm:justify-center">
             <button onClick={handleOnClick} name="new" className={`sm:w-[30%] sm:max-w-[30%] w-[200px] min-w-[200px] h-3/6 max-h-[200px] border-brand border-2 rounded text-fsm p-2 ${!isConnected && 'opacity-20'}`} disabled={!isConnected}>Discover songs based on your favourite artists or Spotify playlist</button>
             <button onClick={handleOnClick} name="combine" className={`sm:w-[30%] sm:max-w-[30%] w-[200px] min-w-[200px] h-3/6 max-h-[200px] border-brand border-2 rounded text-fsm p-2 ${!isConnected && 'opacity-20'}`} disabled={!isConnected}>Make a playlist of your favorite artists' songs</button>
             {!isConnected && <p className="absolute top-1/4 left-2/4 transform -translate-x-2/4 -translate-y-2/4 whitespace-nowrap text-fsm">Please Connect Your Spotify</p>}
