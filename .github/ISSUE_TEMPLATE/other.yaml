@@ -1,0 +1,49 @@
+name: Other
+description: Use this for any other issues. Please do NOT create blank issues
+title: "[OTHER]"
+body:
+  - type: markdown
+    attributes:
+      value: "# Other issue"
+  - type: textarea
+    id: issuedescription
+    attributes:
+      label: Issue description
+      description: Please provide a clear and concise explanation of your issue.
+      placeholder: What is the issue you encountered?
+    validations:
+      required: true
+  - type: textarea
+    id: extrainfo
+    attributes:
+      label: Additional information
+      description: Is there anything else we should know about this issue?
+      placeholder: Any extra details or context that could help us?
+    validations:
+      required: false
+  - type: checkboxes
+    id: no-duplicate-issues
+    attributes:
+      label: "👀 Have you checked if this issue has been raised before?"
+      options:
+        - label: "I have checked and didn't find a similar issue"
+          required: true
+  - type: checkboxes
+    id: read-code-of-conduct
+    attributes:
+      label: "🏢 Have you read and understood the Contributing Guidelines?"
+      options:
+        - label: "I have read and understood the [Contributing Guidelines](https://github.com/Dun-sin/HearItFresh/blob/main/CONTRIBUTING.md)"
+          required: true
+  - type: dropdown
+    attributes:
+      label: Would you like to contribute to this issue?
+      options:
+        - "Yes, I'm interested in contributing"
+        - "No, I just wanted to report the issue"
+      description: This is not required, but we're happy to guide you in the contribution process if you're interested.
+  - type: markdown
+    attributes:
+      value: |
+        Follow me on Twitter [here](https://twitter.com/DunsinWebDev)
+        Join our Discord server [here](https://discord.gg/kcFraw3nhz) and check out our other repositories [here](https://github.com/Dun-sin?tab=repositories)
