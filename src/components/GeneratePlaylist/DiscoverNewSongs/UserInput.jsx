@@ -1,6 +1,6 @@
-import Input from '../Input'
+import InputComponent from '../../InputComponent'
 
-const UserInput = ({ artistName, setIsDifferentTypesOfArtists, setIsNotPopularArtists, spotifyPlaylist, isConnected, errorMessages }) => {
+const UserInput = ({ artistName, setIsDifferentTypesOfArtists, setIsNotPopularArtists, spotifyPlaylist, errorMessages }) => {
 
   const onInputFocus = (e) => {
     e.target.name === 'artistName' && (spotifyPlaylist.current.value = '')
@@ -27,7 +27,7 @@ const UserInput = ({ artistName, setIsDifferentTypesOfArtists, setIsNotPopularAr
     <section className='flex flex-col'>
       <div className='flex flex-col items-center'>
         <div>
-          <Input
+          <InputComponent
             label='Give Me Your Favourite Artists'
             placeholder='Seperated By a Comma e.g BTS, Travis Scott, Drake'
             name='artistName'
@@ -38,7 +38,7 @@ const UserInput = ({ artistName, setIsDifferentTypesOfArtists, setIsNotPopularAr
         </div>
         <p className='my-2'>OR</p>
         <div>
-          <Input
+          <InputComponent
             label='Paste a Spotify Playlist'
             placeholder='e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk'
             name='spotifyPlaylist'
@@ -49,7 +49,7 @@ const UserInput = ({ artistName, setIsDifferentTypesOfArtists, setIsNotPopularAr
         </div>
       </div>
 
-      {isConnected && <div className='flex flex-col gap-1'>
+      <div className='flex flex-col gap-1'>
         <label htmlFor="oppositeArtists" className='flex gap-1 text-fxs'>
           <input type="checkbox" name="oppositeArtists" id='oppositeArtists' onChange={getDiffientTypesOfArtists} aria-label='oppositeArtists' />
           <h3>Get songs from a different genre</h3>
@@ -59,7 +59,7 @@ const UserInput = ({ artistName, setIsDifferentTypesOfArtists, setIsNotPopularAr
           <h3>Get songs from none popular artists</h3>
         </label>
       </div>
-      }
+
 
     </section>
   )

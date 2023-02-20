@@ -1,8 +1,8 @@
-import { copyToClipboard } from "../../../lib/utils"
+import { copyToClipboard } from '../../lib/utils';
 import { Icon } from '@iconify/react';
 
 
-const DisplayResult = ({ isLoading, isConnected, playListData, buttonClick, errorMessages }) => {
+const DisplayResult = ({ isLoading, playListData, buttonClick, errorMessages }) => {
   return (
     <>
       {!isLoading.state &&
@@ -24,7 +24,7 @@ const DisplayResult = ({ isLoading, isConnected, playListData, buttonClick, erro
             </>
             :
             <p className='text-fxs text-red-500'>{
-              isConnected ? buttonClick && errorMessages.error !== null && errorMessages.error : ''}</p>
+              buttonClick && errorMessages.error !== null && errorMessages.error}</p>
           }
 
         </section>
