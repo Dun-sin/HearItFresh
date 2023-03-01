@@ -70,7 +70,7 @@ const DiscoverNewSongs = ({ logOut }) => {
       const albums = await getEveryAlbum(artistList);
 
       setIsLoading((prevState) => ({ ...prevState, message: 'Getting All Tracks' }));
-      const tracks = await getAllTracks(albums, 2);
+      const tracks = await getAllTracks(albums, 1);
 
       setIsLoading((prevState) => ({ ...prevState, message: 'Creating The PlayList' }));
       const { id, link, name } = await Promise.resolve(createPlayList(artistList.slice(0, -1).join(', ') + ' and ' + artistList.slice(-1), 'new'));
@@ -132,7 +132,7 @@ const DiscoverNewSongs = ({ logOut }) => {
       const playlistTracks = await getAllTracksInAPlaylist(playlistId);
 
       setIsLoading((prevState) => ({ ...prevState, message: `Getting all Artist's In The Playlist` }));
-      const trackArtists = playlistTracks.flat().map(item => item.track.artists);
+      const trackArtists = playlistTracks.flat().map(item => item.track.artists.slice(0, 2))
       const artistNames = trackArtists.flat().map(item => item.name);
       const uniqueArtistNames = [...new Set(artistNames)];
 
