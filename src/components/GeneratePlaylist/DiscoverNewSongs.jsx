@@ -85,7 +85,7 @@ const DiscoverNewSongs = ({ logOut }) => {
 
       setIsLoading((prevState) => ({ ...prevState, message: 'Done' }));
     } catch (err) {
-      setErrorMessages((prevState) => ({ ...prevState, error: 'Error Occured While Generating A Playlist, Try To Login Again' }));
+      setErrorMessages((prevState) => ({ ...prevState, error: 'Error occured while generating a playlist, try to Login again. If the Problem Persits, try contacting the developer using any of the last two links in the footer' }));
       return err;
     } finally {
       setIsLoading({ state: false, message: null })
@@ -139,7 +139,7 @@ const DiscoverNewSongs = ({ logOut }) => {
       getSimilarArtists(uniqueArtistNames);
     } catch (err) {
       setIsLoading((prevState) => ({ ...prevState, state: false }));
-      setErrorMessages((prevState) => ({ ...prevState, error: 'Error Occured While Generating A Playlist, Try To Login Again' }));
+      setErrorMessages((prevState) => ({ ...prevState, error: 'Error occured while generating a playlist, try to Login again. If the Problem Persits, try contacting the developer using any of the last two links in the footer' }));
       timeSignOut();
     }
   }
