@@ -6,7 +6,7 @@ const DisplayResult = ({ isLoading, playListData, buttonClick, errorMessages }) 
   return (
     <>
       {!isLoading.state &&
-        <section className='bg-gray-200 md:min-w-[40vw] md:max-w-[50%] min-w-[300px] p-4 rounded'>
+        <section className='bg-gray-200 sm:min-w-[40vw] max-w-[500px] min-w-[300px] p-4 rounded'>
           {(playListData.link.length !== 0 && playListData.name.length !== 0)
             ?
             <>

@@ -48,22 +48,25 @@ const DiscoverNewSongs = ({ logOut }) => {
     setButtonClicked(true)
 
     try {
-      const type = isDifferentTypesOfArtists ? 'completely different' : 'similar';
+      const type = isDifferentTypesOfArtists ? 'completely different' : 'the same';
       const popularity = isNotPopularArtists ? 'not popular' : 'popular';
       const prompt = `Give me 20 musicians who are ${popularity}  and ${type} to the following artists provided: ${artists.join(', ')}. Be sure none of the musicians listed overlap with those provided and that the result is not in list form and not more than 20 musicians. The results should also be separated by a comma.`;
+
+
+      const newPrompt = `Please analyze the following list of musicians: '${artists.join(', ')}', and identify the sub-genre that is associated with 70 - 90% of them. Based on this analysis, please provide a list of 20 musicians who are ${popularity} and are ${type} as the sub-genres. Please ensure that the resulting list does not include any of the musicians from the original list provided. To help narrow down the results, please only provide the list of recommended musicians separated by commas.`
 
       setIsLoading((prevState) => ({ ...prevState, message: `Getting the list of new artists` }));
       const response = await openai.createCompletion({
         model: "text-davinci-003",
-        prompt: prompt,
+        prompt: newPrompt,
         max_tokens: 1024,
-        temperature: 1,
+        temperature: 0.9,
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0,
       });
 
-      const artistList = response.data.choices[0].text.replace(/:\n/g, "").trimStart().split(", ");
+      const artistList = response.data.choices[0].text.replace(/:\n/g, "").trimStart().split(':').at(-1).split(', ');
       (artistList.length > 20) ? (artistList.length = 20) : null
 
       setIsLoading((prevState) => ({ ...prevState, message: `Getting the albums of each artist` }));
