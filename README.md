@@ -5,7 +5,7 @@
 </div>
 
 <h1 align="center">HearItFresh</h1>
-<h2 align="center">Discover new tracks with Hear It Fresh! This user-friendly web app generates personalized Spotify playlists based on your favourite artists or a Spotify playlist link. Explore fresh music.</h2>
+<h2 align="center">Are you tired of listening to the same old songs on repeat? Well, get ready to dance like nobody's watching with Hear It Fresh! This awesome web app is here to take your music game to the next level. With its user-friendly interface, Hear It Fresh generates custom Spotify playlists just for you based on your favorite artists or even a playlist link. Say goodbye to musical monotony and hello to endless hours of fresh, exciting tunes! Come and explore the world of music with Hear It Fresh - let's get this party started!</h2>
 
 
 
