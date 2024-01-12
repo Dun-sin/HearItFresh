@@ -1,18 +1,18 @@
-import { Configuration, OpenAIApi } from 'openai'
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import React, { useEffect, useRef, useState } from 'react'
+
 import { getEveryAlbum, isValidPlaylistLink, extractPlaylistId, getAllTracks } from '../../../lib/utils';
 import { getAllTracksInAPlaylist, createPlayList, addTracksToPlayList } from '../../../lib/spotify';
+
 import UserInput from './DiscoverNewSongs/UserInput';
 import DisplayResult from '../DisplayResult';
 import Loading from '../Loading';
 
 
-// Open AI configuration
-const configuration = new Configuration({
-  apiKey: import.meta.env.VITE_API_KEY
-});
-const openai = new OpenAIApi(configuration);
+const API_KEY = import.meta.env.VITE_API_KEY
+const genAI = new GoogleGenerativeAI(API_KEY);
 
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 const DiscoverNewSongs = ({ logOut }) => {
   const [isLoading, setIsLoading] = useState({
     state: false,
@@ -56,17 +56,12 @@ const DiscoverNewSongs = ({ logOut }) => {
       const newPrompt = `Please analyze the following list of musicians: '${artists.join(', ')}', and identify the sub-genre that is associated with 70 - 90% of them. Based on this analysis, please provide a list of 20 musicians who are ${popularity} and are ${type} as the sub-genres. Please ensure that the resulting list does not include any of the musicians from the original list provided. To help narrow down the results, please only provide the list of recommended musicians separated by commas.`
 
       setIsLoading((prevState) => ({ ...prevState, message: `Getting the list of new artists` }));
-      const response = await openai.createCompletion({
-        model: "text-davinci-003",
-        prompt: prompt,
-        max_tokens: 1024,
-        temperature: 0.9,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0,
-      });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text()
 
-      const artistList = response.data.choices[0].text.replace(/:\n/g, "").trimStart().split(':').at(-1).split(', ');
+      const artistList = text.replace(/:\n/g, "").trimStart().split(':').at(-1).split(', ');
+
       (artistList.length > 20) ? (artistList.length = 20) : null
 
       setIsLoading((prevState) => ({ ...prevState, message: `Getting the albums of each artist` }));
