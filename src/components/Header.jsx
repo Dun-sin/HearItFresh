@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Icon } from '@iconify/react'
 import { MdLightMode } from "react-icons/md";
 import { MdDarkMode } from "react-icons/md";
-//  bg-[#092635] text-gray-300
 
 const Header = ({theme, setTheme}) => {
   return (
