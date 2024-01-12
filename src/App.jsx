@@ -16,6 +16,7 @@ export const spotifyApi = new SpotifyWebApi({
 
 const App = () => {
   const [isConnected, setIsConnected] = useState(false)
+  const [theme, setTheme] = useState(false)
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -40,8 +41,8 @@ const App = () => {
   }
 
   return (
-    <div className='h-screen flex flex-col gap-10 overflow-hidden'>
-      <Header />
+    <div className={`h-screen flex flex-col gap-10 overflow-hidden transition-all ${theme && ' bg-[#001524] text-white'}`}>
+      <Header theme={theme} setTheme={setTheme} />
       <div className='h-[85%] flex flex-col gap-4 items-center justify-center'>
         {isConnected ? <p className='bg-brand sm:min-w-[40vw] max-w-[500px] min-w-[300px] flex items-center justify-center rounded text-white h-10 cursor-pointer' onClick={logOut}>Logout</p> : <Login />}
         <GeneratePlaylist isConnected={isConnected} logOut={logOut} />
