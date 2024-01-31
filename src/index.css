@@ -17,9 +17,4 @@
 body {
   font-family: 'Inter', sans-serif;
   user-select: none;
-  min-height: stretch;
-}
-
-html {
-  height: stretch;
 }

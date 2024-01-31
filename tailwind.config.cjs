@@ -7,7 +7,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        brand: "#008080"
+        brand: "#008080",
+        darkest: "#000A07",
+        dark: "#001911",
+        medium: "#1A664F",
+        gray:"#798683",
+        lightest: "#FAFFFD"
       },
       fontSize: {
         f2xs: "var(--step--2)",
@@ -21,5 +26,5 @@ module.exports = {
       }
     },
   },
-  plugins: [require("@tailwindcss/typography")],
+  plugins: [require("@tailwindcss/typography"), require('@tailwindcss/forms')],
 }
