@@ -42,33 +42,33 @@ const CombineFavouriteArtistsSongs = ({ logOut }) => {
   // }, [topArtists])
 
   const combineSongs = async (artists) => {
-    console.log('here1')
+
     if (buttonClick === true) {
       setIsLoading({ state: false, message: null })
       return
     }
-    console.log('here2')
+
     setButtonClicked(true)
 
     // calculate the max album to get based on the number of artists
     const maxAlbums = Math.floor((100 / (artists.length * 2)));
     const maxTracksPerAlbum = Math.floor((100 / (artists.length * maxAlbums)));
 
-    console.log('here3')
+
     try {
       setIsLoading({ state: true, message: 'Getting the albums of each artist' })
       const albums = await getEveryAlbum(artists)
-      console.log('here4')
+
 
       setIsLoading((prevState) => ({ ...prevState, message: 'Getting All Tracks' }));
       const tracks = await getAllTracks(albums, maxTracksPerAlbum)
 
-      console.log('here5')
+
       setIsLoading((prevState) => ({ ...prevState, message: 'Creating The PlayList' }));
       const { id, link, name } = await Promise.resolve(createPlayList(artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1), 'old'));
       const playListID = id.substring("spotify:playlist:".length);
 
-      console.log('here6')
+
       setIsLoading((prevState) => ({ ...prevState, message: 'Adding The Tracks To The Playlist' }));
       addTracksToPlayList(tracks, playListID)
         .then(data => setPlayListData({ link, name }))
@@ -110,13 +110,14 @@ const CombineFavouriteArtistsSongs = ({ logOut }) => {
     }, 60000)
   }
 
-  const handleKeyPress = (e) => {
-    if (e.key === ',') {
-      e.preventDefault();
-
-      if (artistName.current.value.trim() !== '') {
-        setArtistArray([...artistArray, artistName.current.value.trim()]);
-        artistName.current.value = '';
+  const handleChange = (e) => {
+    const { value } = e.target;
+    if (value.includes(',')) {
+      const parts = value.split(',');
+      const newArtist = parts[0].trim();
+      if (newArtist !== '') {
+        setArtistArray([...artistArray, newArtist]);
+        e.target.value = '';
       }
     }
   };
@@ -144,7 +145,7 @@ const CombineFavouriteArtistsSongs = ({ logOut }) => {
               name="artistName"
               className='h-8 rounded p-2 outline-none border-2 focus:border-brand w-full text-darkest'
               ref={artistName}
-              onKeyDown={handleKeyPress}
+              onChange={handleChange}
               aria-label="artistName"
               autoComplete="off" />
             {

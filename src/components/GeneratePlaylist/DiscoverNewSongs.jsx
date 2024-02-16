@@ -143,13 +143,14 @@ const DiscoverNewSongs = () => {
     e.target.name === 'spotifyPlaylist' && (artistName.current.value = '')
   }
 
-  const handleKeyPress = (e) => {
-    if (e.key === ',') {
-      e.preventDefault();
-
-      if (artistName.current.value.trim() !== '') {
-        setArtistArray([...artistArray, artistName.current.value.trim()]);
-        artistName.current.value = '';
+  const handleChange = (e) => {
+    const { value } = e.target;
+    if (value.includes(',')) {
+      const parts = value.split(',');
+      const newArtist = parts[0].trim();
+      if (newArtist !== '') {
+        setArtistArray([...artistArray, newArtist]);
+        e.target.value = '';
       }
     }
   };
@@ -186,7 +187,7 @@ const DiscoverNewSongs = () => {
         >Playlist</p>
       </div>
       <div className={`w-full flex flex-col items-center`}>
-        <span className={`flex flex-col gap-5`}>
+        <span className={`flex flex-col gap-5 max-w-full`}>
           <div className={``}>
             {type === 'artist' && <>
               <label htmlFor="artistName" className={`flex flex-col w-full`}>
@@ -201,7 +202,7 @@ const DiscoverNewSongs = () => {
                     className='h-8 rounded p-2 outline-none border-2 focus:border-brand w-full text-darkest'
                     onFocus={onInputFocus}
                     ref={artistName}
-                    onKeyDown={handleKeyPress}
+                    onChange={handleChange}
                     aria-label="artistName"
                     autoComplete="off" />
                   {
@@ -228,10 +229,10 @@ const DiscoverNewSongs = () => {
             {
               type === 'playlist' && <>
                 <label htmlFor="spotifyPlaylist" className={`flex flex-col w-full`}>
-                  <span className={`w-fit`}>
+                  <span className={`max-w-full`}>
                     <h2 className={`text-fmd md:text-fsm`}>Enter a Spotify Playlist Link</h2>
                     <h3
-                      className={`${isDarkMode ? 'text-gray' : 'text-dark'} text-fsm md:text-fxs`}>
+                      className={`${isDarkMode ? 'text-gray' : 'text-dark'} text-f2xs md:text-fxs text-wrap max-w-full break-words`}>
                       e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk
                     </h3>
                     <input
