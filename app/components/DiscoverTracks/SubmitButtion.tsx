@@ -13,11 +13,11 @@ import {
 } from '@/app/lib/utils';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import Loading from '../Loading';
 import React from 'react';
-import { useGeneralState } from '@/app/context/DiscoverTracks/generalStateContext';
-import { useInput } from '@/app/context/DiscoverTracks/inputContext';
-import { useLoading } from '@/app/context/DiscoverTracks/loadingContext';
+import SubmitButtionContainer from '../SubmitButtonContainer';
+import { useGeneralState } from '@/app/context/generalStateContext';
+import { useInput } from '@/app/context/inputContext';
+import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useType } from '@/app/context/DiscoverTracks/typeContext';
 
@@ -27,7 +27,7 @@ const genAI = new GoogleGenerativeAI(API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
 const SubmitButtion = () => {
-	const { loading, setLoading, loadingMessage } = useLoading();
+	const { setLoading } = useLoading();
 	const { type } = useType();
 	const {
 		setErrorMessages,
@@ -160,9 +160,9 @@ const SubmitButtion = () => {
 			const array = [...artistArray];
 			if (extratext || extratext !== '') {
 				array.push(extratext);
-			} else {
-				array && array.length > 1 && getSimilarArtists(array);
 			}
+
+			array && array.length > 1 && getSimilarArtists(array);
 		} else if (type === 'playlist') {
 			setLoading(true);
 			if (!spotifyPlaylist.current) {
@@ -173,17 +173,7 @@ const SubmitButtion = () => {
 			handleIfItsAPlaylistLink(link);
 		}
 	};
-	return loading ? (
-		<Loading loadingMessage={loadingMessage as string} />
-	) : (
-		!buttonClick && (
-			<button
-				className={`bg-brand text-lightest rounded p-3`}
-				onClick={handleSubmit}>
-				Generate Playlist
-			</button>
-		)
-	);
+	return <SubmitButtionContainer handleSubmit={handleSubmit} />;
 };
 
 export default SubmitButtion;

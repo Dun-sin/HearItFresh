@@ -1,7 +1,7 @@
 // @ts-nocheck
 
-import spotifyApi from './spotifyApi';
 import { convertToSubArray } from './utils';
+import spotifyApi from './spotifyApi';
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -130,7 +130,7 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 			return true;
 		});
 
-		if (maxAlbums > result.length) {
+		if ((maxAlbums) => result.length) {
 			return result.map((item: { id: any }) => item.id);
 		} else {
 			const sortedAlbum = result.sort(() => Math.random() - 0.5);
@@ -158,6 +158,7 @@ export async function getTracks(
 ): trackTypes | { isError: boolean; err: any } {
 	const tracks: trackTypes = [];
 	const subArrays = convertToSubArray(albums);
+
 	try {
 		// Loop through each subarray of album IDs
 		for (const subArray of subArrays) {

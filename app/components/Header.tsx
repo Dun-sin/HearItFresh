@@ -107,7 +107,8 @@ const Header = () => {
 	useRefreshToken(expires, refreshAccessToken);
 
 	return (
-		<div className={`flex items-center justify-between px-6 top-6 relative`}>
+		<div
+			className={`flex items-center justify-between px-6 top-6 relative w-full`}>
 			<div className='sm:flex flex-col hidden'>
 				<Link href='/'>
 					<h1 className={`font-bold mb-[-6px] text-fmd flex items-center`}>

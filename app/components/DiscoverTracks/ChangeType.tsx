@@ -8,7 +8,7 @@ const ChangeType = () => {
 
 	return (
 		<div
-			className={`w-5/12 max-w-[400px] flex items-center rounded p-1 bg-lightest`}>
+			className={`w-5/12 max-w-[400px] min-w-[150px] flex items-center rounded p-1 dark:bg-lightest border-2 border-brand dark:border-0`}>
 			<p
 				onClick={() => setType('artist')}
 				className={`${

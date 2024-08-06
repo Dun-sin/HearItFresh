@@ -56,8 +56,8 @@ export const getAllTracks = async (albums: string[], numTracks: number) => {
 	});
 
 	const allTracksID = result
-		.map((item) => item.uri)
-		.filter((item) => item != undefined);
+		.map((item) => item && item.uri)
+		.filter((item) => !!item);
 
 	return allTracksID;
 };

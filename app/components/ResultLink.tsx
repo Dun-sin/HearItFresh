@@ -1,9 +1,9 @@
 'use client';
 
-import OpenOnSpotify from '../OpenOnSpotify';
+import OpenOnSpotify from './OpenOnSpotify';
 import React from 'react';
-import { useGeneralState } from '@/app/context/DiscoverTracks/generalStateContext';
-import { useLoading } from '@/app/context/DiscoverTracks/loadingContext';
+import { useGeneralState } from '@/app/context/generalStateContext';
+import { useLoading } from '@/app/context/loadingContext';
 
 const ResultLink = () => {
 	const { loading } = useLoading();

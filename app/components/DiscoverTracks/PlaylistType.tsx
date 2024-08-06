@@ -2,9 +2,9 @@
 
 import React, { useEffect } from 'react';
 
-import { useGeneralState } from '@/app/context/DiscoverTracks/generalStateContext';
-import { useInput } from '@/app/context/DiscoverTracks/inputContext';
-import { useLoading } from '@/app/context/DiscoverTracks/loadingContext';
+import { useGeneralState } from '@/app/context/generalStateContext';
+import { useInput } from '@/app/context/inputContext';
+import { useLoading } from '@/app/context/loadingContext';
 import { useType } from '@/app/context/DiscoverTracks/typeContext';
 
 const PlaylistType = () => {
