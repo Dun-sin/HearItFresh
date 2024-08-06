@@ -7,7 +7,7 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
-		"semantic-release": "semantic-release --branches  main"
+		"semantic-release": "semantic-release"
 	},
 	"dependencies": {
 		"@google/generative-ai": "^0.2.0",
