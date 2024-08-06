@@ -1,6 +1,8 @@
 'use client';
 
 import Header from './Header';
+import Loading from './Loading';
+import { Suspense } from 'react';
 import { useTheme } from '../context/themeContext';
 
 const SpotifyAuthWrapper = ({
@@ -15,12 +17,14 @@ const SpotifyAuthWrapper = ({
 			className={`h-screen dark:bg-darkest bg-lightest dark:text-white text-darkest relative flex flex-col overflow-hidden ${
 				isDarkMode && 'dark'
 			}`}>
-			<Header />
-			<div className='flex flex-grow gap-4 items-center justify-center w-full'>
-				<main className='w-full flex items-center justify-center'>
-					{children}
-				</main>
-			</div>
+			<Suspense fallback={<Loading loadingMessage='Please Wait...' />}>
+				<Header />
+				<div className='flex flex-grow gap-4 items-center justify-center w-full'>
+					<main className='w-full flex items-center justify-center'>
+						{children}
+					</main>
+				</div>
+			</Suspense>
 		</section>
 	);
 };
