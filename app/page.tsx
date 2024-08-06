@@ -24,7 +24,7 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);
 
 const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-const page = () => {
+const Page = () => {
 	const [playListData, setPlayListData] = useState({
 		link: '',
 		name: '',
@@ -390,4 +390,4 @@ const page = () => {
 	);
 };
 
-export default page;
+export default Page;
