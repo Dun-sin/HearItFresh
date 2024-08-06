@@ -65,7 +65,7 @@
 5. Run the project
 
    ```
-   pnpm run dev
+   pnpm dev
    ```
 
 ## 🌟 AFTER MAKING A CHANGE
