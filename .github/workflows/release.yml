@@ -1,0 +1,27 @@
+name: Changelog
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: '*'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    steps: 
+    - uses: actions/checkout@v2
+    - name: Use Node.js 18
+      uses: actions/setup-node@v2
+      with:
+        node-version: 18
+    - run: npm ci
+    - run: npm run semantic-release
+      env: 
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.NPM_TOKEN }}

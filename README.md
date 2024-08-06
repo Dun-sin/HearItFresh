@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+<div align="center">
 
-## Getting Started
+![image](https://user-images.githubusercontent.com/78784850/210045371-8f386335-88cf-4a65-9d00-6ac0e808269e.png)
 
-First, run the development server:
+</div>
 
-```bash
-npm run dev
-# or
-yarn dev
-```
+<h1 align="center">HearItFresh</h1>
+<h2 align="center">Discover new tracks with Hear It Fresh! This user-friendly web app generates personalized Spotify playlists based on your favourite artists or a Spotify playlist link. Explore fresh music.</h2>
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 💫 Features
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+- Authentication of users is carried out through Spotify Login.
+- Create new playlists using your favourite artists or an existing playlist
+- Get better results by changing the parameters to either getting a playlist of different artists opposite to your taste or get less popular artists
+- Your Spotify library will automatically receive newly added playlists.
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+## 👨‍💻 Usage
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+To use HearItFresh, simply navigate to the website and LogIn using your spotify account. Once logged in, you can create new playlists based on your favourite artists or based on a existing spotify playlist.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## 👥 Contributing
 
-## Learn More
+Contributions to HearItFresh are welcome! If you find a bug or have a feature request, please create an issue in the GitHub repository. If you would like to contribute code, please follow these steps:
 
-To learn more about Next.js, take a look at the following resources:
+- Take a look at the existing [Issues](https://github.com/Dun-sin/HearItFresh/issues) or [create a new issue](https://github.com/Dun-sin/HearItFresh/issues/new/choose)!
+- [Fork the Repo](https://github.com/Dun-sin/HearItFresh/fork). Then, create a branch for any issue that you are working on. Finally, commit your work.
+- Create a [Pull Request](https://github.com/Dun-sin/HearItFresh/compare) (PR), which will be promptly reviewed and given suggestions for improvements by the community.
+- Add screenshots or screen captures to your Pull Request to help us understand the effects of the changes proposed in your PR.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Please ensure that your code follows the project's coding conventions and has adequate test coverage.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## ⚒️ Installation
 
-## Deploy on Vercel
+- To begin, create a copy of the HearItFresh repository by forking it.Click on the <a href="https://github.com/Dun-sin/HearItFresh/fork"><img src="https://i.imgur.com/G4z1kEe.png" height="21" width="21"></a>Fork symbol at the top right corner.
+- Clone your new fork of the repository in the terminal/CLI on your computer with the following command:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  ```bash
+  git clone https://github.com/<your-github-username>/HearItFresh
+  ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- Navigate to the newly created HearItFresh project directory:
+
+  ```bash
+  cd HearItFresh
+  ```
+
+- Install the dependencies
+
+   ```
+   npm install && npm install -g commitizen
+   ```
+
+- Run the project
+
+   ```
+   npm run dev
+   ```
+
+## 🛡️ License
+
+HearItFresh is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+
+## 🤝 Support
+
+If you liked the project, please consider giving it a ⭐️
