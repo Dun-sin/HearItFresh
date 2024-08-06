@@ -59,13 +59,13 @@
 4. Install the dependencies
 
    ```
-   npm install && npm install -g commitizen
+   pnpm add && pnpm add -g commitizen
    ```
 
 5. Run the project
 
    ```
-   npm run dev
+   pnpm run dev
    ```
 
 ## 🌟 AFTER MAKING A CHANGE
