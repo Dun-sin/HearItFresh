@@ -2,6 +2,7 @@
 
 import Header from './Header';
 import Loading from './Loading';
+import { OptionsProvider } from '../context/optionsContext';
 import { Suspense } from 'react';
 import { useTheme } from '../context/themeContext';
 
@@ -21,7 +22,7 @@ const SpotifyAuthWrapper = ({
 				<Header />
 				<div className='flex flex-grow gap-4 items-center justify-center w-full'>
 					<main className='w-full flex items-center justify-center'>
-						{children}
+						<OptionsProvider>{children}</OptionsProvider>
 					</main>
 				</div>
 			</Suspense>

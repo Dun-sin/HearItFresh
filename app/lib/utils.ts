@@ -20,7 +20,9 @@ export const getEveryAlbum = async (artists: string[]) => {
 	);
 	const albumArray = await Promise.all(artistAlbums);
 	const albums = [...new Set(albumArray.flat())];
-	return albums;
+	const stringAlbums = albums.filter((item) => typeof item === 'string');
+
+	return stringAlbums;
 };
 
 export const getAllTracks = async (albums: string[], numTracks: number) => {
