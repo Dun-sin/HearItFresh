@@ -1,22 +1,39 @@
 import React, { useState } from 'react';
 
 import { Icon } from '@iconify/react';
+import Image from 'next/image';
 import useViewPlaylist from '../hooks/useViewPlaylist';
 
-const OpenOnSpotify = ({ link }: { link: string }) => {
+function OpenOnSpotify({ link }: { link: string }) {
 	const {
 		showingTracks,
 		loading,
 		startedEditing,
+		tracksDeleted,
+		restoreSelectedTracks,
 		deleteTrack,
-		restoreTracks,
+		restoreAllTracks,
 		saveTracks,
 	} = useViewPlaylist(link);
 
+	const [restoreOption, setRestoreOption] = useState(false);
 	const [openPlaylist, setOpenPlaylist] = useState(false);
+	const [selectedTracksToRestore, setSelectedTracksToRestore] = useState<
+		string[]
+	>([]);
 
 	const handleClick = () => {
 		setOpenPlaylist(!openPlaylist);
+	};
+
+	const handleCheckboxChange = (id: string) => {
+		setSelectedTracksToRestore((prevSelectedTracks) => {
+			if (prevSelectedTracks.includes(id)) {
+				return prevSelectedTracks.filter((trackId) => trackId !== id);
+			} else {
+				return [...prevSelectedTracks, id];
+			}
+		});
 	};
 
 	return (
@@ -49,56 +66,115 @@ const OpenOnSpotify = ({ link }: { link: string }) => {
 				</div>
 			</div>
 			{openPlaylist && (
-				<section className='mt-6 relative'>
-					<div className='flex items-center justify-between sticky top-0 w-full bg-lightest dark:bg-dark text-fmd pr-2 pb-2'>
-						<div className='flex items-center gap-3'>
-							<button onClick={handleClick}>
-								<Icon
-									icon='iconoir:cancel'
-									width='25'
-									height='25'
-									className='text-red-500'
-								/>
-							</button>
-							<p>Playlist Generated</p>
-						</div>
+				<section className='h-screen w-screen fixed left-0 top-0 bg-slate-500 bg-opacity-60 z-50 flex items-center justify-center'>
+					<div className='mt-6 relative bg-lightest dark:bg-darkest w-[90%] sm:w-3/5 rounded p-6 flex flex-col max-h-[90%] min-w-[300px]'>
+						<div className='flex items-center justify-between sticky top-0 w-full text-fmd pr-2 pb-2'>
+							<p>Edit Playlist Generated</p>
 
+							<button onClick={handleClick} className='flex gap-1 items-center'>
+								<Icon icon='iconoir:cancel' width='20' height='20' />
+								<span>Close</span>
+							</button>
+						</div>
+						<ul className='h-96 overflow-y-scroll px-4 list-decimal flex flex-col gap-2'>
+							{showingTracks.map(({ id, name, artist, image }) => {
+								return (
+									<li key={id} className='flex items-center sm:gap-4 gap-2'>
+										<section className='flex sm:gap-4 gap-2 w-full pr-2 hover:opacity-45'>
+											<div className='sm:h-10 sm:w-10 h-7 w-7 relative rounded-md overflow-hidden'>
+												<Image
+													src={image as string}
+													alt={name + ' track image'}
+													fill
+												/>
+											</div>
+											<div className='flex-1 max-w-[100px] sm:max-w-full'>
+												<p className='text-fbase truncate'>{name}</p>
+												<p className='truncate text-fsm opacity-75 -mt-1'>
+													{artist.join(', ')}
+												</p>
+											</div>
+										</section>
+										<button
+											className='flex items-center gap-1 hover:bg-red-500 transition-all bg-red-600 bg-opacity-65 text-lightest rounded px-2.5 py-1.5 sm:text-fbase text-fsm'
+											onClick={() => deleteTrack(id)}>
+											<Icon icon='mdi:delete' width='18' height='18' />
+											<span>Delete</span>
+										</button>
+									</li>
+								);
+							})}
+						</ul>
 						{startedEditing && (
-							<div className='flex items-center gap-2'>
-								<button
-									onClick={restoreTracks}
-									className='border-brand border-2 px-4 py-1 rounded text-fbase'>
-									Restore
-								</button>
-								<button
-									onClick={saveTracks}
-									disabled={loading.isLoading}
-									className='bg-brand px-4 py-1 rounded text-lightest'>
-									{loading.isLoading ? loading.message : 'Save'}
-								</button>
+							<div className='pt-4 flex flex-col'>
+								<div className='flex items-center gap-2 ml-auto'>
+									<button
+										onClick={() => setRestoreOption(!restoreOption)}
+										className='flex items-center gap-1 text-fsm sm:text-fbase'>
+										<span>Select Songs to Restore</span>
+										{restoreOption ? (
+											<Icon icon='mingcute:up-line' />
+										) : (
+											<Icon icon='mingcute:down-line' />
+										)}
+									</button>
+									<button
+										onClick={saveTracks}
+										disabled={loading.isLoading}
+										className='bg-brand px-4 py-1 rounded text-lightest text-fsm sm:text-fbase'>
+										{loading.isLoading ? loading.message : 'Save'}
+									</button>
+								</div>
+								{restoreOption && (
+									<section className='overflow-y-auto'>
+										{tracksDeleted.length > 0 && (
+											<div className='flex items-center gap-5'>
+												<button
+													onClick={restoreAllTracks}
+													className='border-brand border-2 px-4 py-1 rounded text-fsm mb-3 transition-all hover:bg-brand hover:text-lightest'>
+													Restore All
+												</button>
+												{selectedTracksToRestore.length > 0 && (
+													<button
+														className='border-brand border-2 px-4 py-1 rounded text-fsm mb-3 transition-all hover:bg-brand hover:text-lightest'
+														onClick={() => {
+															restoreSelectedTracks(selectedTracksToRestore);
+															setSelectedTracksToRestore([]);
+														}}>
+														Restore Selected
+													</button>
+												)}
+											</div>
+										)}
+										<div className='grid sm:grid-cols-4 grid-cols-3 gap-y-2 pl-2'>
+											{tracksDeleted.map(({ name, id, artist }) => {
+												return (
+													<label
+														key={id}
+														htmlFor={name}
+														className='flex items-center gap-2'>
+														<input
+															type='checkbox'
+															name={name}
+															id={id}
+															className='rounded'
+															onChange={() => handleCheckboxChange(id)}
+														/>
+														<div className='flex flex-col justify-between w-full pr-2'>
+															<p className='text-fsm'>{name}</p>
+															<p className='truncate text-fxs opacity-75'>
+																{artist.join(', ')}
+															</p>
+														</div>
+													</label>
+												);
+											})}
+										</div>
+									</section>
+								)}
 							</div>
 						)}
 					</div>
-					<ul className='flex flex-col gap-1 h-32 overflow-y-scroll '>
-						{showingTracks.map(({ id, name, artist }) => {
-							return (
-								<li key={id} className='flex items-center gap-4'>
-									<button onClick={() => deleteTrack(id)}>
-										<Icon
-											icon='mdi:delete'
-											width='18'
-											height='18'
-											className='text-red-500 cursor-pointer'
-										/>
-									</button>
-									<div className='flex items-center justify-between w-full pr-2'>
-										<p>{name}</p>
-										<p className='max-w-32 truncate'>{artist.join(', ')}</p>
-									</div>
-								</li>
-							);
-						})}
-					</ul>
 				</section>
 			)}
 		</>
