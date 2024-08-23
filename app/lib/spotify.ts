@@ -1,4 +1,4 @@
-// @ts-nocheck
+import { playlistDetails, singleTrack, trackTypes } from '../types';
 
 import { convertToSubArray } from './utils';
 import spotifyApi from './spotifyApi';
@@ -11,7 +11,7 @@ import spotifyApi from './spotifyApi';
  * @returns {Array} An array of track objects, each containing information about a track in the playlist.
  * @throws {Error} An error object with details of the error, if an error occurs while retrieving the playlist tracks.
  */
-export async function getAllTracksInAPlaylist(link: string): any[] {
+export async function getAllTracksInAPlaylist(link: string): Promise<any> {
 	try {
 		const data = await spotifyApi.getPlaylistTracks(link);
 		return data.body.items;
@@ -22,16 +22,11 @@ export async function getAllTracksInAPlaylist(link: string): any[] {
 
 /**
   Creates a new playlist on Spotify with a specific name and description based on the provided artists.
-  @async
-  @function createPlayList
-  @param {Array} artists - An array of artists used to generate the playlist's description.
-  @returns {Promise<Object>} - A Promise that resolves to an object containing the new playlist's ID, link, and name, or rejects with an error if the playlist cannot be created.
-  @throws {Error} - If an error occurs during the creation of the playlist.
 **/
 export async function createPlayList(
 	artists: string,
 	type: 'new' | 'old',
-): { id: string; link: string; name: string } | { isError: boolean; err: any } {
+): Promise<playlistDetails | { isError: boolean; err: any }> {
 	let description = '';
 	if (type === 'new') {
 		description = `Listen To Something New From ${artists}`;
@@ -76,18 +71,12 @@ export async function addTracksToPlayList(
 }
 
 /**
-
   This asynchronous function takes an artist name as its input, searches for the artist using the Spotify Web API's searchArtists method,
   retrieves their top 10 albums using the getArtistAlbums method, removes any remixes or duplicate tracks, and returns up to five randomly
   selected album IDs. If the artist has fewer than five albums, it returns all of the available album IDs.
-  @async
-  @function getArtistsAlbums
-  @param {string} artist - The name of the artist to search for.
-  @returns {Array} - An array of up to five album IDs by the artist.
-  @throws {Error} - If there is an error fetching data from the Spotify Web API.
 **/
 export async function getArtistsAlbums(artist: string, artistsLength: number) {
-	let maxAlbums;
+	let maxAlbums: number;
 	if (artistsLength === 20) {
 		maxAlbums = 5;
 	} else {
@@ -99,10 +88,9 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 			limit: 1,
 			offset: 0,
 		});
-		const data = await spotifyApi.getArtistAlbums(
-			_data.body.artists?.items[0].id as string,
-			{ limit: 10, album_type: 'album', include_groups: 'album' },
-		);
+		const artistId = _data.body.artists?.items[0].id as string;
+		const options = { limit: 10, album_type: 'album', include_groups: 'album' };
+		const data = await spotifyApi.getArtistAlbums(artistId, options);
 
 		let result = data.body.items.filter((album: { name: string }) => {
 			const trackName = album.name.toLowerCase();
@@ -130,7 +118,7 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 			return true;
 		});
 
-		if ((maxAlbums) => result.length) {
+		if (maxAlbums >= result.length) {
 			return result.map((item: { id: any }) => item.id);
 		} else {
 			const sortedAlbum = result.sort(() => Math.random() - 0.5);
@@ -144,25 +132,16 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 	}
 }
 
-export type trackTypes = { name: string; albumName: string; uri: string }[];
-
-/**
-  This function takes an array of album IDs as input and uses the Spotify Web API to retrieve the tracks from those albums. The resulting track list is filtered to remove remixes, mixes, and repetitions, and a random track is selected from each album's group of tracks. The function returns an array of track URIs for the selected tracks.
-  @async
-  @function getTracks
-  @param {string[]} albums - An array of album IDs.
-  @returns {Promise<string[]|Error>} - A promise that resolves with an array of track URIs or rejects with an error object.
-*/
 export async function getTracks(
 	albums: string[],
-): trackTypes | { isError: boolean; err: any } {
-	const tracks: trackTypes = [];
+): Promise<trackTypes | { isError: boolean; err: any }> {
+	const tracks: trackTypes[] = [];
 	const subArrays = convertToSubArray(albums);
 
 	try {
 		// Loop through each subarray of album IDs
 		for (const subArray of subArrays) {
-			let subTracks: any[] = [];
+			let subTracks: singleTrack[] = [];
 			// Call the Spotify Web API's getAlbums method with the subarray of IDs
 			const data = await spotifyApi.getAlbums(subArray);
 
@@ -224,6 +203,19 @@ export async function getUserTopArtists() {
 		return data.body.items;
 	} catch (err) {
 		return err;
+	}
+}
+
+export async function removeTracksFromPlaylists(
+	playlistId: string,
+	tracks: { uri: string }[],
+): Promise<boolean> {
+	try {
+		await spotifyApi.removeTracksFromPlaylist(playlistId, tracks);
+		return true;
+	} catch (error) {
+		console.error(error);
+		return false;
 	}
 }
 
