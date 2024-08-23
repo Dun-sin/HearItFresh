@@ -136,8 +136,10 @@ const SubmitButtion = () => {
 			setLoadingMessage(`Getting all Artist's In The Playlist`);
 			const trackArtists = playlistTracks
 				.flat()
-				.map((item) => item.track.artists.slice(0, 2));
-			const artistNames = trackArtists.flat().map((item) => item.name);
+				.map((item: any) => item.track.artists.slice(0, 2));
+			const artistNames: string[] = trackArtists
+				.flat()
+				.map((item: any) => item.name);
 			const uniqueArtistNames = [...new Set(artistNames)];
 
 			getSimilarArtists(uniqueArtistNames);
