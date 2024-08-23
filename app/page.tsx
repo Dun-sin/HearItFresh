@@ -19,7 +19,7 @@ const Page = () => {
 		<AllDiscoverTracksContext>
 			<TypeProvider>
 				<div
-					className={`w-3/5 sm:border-2 sm:border-brand rounded flex flex-col justify-center gap-6 sm:py-14 sm:px-10 items-center max-w-[800px] min-w-[300px] relative`}>
+					className={`sm:w-3/5 sm:border-2 sm:border-brand rounded flex flex-col justify-center gap-6 sm:py-14 sm:px-10 items-center max-w-[800px] w-4/5 min-w-[300px] relative`}>
 					<ChangeType />
 					<div className={`w-full flex flex-col items-center max-w-[600px]`}>
 						<span className={`flex flex-col gap-5 w-full`}>

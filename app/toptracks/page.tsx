@@ -35,7 +35,7 @@ const CombineFavouriteArtistsSongs = () => {
 
 	return (
 		<AllContext>
-			<div className='sm:w-3/5 sm:border-2 sm:border-brand rounded flex flex-col justify-center gap-6 sm:py-14 sm:px-10 items-center max-w-[800px] min-w-[300px] relative'>
+			<div className='sm:w-3/5 sm:border-2 sm:border-brand rounded flex flex-col justify-center gap-6 sm:py-14 sm:px-10 items-center max-w-[800px] w-full min-w-[300px] relative'>
 				<section className='flex flex-col items-center gap-5 w-full'>
 					{/* <button className="border-brand border-2 rounded text-fsm md:min-w-[40vw] md:max-w-[50%] min-w-[300px] h-10" onClick={handleGetTopArtist}>Use your top artists on Spotify</button> */}
 

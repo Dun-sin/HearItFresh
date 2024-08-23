@@ -1,6 +1,7 @@
-import { getArtistsAlbums, getTracks, trackTypes } from './spotify';
+import { getArtistsAlbums, getTracks } from './spotify';
 
 import crypto from 'crypto-js';
+import { trackTypes } from '../types';
 
 const key = process.env.secretKey as string;
 
