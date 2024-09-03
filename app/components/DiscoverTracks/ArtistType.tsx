@@ -66,8 +66,8 @@ const ArtistType = () => {
 							<span
 								className={`mt-2 flex items-center gap-2 max-w-[500px] flex-wrap`}>
 								{artistArray.map((value, index) => (
-									<div
-										key={index}
+									<button
+										key={value}
 										className={`bg-brand px-2 py-1 flex gap-2 w-fit items-center justify-center cursor-pointer rounded`}
 										onClick={(e) => handleArtistDelete(e, index)}>
 										<span className={`text-lightest text-fsm md:text-fxs`}>
@@ -77,7 +77,7 @@ const ArtistType = () => {
 											icon='iconoir:cancel'
 											className='text-lightest w-4 h-4'
 										/>
-									</div>
+									</button>
 								))}
 							</span>
 						)}

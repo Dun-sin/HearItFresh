@@ -1,6 +1,12 @@
 'use client';
 
-import React, { ReactNode, createContext, useContext, useState } from 'react';
+import React, {
+	ReactNode,
+	createContext,
+	useContext,
+	useMemo,
+	useState,
+} from 'react';
 
 interface AuthContextProps {
 	isLoggedIn: boolean;
@@ -34,12 +40,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		setAuthInProgress(state);
 	};
 
-	return (
-		<AuthContext.Provider
-			value={{ isLoggedIn, logOut, logIn, isAuthInProgress, authInProgress }}>
-			{children}
-		</AuthContext.Provider>
+	const value = useMemo(
+		() => ({ isLoggedIn, logOut, logIn, isAuthInProgress, authInProgress }),
+		[isLoggedIn, isAuthInProgress],
 	);
+
+	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextProps => {

@@ -5,6 +5,7 @@ import React, {
 	RefObject,
 	createContext,
 	useContext,
+	useMemo,
 	useRef,
 	useState,
 } from 'react';
@@ -23,11 +24,13 @@ const InputProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 	const [artistArray, setArtistArray] = useState<string[]>([]);
 	const spotifyPlaylist = useRef<HTMLInputElement>(null);
 
+	const value = useMemo(
+		() => ({ artistName, artistArray, setArtistArray, spotifyPlaylist }),
+		[artistArray, artistName, spotifyPlaylist],
+	);
+
 	return (
-		<InputContext.Provider
-			value={{ artistName, artistArray, setArtistArray, spotifyPlaylist }}>
-			{children}
-		</InputContext.Provider>
+		<InputContext.Provider value={value}>{children}</InputContext.Provider>
 	);
 };
 

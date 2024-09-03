@@ -1,6 +1,12 @@
 'use client';
 
-import React, { ReactNode, createContext, useContext, useState } from 'react';
+import React, {
+	ReactNode,
+	createContext,
+	useContext,
+	useMemo,
+	useState,
+} from 'react';
 
 interface LoadingContextProps {
 	loading: boolean;
@@ -17,11 +23,13 @@ const LoadingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 	const [loading, setLoading] = useState<boolean>(false);
 	const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
+	const value = useMemo(
+		() => ({ loading, setLoading, loadingMessage, setLoadingMessage }),
+		[loading, loadingMessage],
+	);
+
 	return (
-		<LoadingContext.Provider
-			value={{ loading, setLoading, loadingMessage, setLoadingMessage }}>
-			{children}
-		</LoadingContext.Provider>
+		<LoadingContext.Provider value={value}>{children}</LoadingContext.Provider>
 	);
 };
 

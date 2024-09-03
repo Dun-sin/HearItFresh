@@ -14,11 +14,16 @@ const TypeContext = createContext<TypeContextProps | undefined>(undefined);
 const TypeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 	const [type, setType] = useState<Type>('artist');
 
-	return (
-		<TypeContext.Provider value={{ type, setType }}>
-			{children}
-		</TypeContext.Provider>
-	);
+   const value = React.useMemo(
+			() => ({
+				type,
+				setType,
+			}),
+			[type],
+		);
+		return (
+			<TypeContext.Provider value={value}>{children}</TypeContext.Provider>
+		);
 };
 
 const useType = (): TypeContextProps => {

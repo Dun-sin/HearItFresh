@@ -94,6 +94,17 @@ export const copyToClipboard = async (textToCopy: string) => {
 	}
 };
 
+export const addToUrl = (key: string, value: string) => {
+	const searchParams = new URLSearchParams(window.location.search);
+	searchParams.set(key, value);
+	const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
+	window.history.pushState({}, '', newUrl);
+};
+
+export const getFromUrl = (key: string) => {
+	const searchParams = new URLSearchParams(window.location.search);
+	return searchParams.get(key);
+};
 // export const getAllTracks = async (albums) => {
 //   const getAlbumTracks = albums.map(getOneAlbumTrack)
 //   const tracks = await Promise.all(getAlbumTracks);
