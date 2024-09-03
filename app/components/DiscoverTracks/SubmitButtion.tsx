@@ -1,16 +1,17 @@
 'use client';
 
 import {
-	addTracksToPlayList,
-	createPlayList,
-	getAllTracksInAPlaylist,
-} from '@/app/lib/spotify';
-import {
+	addToUrl,
 	extractPlaylistId,
 	getAllTracks,
 	getEveryAlbum,
 	isValidPlaylistLink,
 } from '@/app/lib/utils';
+import {
+	addTracksToPlayList,
+	createPlayList,
+	getAllTracksInAPlaylist,
+} from '@/app/lib/spotify';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import React from 'react';
@@ -61,7 +62,7 @@ const SubmitButtion = () => {
 
 			setLoadingMessage(`Getting the list of new artists`);
 			const result = await model.generateContent(prompt);
-			``;
+
 			const response = await result.response;
 			const text = response.text();
 
@@ -71,7 +72,7 @@ const SubmitButtion = () => {
 
 			const finalList = lastPart ? lastPart.split(', ') : [];
 
-			finalList.length > 20 ? (finalList.length = 20) : null;
+			finalList.length > 20 && (finalList.length = 20);
 
 			setLoadingMessage(`Getting the albums of each artist`);
 			const albums = await getEveryAlbum(finalList);
@@ -97,7 +98,10 @@ const SubmitButtion = () => {
 
 			if (tracks === null) throw new Error('Track is empty');
 			addTracksToPlayList(tracks, playListID)
-				.then(() => setPlayListData({ link, name }))
+				.then(() => {
+					addToUrl('link', link.split('/').at(-1) as string);
+					setPlayListData({ link, name });
+				})
 				.catch((err) => {
 					return err;
 				});

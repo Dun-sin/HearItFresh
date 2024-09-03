@@ -160,7 +160,7 @@ const Header = () => {
 						SignOut
 					</button>
 				)}
-				<div
+				<button
 					className='text-xl cursor-pointer rounded-full bg-brand p-1 text-lightest'
 					onClick={toggleDarkMode}>
 					{isDarkMode ? (
@@ -171,7 +171,7 @@ const Header = () => {
 							className='w-3 h-4 sm:w-6 sm:h-6'
 						/>
 					)}
-				</div>
+				</button>
 				<a
 					href='https://www.buymeacoffee.com/dunsinCodes'
 					target='_blank'

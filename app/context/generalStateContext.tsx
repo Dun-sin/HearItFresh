@@ -1,6 +1,12 @@
 'use client';
 
-import React, { ReactNode, createContext, useContext, useState } from 'react';
+import React, {
+	ReactNode,
+	createContext,
+	useContext,
+	useMemo,
+	useState,
+} from 'react';
 
 interface PlayListData {
 	link: string;
@@ -10,7 +16,7 @@ interface PlayListData {
 interface ErrorMessages {
 	notCorrectSpotifyLink: boolean;
 	notCorrectFormatForArtist: boolean;
-	error: null | any;
+	error: any;
 }
 
 interface GeneralStateContextProps {
@@ -40,16 +46,20 @@ const GeneralStateProvider: React.FC<{ children: ReactNode }> = ({
 		error: null,
 	});
 
+	const value = useMemo(
+		() => ({
+			playListData,
+			setPlayListData,
+			buttonClick,
+			setButtonClicked,
+			errorMessages,
+			setErrorMessages,
+		}),
+		[playListData, buttonClick, errorMessages],
+	);
+
 	return (
-		<GeneralStateContext.Provider
-			value={{
-				playListData,
-				setPlayListData,
-				buttonClick,
-				setButtonClicked,
-				errorMessages,
-				setErrorMessages,
-			}}>
+		<GeneralStateContext.Provider value={value}>
 			{children}
 		</GeneralStateContext.Provider>
 	);
