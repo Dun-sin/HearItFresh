@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 
 import { Icon } from '@iconify/react';
+
 import { PlaylistViewProvider } from '../context/PlaylistViewContext';
 import ViewPlaylist from './OpenOnSpotify/ViewPlaylist';
+
 import { useGeneralState } from '../context/generalStateContext';
 
 function OpenOnSpotify() {
