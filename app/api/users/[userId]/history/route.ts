@@ -18,7 +18,7 @@ export async function PUT(
 	try {
 		const response = await addUserHistory(userId, artists);
 
-		if (response === 'success') {
+		if (response.message === 'success') {
 			return NextResponse.json({ status: 200 });
 		} else {
 			return NextResponse.json(
