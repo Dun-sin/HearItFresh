@@ -4,7 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider } from './context/authContext';
 import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
-import SuspenseWrapper from './components/SuspenseWrapper';
+import MainContainer from './components/mainContainer';
 import { ThemeProvider } from './context/themeContext';
 import { ToastContainer } from 'react-toastify';
 import ConnectSpotify from './components/ConnectSpotify';
@@ -32,7 +32,7 @@ export default function RootLayout({
 				<AuthProvider>
 					<ThemeProvider>
 						<div className='relative'>
-							<SuspenseWrapper>
+							<MainContainer>
 								{children}
 								<ToastContainer
 									autoClose={2500}
@@ -40,7 +40,7 @@ export default function RootLayout({
 									closeOnClick
 									pauseOnHover={false}
 								/>
-							</SuspenseWrapper>
+							</MainContainer>
 							<ConnectSpotify authUrl={authUrl} />
 						</div>
 					</ThemeProvider>

@@ -6,7 +6,7 @@ import { OptionsProvider } from '../context/optionsContext';
 
 import { useTheme } from '../context/themeContext';
 
-const mainContainer = ({
+const MainContainer = ({
 	children,
 }: Readonly<{
 	children: React.ReactNode;
@@ -30,4 +30,4 @@ const mainContainer = ({
 	);
 };
 
-export default mainContainer;
+export default MainContainer;
