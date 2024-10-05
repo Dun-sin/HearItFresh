@@ -2,11 +2,12 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../context/authContext';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import axios, { AxiosResponse } from 'axios';
 import { decrypt, encrypt } from '../lib/utils';
 import spotifyApi from '../lib/spotifyApi';
 import useRefreshToken from '../hooks/useRefreshToken';
+import Loading from './Loading';
 
 const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 	const { isAuthInProgress, isLoggedIn, authInProgress, logIn, setUserData } =
@@ -105,22 +106,24 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 	useRefreshToken(expires, refreshAccessToken);
 
 	return (
-		!isLoggedIn && (
-			<div className='absolute top-0 w-full h-full flex items-center justify-center backdrop-blur-sm bg-lightest/45 flex-col'>
-				<p className={`text-flg md:text-fmd font-bold`}>
-					{isAuthInProgress
-						? 'Connecting your spotify'
-						: 'Please login to connect your spotify and use this tool'}
-				</p>
-				{!isAuthInProgress && (
-					<a
-						href={authUrl}
-						className='px-4 py-2 bg-brand rounded-md text-lightest'>
-						Connect Your Spotify
-					</a>
-				)}
-			</div>
-		)
+		<Suspense fallback={<Loading loadingMessage='Please Wait...' />}>
+			{!isLoggedIn && (
+				<div className='absolute top-0 w-full h-full flex items-center justify-center backdrop-blur-sm bg-lightest/45 flex-col'>
+					<p className={`text-flg md:text-fmd font-bold`}>
+						{isAuthInProgress
+							? 'Connecting your spotify'
+							: 'Please login to connect your spotify and use this tool'}
+					</p>
+					{!isAuthInProgress && (
+						<a
+							href={authUrl}
+							className='px-4 py-2 bg-brand rounded-md text-lightest'>
+							Connect Your Spotify
+						</a>
+					)}
+				</div>
+			)}
+		</Suspense>
 	);
 };
 
