@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import { addDynamicIconSelectors } from '@iconify/tailwind';
 
 const config: Config = {
 	darkMode: 'selector',
@@ -29,6 +30,10 @@ const config: Config = {
 			},
 		},
 	},
-	plugins: [require('@tailwindcss/typography'), require('@tailwindcss/forms')],
+	plugins: [
+		require('@tailwindcss/typography'),
+		require('@tailwindcss/forms'),
+		addDynamicIconSelectors(),
+	],
 };
 export default config;

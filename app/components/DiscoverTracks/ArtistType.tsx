@@ -85,7 +85,7 @@ const ArtistType = () => {
 				</label>
 				{errorMessages.notCorrectFormatForArtist === true && (
 					<p className='text-fsm text-red-500'>
-						Seems like you either just gave a single artist
+						Seems like you entered gave a single artist
 					</p>
 				)}
 			</>

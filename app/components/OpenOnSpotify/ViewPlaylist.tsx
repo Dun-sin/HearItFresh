@@ -3,7 +3,7 @@ import { PlaylistViewProvider } from '@/app/context/PlaylistViewContext';
 import StartedEditing from './StartedEditing';
 import TrackList from './TrackList';
 
-const OpenPlaylist = ({ handleClick }: { handleClick: () => void }) => {
+const ViewPlaylist = ({ handleClick }: { handleClick: () => void }) => {
 	return (
 		<PlaylistViewProvider>
 			<section className='h-screen w-screen fixed left-0 top-0 bg-slate-500 bg-opacity-60 z-50 flex items-center justify-center'>
@@ -24,4 +24,4 @@ const OpenPlaylist = ({ handleClick }: { handleClick: () => void }) => {
 	);
 };
 
-export default OpenPlaylist;
+export default ViewPlaylist;
