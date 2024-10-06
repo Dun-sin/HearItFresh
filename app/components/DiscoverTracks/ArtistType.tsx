@@ -39,7 +39,7 @@ const ArtistType = () => {
 		if (type === 'artist' && artistName && artistName.current) {
 			artistName.current.disabled = loading;
 		}
-	}, [loading]);
+	}, [loading, type, artistName]);
 
 	return (
 		type === 'artist' && (

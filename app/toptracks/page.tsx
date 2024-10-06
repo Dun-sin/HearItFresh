@@ -1,14 +1,9 @@
 import AllContext from '../components/AllContext';
 import ArtistInput from '../components/TopTracks/ArtistInput';
-import ConnectSpotify from '../components/ConnectSpotify';
+
 import ResultLink from '../components/ResultLink';
 import SubmitButton from '../components/TopTracks/SubmitButton';
-
-const authUrl = `https://accounts.spotify.com/authorize?client_id=${
-	process.env.SPOTIFY_CLIENT_ID
-}&response_type=code&redirect_uri=${
-	process.env.REDIRECT_URL as string
-}&scope=playlist-modify-public%20playlist-read-private%20user-read-private`;
+import Content from '../components/ConnectSpotify/Content';
 
 const CombineFavouriteArtistsSongs = () => {
 	// useEffect(() => {
@@ -44,7 +39,7 @@ const CombineFavouriteArtistsSongs = () => {
 					<SubmitButton />
 				</section>
 				<ResultLink />
-				<ConnectSpotify authUrl={authUrl} />
+				<Content />
 			</div>
 		</AllContext>
 	);

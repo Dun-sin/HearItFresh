@@ -7,13 +7,8 @@ import type { Metadata } from 'next';
 import MainContainer from './components/mainContainer';
 import { ThemeProvider } from './context/themeContext';
 import { ToastContainer } from 'react-toastify';
-import ConnectSpotify from './components/ConnectSpotify';
 
-const authUrl = `https://accounts.spotify.com/authorize?client_id=${
-	process.env.SPOTIFY_CLIENT_ID
-}&response_type=code&redirect_uri=${
-	process.env.REDIRECT_URL as string
-}&scope=playlist-modify-public%20playlist-read-private%20user-read-private`;
+import Content from './components/ConnectSpotify/Content';
 
 export const metadata: Metadata = {
 	title: 'HearItFresh',
@@ -41,7 +36,7 @@ export default function RootLayout({
 									pauseOnHover={false}
 								/>
 							</MainContainer>
-							<ConnectSpotify authUrl={authUrl} />
+							<Content />
 						</div>
 					</ThemeProvider>
 				</AuthProvider>
