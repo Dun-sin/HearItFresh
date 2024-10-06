@@ -24,6 +24,7 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useType } from '@/app/context/DiscoverTracks/typeContext';
+import { toast } from 'react-toastify';
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);
@@ -113,6 +114,7 @@ const SubmitButtion = () => {
 
 			setLoadingMessage('Done');
 			setArtistArray([]);
+			toast.success('Playlist Created');
 		} catch (err) {
 			setErrorMessages({
 				...errorMessages,
