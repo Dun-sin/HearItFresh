@@ -1,6 +1,9 @@
 'use client';
 
 export const addToUrl = (key: string, value: string) => {
+  if (typeof window === 'undefined') {
+		return;
+	}
 	try {
 		const searchParams = new URLSearchParams(window.location.search);
 		searchParams.set(key, value);
