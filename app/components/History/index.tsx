@@ -42,7 +42,7 @@ const History = () => {
 						))
 					) : (
 						<p className='flex items-center font-light text-fsm'>
-							You haven't used HearitFresh yet{' '}
+							You haven't used HearltFresh yet{' '}
 							<span className='icon-[fluent-emoji--sad-but-relieved-face]' />
 						</p>
 					)}
