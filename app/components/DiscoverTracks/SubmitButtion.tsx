@@ -49,11 +49,11 @@ const SubmitButtion = () => {
 
 	const getSimilarArtists = async (artists: string[]) => {
 		if (buttonClick === true) {
+			setLoading(false);
 			return;
 		}
 		setButtonClicked(true);
 
-		setLoading(true);
 		try {
 			const type = isDifferentTypesOfArtists
 				? 'completely different from'
@@ -166,6 +166,7 @@ const SubmitButtion = () => {
 
 	const handleSubmit = async () => {
 		if (type === 'artist') {
+			setLoading(true);
 			const artist = artistName.current;
 			if (!artist) return;
 
@@ -177,8 +178,6 @@ const SubmitButtion = () => {
 			}
 
 			await addHistoryToDB(array.join(', '));
-
-			console.log({ history });
 
 			array && array.length > 1 && getSimilarArtists(array);
 		} else if (type === 'playlist') {
