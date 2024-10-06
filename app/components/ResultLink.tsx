@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 
 import OpenOnSpotify from './OpenOnSpotify';
-import { getFromUrl } from '../lib/utils';
+import { addPlaylistFullLinkFromID, getFromUrl } from '../lib/utils';
 import { useGeneralState } from '@/app/context/generalStateContext';
 import { useLoading } from '@/app/context/loadingContext';
 
@@ -16,13 +16,13 @@ const ResultLink = () => {
 		link &&
 			setPlayListData({
 				...playListData,
-				link: 'https://open.spotify.com/playlist/' + link,
+				link: addPlaylistFullLinkFromID(link),
 			});
 	}, []);
 
 	return (
 		!loading && (
-			<section className='w-full max-w-[600px]'>
+			<section className='w-full'>
 				{playListData.link.length !== 0 ? (
 					<OpenOnSpotify />
 				) : (
