@@ -19,7 +19,7 @@ const SubmitButtionContainer = ({
 	) : (
 		!buttonClick && (
 			<button
-				className={`bg-brand text-lightest rounded p-3 w-full max-w-[600px]`}
+				className={`bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all`}
 				onClick={handleSubmit}>
 				Generate Playlist
 			</button>

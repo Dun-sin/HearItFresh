@@ -17,7 +17,7 @@ const PlaylistType = () => {
 		if (type === 'playlist' && spotifyPlaylist && spotifyPlaylist.current) {
 			spotifyPlaylist.current.disabled = loading;
 		}
-	}, [loading]);
+	}, [loading, type, spotifyPlaylist]);
 	return (
 		type === 'playlist' && (
 			<>

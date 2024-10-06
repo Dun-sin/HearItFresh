@@ -68,6 +68,10 @@ export function isValidPlaylistLink(link: string) {
 	return link.trim().startsWith('https://open.spotify.com/playlist/');
 }
 
+export function addPlaylistFullLinkFromID(id: string) {
+	return 'https://open.spotify.com/playlist/' + id;
+}
+
 // handle logic for if getting the playlist id from the link
 export function extractPlaylistId(link: string) {
 	const playlistIdStartIndex = link.lastIndexOf('/') + 1;
@@ -104,6 +108,14 @@ export const addToUrl = (key: string, value: string) => {
 export const getFromUrl = (key: string) => {
 	const searchParams = new URLSearchParams(window.location.search);
 	return searchParams.get(key);
+};
+
+export const formatDate = (date: Date) => {
+	const day = String(date.getDate()).padStart(2, '0');
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const year = date.getFullYear();
+
+	return `${month}/${day}/${year}`;
 };
 // export const getAllTracks = async (albums) => {
 //   const getAlbumTracks = albums.map(getOneAlbumTrack)

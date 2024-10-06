@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 
 import { Icon } from '@iconify/react';
-import OpenPlaylist from './OpenOnSpotify/OpenPlaylist';
+
 import { PlaylistViewProvider } from '../context/PlaylistViewContext';
+import ViewPlaylist from './OpenOnSpotify/ViewPlaylist';
+
 import { useGeneralState } from '../context/generalStateContext';
 
 function OpenOnSpotify() {
@@ -44,7 +46,7 @@ function OpenOnSpotify() {
 			</div>
 
 			<PlaylistViewProvider>
-				{openPlaylist && <OpenPlaylist handleClick={handleClick} />}
+				{openPlaylist && <ViewPlaylist handleClick={handleClick} />}
 			</PlaylistViewProvider>
 		</>
 	);

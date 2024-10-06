@@ -19,3 +19,8 @@ export type loadingType = {
 	isLoading: boolean;
 	message: null | string;
 };
+
+export interface HistoryEntry {
+	text: string;
+	lastUsed: Date;
+}

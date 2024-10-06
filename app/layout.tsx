@@ -1,11 +1,14 @@
 import './globals.css';
+import 'react-toastify/dist/ReactToastify.css';
 
 import { AuthProvider } from './context/authContext';
 import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
-
-import SpotifyAuthWrapper from './components/SpotifyAuthWrapper';
+import MainContainer from './components/mainContainer';
 import { ThemeProvider } from './context/themeContext';
+import { ToastContainer } from 'react-toastify';
+
+import Content from './components/ConnectSpotify/Content';
 
 export const metadata: Metadata = {
 	title: 'HearItFresh',
@@ -23,7 +26,18 @@ export default function RootLayout({
 			<body className={inter.className}>
 				<AuthProvider>
 					<ThemeProvider>
-						<SpotifyAuthWrapper>{children}</SpotifyAuthWrapper>
+						<div className='relative'>
+							<MainContainer>
+								{children}
+								<ToastContainer
+									autoClose={2500}
+									hideProgressBar
+									closeOnClick
+									pauseOnHover={false}
+								/>
+							</MainContainer>
+							<Content />
+						</div>
 					</ThemeProvider>
 				</AuthProvider>
 			</body>

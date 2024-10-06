@@ -8,27 +8,37 @@ import React, {
 	useState,
 } from 'react';
 
-interface AuthContextProps {
-	isLoggedIn: boolean;
-	isAuthInProgress: boolean;
-	logIn: () => void;
-	logOut: () => void;
-	authInProgress: (state: boolean) => void;
+interface User {
+	display_name: string;
+	user_id: string;
+	profile_image_url: string;
 }
-
-const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
 interface AuthProviderProps {
 	children: ReactNode;
 }
 
+interface AuthContextProps {
+	isLoggedIn: boolean;
+	isAuthInProgress: boolean;
+	user: User | null;
+	logIn: () => void;
+	logOut: () => void;
+	authInProgress: (state: boolean) => void;
+	setUserData: (data: User | null) => void;
+}
+
+const AuthContext = createContext<AuthContextProps | undefined>(undefined);
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const [isLoggedIn, setLoggedIn] = useState(false);
+	const [user, setUser] = useState<User | null>(null);
 	const [isAuthInProgress, setAuthInProgress] = useState(false);
 
 	const logOut = () => {
 		setLoggedIn(false);
 		setAuthInProgress(false);
+		localStorage.clear();
 	};
 
 	const logIn = () => {
@@ -36,13 +46,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		setAuthInProgress(false);
 	};
 
-	const authInProgress = (state: boolean) => {
-		setAuthInProgress(state);
-	};
+	const authInProgress = (state: boolean) => setAuthInProgress(state);
+
+	const setUserData = (data: User | null) => setUser(data);
 
 	const value = useMemo(
-		() => ({ isLoggedIn, logOut, logIn, isAuthInProgress, authInProgress }),
-		[isLoggedIn, isAuthInProgress],
+		() => ({
+			isLoggedIn,
+			isAuthInProgress,
+			user,
+			logOut,
+			logIn,
+			authInProgress,
+			setUserData,
+		}),
+		[isLoggedIn, isAuthInProgress, user],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

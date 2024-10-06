@@ -1,6 +1,8 @@
 import axios, { AxiosError } from 'axios';
 
 import { NextResponse } from 'next/server';
+import { getUser } from '@/app/lib/spotify';
+import { sql } from '@vercel/postgres';
 
 const redirect_uri = process.env.REDIRECT_URL;
 const client_id = process.env.SPOTIFY_CLIENT_ID;
@@ -33,9 +35,17 @@ export async function POST(req: Request) {
 		);
 
 		const { access_token, refresh_token, expires_in } = response.data;
+		const user = await getUser(access_token);
+
+		if (user)
+			sql`
+        INSERT INTO users (display_name, user_id, profile_image_url)
+        VALUES (${user.display_name}, ${user.user_id}, ${user.profile_image_url})
+        ON CONFLICT (user_id) DO NOTHING;  -- Avoid duplicates
+    `;
 
 		return NextResponse.json(
-			{ expires_in, refresh_token, access_token },
+			{ expires_in, refresh_token, access_token, user },
 			{ status: 200 },
 		);
 	} catch (error) {

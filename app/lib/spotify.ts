@@ -1,5 +1,6 @@
 import { playlistDetails, singleTrack, trackTypes } from '../types';
 
+import axios from 'axios';
 import { convertToSubArray } from './utils';
 import spotifyApi from './spotifyApi';
 
@@ -217,6 +218,24 @@ export async function removeTracksFromPlaylists(
 		console.error(error);
 		return false;
 	}
+}
+
+export async function getUser(access_token: string) {
+	if (!access_token) return null;
+
+	const res = await axios.get('https://api.spotify.com/v1/me', {
+		headers: {
+			Authorization: `Bearer ${access_token}`,
+		},
+	});
+	const { display_name, id, images } = res.data;
+	const user = {
+		display_name,
+		user_id: id,
+		profile_image_url: images[0].url,
+	};
+
+	return user;
 }
 
 // /**

@@ -16,7 +16,10 @@ import {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import React from 'react';
 import SubmitButtionContainer from '../SubmitButtonContainer';
+import { addUserHistory } from '@/app/lib/db';
+import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
+import { useHistory } from '@/app/context/HistoryContext';
 import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
@@ -37,9 +40,11 @@ const SubmitButtion = () => {
 		setButtonClicked,
 		setPlayListData,
 	} = useGeneralState();
+	const { user, logOut } = useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { artistName, artistArray, spotifyPlaylist, setArtistArray } =
 		useInput();
+	const { setHistory } = useHistory();
 	const { isNotPopularArtists, isDifferentTypesOfArtists } = useOptions();
 
 	const getSimilarArtists = async (artists: string[]) => {
@@ -134,6 +139,8 @@ const SubmitButtion = () => {
 			setLoadingMessage(`Extracting Playlist Link`);
 			const playlistId = extractPlaylistId(link);
 
+			await addHistoryToDB(playlistId);
+
 			setLoadingMessage(`Getting All Tracks In The Playlist`);
 			const playlistTracks = await getAllTracksInAPlaylist(playlistId);
 
@@ -157,16 +164,21 @@ const SubmitButtion = () => {
 		}
 	}
 
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		if (type === 'artist') {
 			const artist = artistName.current;
 			if (!artist) return;
 
 			const extratext = artist?.value.trim();
 			const array = [...artistArray];
+
 			if (extratext || extratext !== '') {
 				array.push(extratext);
 			}
+
+			await addHistoryToDB(array.join(', '));
+
+			console.log({ history });
 
 			array && array.length > 1 && getSimilarArtists(array);
 		} else if (type === 'playlist') {
@@ -178,6 +190,24 @@ const SubmitButtion = () => {
 			const link = spotifyPlaylist.current.value;
 			handleIfItsAPlaylistLink(link);
 		}
+	};
+
+	const addHistoryToDB = async (text: string) => {
+		if (!user) {
+			logOut();
+			return { message: 'error', history: [] };
+		}
+
+		const userId = user.user_id;
+		const { message, history } = await addUserHistory(userId, text);
+
+		const newHistory = history.map(
+			({ text, lastUsed }: { text: string; lastUsed: string }) => ({
+				text,
+				lastUsed: new Date(lastUsed),
+			}),
+		);
+		if (message === 'success') setHistory(newHistory);
 	};
 	return <SubmitButtionContainer handleSubmit={handleSubmit} />;
 };

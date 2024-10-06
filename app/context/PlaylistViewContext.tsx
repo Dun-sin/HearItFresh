@@ -70,7 +70,6 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	const getTracks = useCallback(async () => {
 		const data = await getAllTracksInAPlaylist(link);
 
-		console.log(data);
 		const tracks = data.map((item: any) => {
 			const track = item.track;
 			const image = track.album.images[1].url;
