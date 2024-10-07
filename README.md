@@ -56,6 +56,16 @@ Please ensure that your code follows the project's coding conventions and has ad
    npm run dev
    ```
 
+## How to get the client ID and Secret ID from spotify
+  - Go to [spotify for Developers](https://developer.spotify.com/)
+  - Login to your spotify Account
+  - Go to [your dashboard](https://developer.spotify.com/dashboard)
+  - [Create a new App](https://developer.spotify.com/dashboard/create)
+  - Fill in the app name `hearitfresh`, description as whatever you want, and the redirect urls to be `http://localhost:3000`, click on add and at the bottom of the page click on save
+    ![Demo Screenshot](https://github.com/user-attachments/assets/913ae140-d95b-495b-bc1f-0d0c5d2c8222)
+  - After the project is created, go to settings and you'll find the client secret and ID to use
+  - Copy them and fill them in the env file as SPOTIFY_CLIENT_ID & SPOTIFY_CLIENT_SECRET, respectively
+
 ## 🛡️ License
 
 HearItFresh is licensed under the [MIT License](https://opensource.org/licenses/MIT).
