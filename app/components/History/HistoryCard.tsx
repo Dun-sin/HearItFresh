@@ -2,7 +2,9 @@ import { addPlaylistFullLinkFromID, formatDate } from '@/app/lib/utils';
 
 import DeleteButton from './DeleteButton';
 import { useAuth } from '@/app/context/authContext';
+import { useEffect } from 'react';
 import { useInput } from '@/app/context/inputContext';
+import { useType } from '@/app/context/DiscoverTracks/typeContext';
 
 type HistoryCardType = {
 	text: string;
@@ -10,20 +12,33 @@ type HistoryCardType = {
 };
 
 const HistoryCard = ({ text, lastUsed }: HistoryCardType) => {
-	const { setArtistArray, spotifyPlaylist } = useInput();
+  const { setArtistArray, spotifyPlaylist } = useInput();
+  const { setType, type } = useType();
 	const { user } = useAuth();
 	const artistArray = text.split(', ');
 
 	const isArtists = text.includes(',');
 
-	const handleClick = () => {
-		if (isArtists) {
-			setArtistArray(artistArray);
+  const handleClick = () => {
+    console.log({ type })
+    if (isArtists) {
+      type === 'playlist' && setType('artist');
 		} else {
-			if (spotifyPlaylist.current)
-				spotifyPlaylist.current.value = addPlaylistFullLinkFromID(text);
-		}
-	};
+      type === 'artist' && setType('playlist');
+    }
+  };
+
+  useEffect(() => {
+    if (type === 'playlist') {
+      if (spotifyPlaylist.current) {
+        spotifyPlaylist.current.value = addPlaylistFullLinkFromID(text);
+      }
+    }
+
+    if (type === 'artist') {
+      setArtistArray(artistArray);
+    }
+  }, [type])
 
 	return (
 		user && (
