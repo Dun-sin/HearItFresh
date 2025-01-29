@@ -1,28 +1,36 @@
 import React, { useState } from 'react';
 
 import { Icon } from '@iconify/react';
-
 import { PlaylistViewProvider } from '../context/PlaylistViewContext';
 import ViewPlaylist from './OpenOnSpotify/ViewPlaylist';
-
+import { toast } from 'react-toastify';
 import { useGeneralState } from '../context/generalStateContext';
 
 function OpenOnSpotify() {
 	const [openPlaylist, setOpenPlaylist] = useState(false);
 	const { playListData } = useGeneralState();
 
-	const handleClick = () => {
+  const handleClick = () => {
 		setOpenPlaylist(!openPlaylist);
-	};
+  };
+
+  function handleCopyToClipboard() {
+    navigator.clipboard.writeText(playListData.link);
+    toast.success('Playlist link copied to clipboard!',);
+
+  }
 
 	return (
 		<>
 			<div
 				className={`border-brand rounded border-2 px-4 py-3 flex flex-col gap-4`}>
-				<div className={`flex gap-1 ml-auto w-fit cursor-pointer`}>
-					<Icon icon='solar:copy-bold' className={`h-4 w-4`} />
-					<span className={`text-fxs md:text-f2xs`}>Copy Playlist Link</span>
-				</div>
+        <button
+          onClick={handleCopyToClipboard}
+          className={`flex gap-1 ml-auto w-fit cursor-pointer`}
+        >
+          <Icon icon='solar:copy-bold' className={`h-4 w-4`} />
+          <span className={`text-fxs md:text-f2xs`}>Copy Playlist Link</span>
+        </button>
 				<div className={`flex items-center justify-between`}>
 					<div className='flex gap-1 items-center'>
 						<Icon icon='logos:spotify-icon' width='30' height='30' />
