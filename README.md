@@ -61,8 +61,9 @@ Please ensure that your code follows the project's coding conventions and has ad
   - Login to your spotify Account
   - Go to [your dashboard](https://developer.spotify.com/dashboard)
   - [Create a new App](https://developer.spotify.com/dashboard/create)
-  - Fill in the app name `hearitfresh`, description as whatever you want, and the redirect urls to be `http://localhost:3000`, click on add and at the bottom of the page click on save
-    ![Demo Screenshot](https://github.com/user-attachments/assets/913ae140-d95b-495b-bc1f-0d0c5d2c8222)
+  - Fill in the app name `hearitfresh`, description as whatever you want, and the redirect urls to be `http://127.0.0.1:3000`, click on add and at the bottom of the page click on save
+    ![developer spotify com_dashboard_a65d431fb65142beb45a5c523268c8bf](https://github.com/user-attachments/assets/6d51d1ab-0655-465a-8d8b-79f86869a65b)
+
   - After the project is created, go to settings and you'll find the client secret and ID to use
   - Copy them and fill them in the env file as SPOTIFY_CLIENT_ID & SPOTIFY_CLIENT_SECRET, respectively
 
