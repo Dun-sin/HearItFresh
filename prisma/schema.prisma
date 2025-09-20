@@ -11,5 +11,14 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("PRISMA_DATABASE_URL")
+}
+
+model User {
+  userId          String  @id @map("user_id")
+  displayName     String  @map("display_name")
+  profileImageUrl String? @map("profile_image_url")
+  history         Json?
+
+  @@map("users")
 }
