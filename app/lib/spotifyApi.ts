@@ -1,5 +1,3 @@
-"use client";
-
 import SpotifyWebApi from "spotify-web-api-node";
 
 const spotifyApi = new SpotifyWebApi({
@@ -7,5 +5,9 @@ const spotifyApi = new SpotifyWebApi({
 	clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
 	redirectUri: process.env.REDIRECT_URL,
 });
+
+export const setAccessToken = (accessToken: string) => {
+	spotifyApi.setAccessToken(accessToken);
+};
 
 export default spotifyApi;

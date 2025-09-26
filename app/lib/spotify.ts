@@ -2,7 +2,7 @@ import { playlistDetails, singleTrack, trackTypes } from "../types";
 
 import axios from "axios";
 import { convertToSubArray } from "./utils";
-import spotifyApi from "./spotifyApi";
+import spotifyApi, { setAccessToken } from "./spotifyApi";
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -45,6 +45,7 @@ export async function createPlayList(
 			name: data.body.name,
 		};
 	} catch (err) {
+		console.log(err);
 		return { isError: true, err };
 	}
 }
@@ -223,14 +224,11 @@ export async function removeTracksFromPlaylists(
 export async function getUser(access_token: string) {
 	if (!access_token) return null;
 
-	const res = await axios.get("https://api.spotify.com/v1/me", {
-		headers: {
-			Authorization: `Bearer ${access_token}`,
-		},
-	});
+	setAccessToken(access_token);
 
-	axios.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
-	const { display_name, id, images } = res.data;
+	const res = await spotifyApi.getMe();
+
+	const { display_name, id, images } = res.body;
 	const user = {
 		display_name,
 		user_id: id,
