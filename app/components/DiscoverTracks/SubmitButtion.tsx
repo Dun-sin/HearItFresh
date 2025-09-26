@@ -87,10 +87,11 @@ const SubmitButtion = () => {
 			const tracks = await getAllTracks(albums as string[], 1);
 
 			setLoadingMessage('Creating The PlayList');
+			const playlistName = `Similar to ${artists.join(', ')}`;
 			const playlistInfo = await Promise.resolve(
 				createPlayList(
-					finalList.slice(0, -1).join(', ') + ' and ' + finalList.slice(-1),
-					'new',
+					playlistName,
+					'Created by HearItFresh',
 				),
 			);
 
