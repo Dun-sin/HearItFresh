@@ -27,7 +27,7 @@ export async function getAllTracksInAPlaylist(link: string): Promise<any> {
 export async function createPlayList(
 	name: string,
 	artists: string,
-	type: "new" | "old"
+	type?: "new" | "old"
 ): Promise<playlistDetails | { isError: boolean; err: any }> {
 	let description = "";
 	if (type === "new") {

@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 			const prismaUser = await prisma.user.upsert({
 				where: { userId: user.user_id },
 				create: {
-					displayName: user.display_name,
+					displayName: user.display_name!,
 					userId: user.user_id,
 					profileImageUrl: user.profile_image_url,
 				},
