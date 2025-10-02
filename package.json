@@ -8,7 +8,7 @@
 		"start": "next start",
 		"lint": "next lint",
 		"semantic-release": "semantic-release",
-    "postinstall": "prisma generate"
+		"postinstall": "prisma generate --no-engine"
 	},
 	"dependencies": {
 		"@google/generative-ai": "^0.2.0",
