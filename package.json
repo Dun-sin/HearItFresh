@@ -7,7 +7,8 @@
 		"build": "prisma generate && next build",
 		"start": "next start",
 		"lint": "next lint",
-		"semantic-release": "semantic-release"
+		"semantic-release": "semantic-release",
+    "postinstall": "prisma generate"
 	},
 	"dependencies": {
 		"@google/generative-ai": "^0.2.0",
