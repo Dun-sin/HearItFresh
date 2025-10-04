@@ -3,21 +3,25 @@
 	"version": "1.0.0",
 	"private": true,
 	"scripts": {
-		"dev": "next dev",
-		"build": "next build",
+		"dev": "NODE_OPTIONS='--inspect' next dev",
+		"build": "prisma generate && next build",
 		"start": "next start",
 		"lint": "next lint",
-		"semantic-release": "semantic-release"
+		"semantic-release": "semantic-release",
+		"postinstall": "prisma generate --no-engine"
 	},
 	"dependencies": {
 		"@google/generative-ai": "^0.2.0",
 		"@iconify/react": "^4.1.1",
+		"@prisma/client": "^6.16.2",
+		"@prisma/extension-accelerate": "^2.0.2",
 		"@types/crypto-js": "^4.2.2",
 		"@vercel/postgres": "^0.10.0",
 		"axios": "^1.7.3",
 		"crypto-js": "^4.2.0",
 		"next": "14.1.0",
 		"next-auth": "^4.24.7",
+		"prisma": "^6.16.2",
 		"react": "^18",
 		"react-dom": "^18",
 		"react-toastify": "^10.0.5",

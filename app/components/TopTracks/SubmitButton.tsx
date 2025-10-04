@@ -42,11 +42,9 @@ const SubmitButton = () => {
 			const tracks = await getAllTracks(albums, maxTracksPerAlbum);
 
 			setLoadingMessage('Creating The PlayList');
+			const playlistName = `Top Tracks from ${artists.join(', ')}`;
 			const playlistInfo = await Promise.resolve(
-				createPlayList(
-					artists.slice(0, -1).join(', ') + ' and ' + artists.slice(-1),
-					'old',
-				),
+				createPlayList(playlistName, 'Created by HearItFresh'),
 			);
 
 			if ('isError' in playlistInfo) {
