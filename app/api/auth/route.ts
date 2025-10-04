@@ -34,7 +34,6 @@ export async function POST(req: Request) {
 			}
 		);
 
-		console.log(response);
 
 		const { access_token, refresh_token, expires_in } = response.data;
 		const user = await getUser(access_token);
@@ -49,14 +48,8 @@ export async function POST(req: Request) {
 				},
 				update: {},
 			});
-			console.log(prismaUser);
 		}
 
-		//* Former sql code converted to prisma orm here. */
-		//     INSERT INTO users (display_name, user_id, profile_image_url)
-		//     VALUES (${user.display_name}, ${user.user_id}, ${user.profile_image_url})
-		//     ON CONFLICT (user_id) DO NOTHING;  -- Avoid duplicates
-		// `;
 
 		return NextResponse.json(
 			{ expires_in, refresh_token, access_token, user },

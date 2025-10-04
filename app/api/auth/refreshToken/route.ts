@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 			},
 			{
 				headers: {
-					"content-Type": 'application/x-www-form-urlencoded',
+					'content-Type': 'application/x-www-form-urlencoded',
 					Authorization:
 						'Basic ' +
 						Buffer.from(client_id + ':' + client_secret).toString('base64'),

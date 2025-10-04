@@ -20,7 +20,6 @@ export async function addUserHistory(
 		const result = await getUserHistory(userId);
 
 		let currentHistory: HistoryEntry[] = result ? result : [];
-		console.log(result);
 
 		const artistExists = currentHistory.find(
 			(entry: HistoryEntry) => entry.text === artists
@@ -38,24 +37,12 @@ export async function addUserHistory(
 				},
 			});
 
-			// await sql`
-			//   UPDATE users
-			//   SET history = ${JSON.stringify(updatedHistory)}::jsonb
-			//   WHERE user_id = ${userId};
-			// `;
-			console.log("Updated existing history entry");
 		} else {
 			currentHistory = [...currentHistory, newObject];
 			await prisma.user.update({
 				where: { userId },
 				data: { history: currentHistory },
 			});
-			// await sql`
-			//   UPDATE users
-			//   SET history = history || ${JSON.stringify([newObject])}::jsonb
-			//   WHERE user_id = ${userId};
-			// `;
-			console.log("New history entry added");
 		}
 
 		// Fetch the updated history from the database
@@ -85,12 +72,6 @@ export async function removeUserHistory(
 			where: { userId },
 			data: { history: updatedHistory },
 		});
-		//* former vercel postgres sql code */
-		// await sql`
-		//   UPDATE users
-		//   SET history = ${JSON.stringify(updatedHistory)}::jsonb
-		//   WHERE user_id = ${userId};
-		// `;
 
 		console.log("History entry removed");
 		return "success";
@@ -104,9 +85,6 @@ export async function getUserHistory(
 	userId: string
 ): Promise<HistoryEntry[] | null | undefined> {
 	try {
-		// return await sql`
-		//   SELECT history FROM users WHERE user_id = ${userId};
-		// `;
 
 		const history = (await prisma.user.findUnique({ where: { userId } }))
 			?.history;
