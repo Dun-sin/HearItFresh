@@ -6,6 +6,7 @@ import HistoryCard from './HistoryCard';
 import axios from 'axios';
 import { useAuth } from '@/app/context/authContext';
 import { useHistory } from '@/app/context/HistoryContext';
+import { getUser } from '@/app/lib/spotify';
 
 const History = () => {
 	const { user, logOut } = useAuth();
