@@ -1,18 +1,20 @@
 'use client';
 
+import axios, { AxiosResponse } from 'axios';
+import { decrypt, encrypt } from '@/app/lib/utils';
+import { useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+
+import spotifyApi from '@/app/lib/spotifyApi';
 import { useAuth } from '@/app/context/authContext';
 import useRefreshToken from '@/app/hooks/useRefreshToken';
-import spotifyApi from '@/app/lib/spotifyApi';
-import { decrypt, encrypt } from '@/app/lib/utils';
-import axios, { AxiosResponse } from 'axios';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
 
 const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 	const { isAuthInProgress, isLoggedIn, authInProgress, logIn, setUserData } =
 		useAuth();
 
 	const [expires, setExpires] = useState<number | null>(null);
+  const isExchangingCode = useRef(false);
 
 	const currentPath = usePathname();
 
@@ -20,29 +22,54 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 	const router = useRouter();
 
 	useEffect(() => {
-		const current = new URLSearchParams(Array.from(searchParams.entries()));
-		const extractedCode = searchParams.get('code');
+    (async () => {
+      const current = new URLSearchParams(Array.from(searchParams.entries()));
+      const extractedCode = searchParams.get('code');
 
-		if (extractedCode && extractedCode !== '') {
-			if (isAuthInProgress) return;
-			authInProgress(true);
-			loginUser(extractedCode);
-			current.delete('code');
+      if (extractedCode && extractedCode !== '') {
+        if (isAuthInProgress || isExchangingCode.current) return;
+        isExchangingCode.current = true;
+        authInProgress(true);
 
-			const search = current.toString();
-			const query = search ? `?${search}` : '';
+        // Attempt to exchange the code. Only remove `code` from the URL
+        // if the exchange succeeds. If it fails, keep the code visible
+        // so the developer can copy it for debugging.
+        const response = await loginUser(extractedCode);
+        if (response?.status === 200) {
+          current.delete('code');
 
-			router.push(`${currentPath}${query}`);
-			return;
-		}
+          const search = current.toString();
+          const query = search ? `?${search}` : '';
 
-		refreshAccessToken();
+          router.push(`${currentPath}${query}`);
+        } else {
+          // leave the code in the URL for debugging; authInProgress
+          // will be set to false in loginUser when a failure occurs
+          isExchangingCode.current = false;
+        }
+
+        return;
+      }
+
+      refreshAccessToken();
+    })();
 	}, []);
 
 	async function loginUser(code: string) {
-		if (!code) return;
-		const response = await axios.post('/api/auth', { code });
-		processResponse(response);
+    if (!code) return null;
+    try {
+      const response = await axios.post('/api/auth', { code });
+      processResponse(response);
+      return response;
+    } catch (err: any) {
+      // If server returned spotify_error, surface it on client console
+      console.error('Login exchange failed', err?.response?.data || err);
+      authInProgress(false);
+      // If the code expired, quickly redirect to start a fresh auth
+      const isExpired = err?.response?.data?.spotify_error?.error_description === 'Authorization code expired';
+      if (isExpired) window.location.href = authUrl;
+      return err?.response || null;
+    }
 	}
 
 	async function refreshAccessToken() {

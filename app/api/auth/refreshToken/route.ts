@@ -11,23 +11,25 @@ export async function POST(req: Request) {
 	const refreshToken = res.refresh_token;
 
 	if (!refreshToken) {
-		return Response.json({ error: 'Invalid request' }, { status: 400 });
+		return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
 	}
 
 	try {
+		const body = new URLSearchParams({
+			grant_type: 'refresh_token',
+			refresh_token: refreshToken,
+			client_id: client_id || '',
+		}).toString();
+
 		const response = await axios.post(
 			'https://accounts.spotify.com/api/token',
-			{
-				grant_type: 'refresh_token',
-				client_id,
-				refresh_token: refreshToken,
-			},
+			body,
 			{
 				headers: {
-					'content-Type': 'application/x-www-form-urlencoded',
+					'Content-Type': 'application/x-www-form-urlencoded',
 					Authorization:
 						'Basic ' +
-						Buffer.from(client_id + ':' + client_secret).toString('base64'),
+						Buffer.from(`${client_id}:${client_secret}`).toString('base64'),
 				},
 			},
 		);
@@ -39,8 +41,17 @@ export async function POST(req: Request) {
 			{ status: 200 },
 		);
 	} catch (error) {
-		error = error as AxiosError;
+		console.error('Spotify refresh token exchange failed');
+		const axiosErr = error as AxiosError | any;
+		if (axiosErr?.response?.data) {
+			console.error('Spotify response:', axiosErr.response.data);
+			return NextResponse.json(
+				{ spotify_error: axiosErr.response.data },
+				{ status: 400 },
+			);
+		}
 
-		return NextResponse.json({ error }, { status: 400 });
+		console.error(error);
+		return NextResponse.json({ error: 'Unknown error' }, { status: 500 });
 	}
 }

@@ -1,21 +1,23 @@
 'use client';
 
 import {
+  addTracksToPlayList,
+  createPlayList,
+  getAllTracksInAPlaylist,
+} from '@/app/lib/spotify';
+import {
 	extractPlaylistId,
 	getAllTracks,
 	getEveryAlbum,
 	isValidPlaylistLink,
 } from '@/app/lib/utils';
-import {
-	addTracksToPlayList,
-	createPlayList,
-	getAllTracksInAPlaylist,
-} from '@/app/lib/spotify';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import React from 'react';
 import SubmitButtionContainer from '../SubmitButtonContainer';
+import { addToUrl } from '@/app/lib/clientUtils';
 import { addUserHistory } from '@/app/lib/db';
+import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
 import { useHistory } from '@/app/context/HistoryContext';
@@ -23,13 +25,11 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useType } from '@/app/context/DiscoverTracks/typeContext';
-import { toast } from 'react-toastify';
-import { addToUrl } from '@/app/lib/clientUtils';
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);
 
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 const SubmitButtion = () => {
 	const { setLoading } = useLoading();
@@ -60,11 +60,7 @@ const SubmitButtion = () => {
 				? 'completely different from'
 				: 'similar to';
 			const popularity = isNotPopularArtists ? 'not popular' : 'popular';
-			const prompt = `Give me 20 musicians who are ${popularity} and ${type} the following artists provided: ${artists.join(
-				', ',
-			)}. Be sure none of the musicians listed overlap with those provided and that the result is not in list form and not more than 20 musicians. The results should also be separated by a comma.`;
-
-			// const newPrompt = `Please analyze the following list of musicians: '${artists.join(', ')}', and identify the sub-genre that is associated with 70 - 90% of them. Based on this analysis, please provide a list of 20 musicians who are ${popularity} and are ${type} as the sub-genres. Please ensure that the resulting list does not include any of the musicians from the original list provided. To help narrow down the results, please only provide the list of recommended musicians separated by commas.`
+      const prompt = `Please analyze the following list of musicians: '${artists.join(', ')}', and identify the sub-genre that is associated with 70 - 90% of them. Based on this analysis, please provide a list of 20 musicians who are ${popularity} and are ${type} as the sub-genres. Please ensure that the resulting list does not include any of the musicians from the original list provided. To help narrow down the results, please only provide the list of recommended musicians separated by commas.`
 
 			setLoadingMessage(`Getting the list of new artists`);
 			const result = await model.generateContent(prompt);

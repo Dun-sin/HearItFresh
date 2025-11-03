@@ -4,9 +4,9 @@ import React, { useEffect, useState } from 'react';
 
 import HistoryCard from './HistoryCard';
 import axios from 'axios';
+import { getUser } from '@/app/lib/spotify';
 import { useAuth } from '@/app/context/authContext';
 import { useHistory } from '@/app/context/HistoryContext';
-import { getUser } from '@/app/lib/spotify';
 
 const History = () => {
 	const { user, logOut } = useAuth();
@@ -22,7 +22,7 @@ const History = () => {
 		}
 
 		const response = await axios.get(`api/users/${user.user_id}/history`);
-		const data = response.data.message.map(
+    const data = response?.data?.message?.map(
 			({ text, lastUsed }: { text: string; lastUsed: string }) => ({
 				text,
 				lastUsed: new Date(lastUsed),
