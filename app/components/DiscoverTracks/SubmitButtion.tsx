@@ -25,11 +25,10 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useType } from '@/app/context/DiscoverTracks/typeContext';
-
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY as string);
-
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+import { useSeedSongs } from '@/app/context/DiscoverTracks/seedSongsContext';
+import { generateSeedPlaylist } from '@/app/lib/generateSeedPlaylist';
+import { fetchSimilarArtistsFromAI } from '@/app/lib/utils';
+import spotifyApi from '@/app/lib/spotifyApi';
 
 const SubmitButtion = () => {
 	const { setLoading } = useLoading();
@@ -41,46 +40,108 @@ const SubmitButtion = () => {
 		setButtonClicked,
 		setPlayListData,
 	} = useGeneralState();
-	const { user, logOut } = useAuth();
+  const { user, logOut, accessToken } = useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { artistName, artistArray, spotifyPlaylist, setArtistArray } =
 		useInput();
 	const { setHistory } = useHistory();
 	const { isNotPopularArtists, isDifferentTypesOfArtists } = useOptions();
 
-	const getSimilarArtists = async (artists: string[]) => {
-		if (buttonClick === true) {
-			setLoading(false);
-			return;
-		}
-		setButtonClicked(true);
+  const { extractedSongs, setExtractedSongs, selectedSeedIds, extractedArtists, setExtractedArtists, clearSeeds } = useSeedSongs();
 
-		try {
-			const type = isDifferentTypesOfArtists
-				? 'completely different from'
-				: 'similar to';
-			const popularity = isNotPopularArtists ? 'not popular' : 'popular';
-      const prompt = `Please analyze the following list of musicians: '${artists.join(', ')}', and identify the sub-genre that is associated with 70 - 90% of them. Based on this analysis, please provide a list of 20 musicians who are ${popularity} and are ${type} as the sub-genres. Please ensure that the resulting list does not include any of the musicians from the original list provided. To help narrow down the results, please only provide the list of recommended musicians separated by commas.`
+  const handleSeedPlaylistGeneration = async () => {
+    if (buttonClick === true) return;
 
-			setLoadingMessage(`Getting the list of new artists`);
-			const result = await model.generateContent(prompt);
+    const seedCount = selectedSeedIds.size;
+    if (seedCount > 0 && (seedCount < 5 || seedCount > 15)) {
+      toast.error('Please select either 0 seeds (skip lyrics) or between 5 to 15 seeds.');
+      return;
+    }
 
-			const response = await result.response;
-			const text = response.text();
+    setButtonClicked(true);
+    setLoading(true);
 
-			const artistList = text.replace(/:\n/g, '').trimStart().split(':');
+    try {
+      setLoadingMessage('Generating playlist based on your seeds...');
 
-			const lastPart = artistList.length > 0 ? artistList.at(-1) : undefined;
+      const selectedSongsData = extractedSongs.filter((s: any) => selectedSeedIds.has(s.id));
 
-			const finalList = lastPart ? lastPart.split(', ') : [];
+      // Try context token, then localStorage singleton, then encrypted localStorage
+      let tokenValue = accessToken || spotifyApi.getAccessToken();
+      if (!tokenValue) {
+        tokenValue = localStorage.getItem('access_token') ?? undefined;
+      }
 
-			finalList.length > 20 && (finalList.length = 20);
+      console.log('SubmitButtion - Spotify Access Token:', tokenValue ? 'FOUND (starts with ' + tokenValue.substring(0, 10) + '...)' : 'MISSING');
+
+      const result = await generateSeedPlaylist(
+        selectedSongsData,
+        extractedArtists,
+        { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
+        tokenValue ?? undefined
+      );
+
+      if (result.error || !result.tracks || result.tracks.length === 0) {
+        throw new Error(result.error || 'Failed to generate tracks');
+      }
+
+      setLoadingMessage('Creating The PlayList');
+      const playlistName = seedCount > 0
+        ? `HearItFresh - Lyrics Inspired`
+        : `HearItFresh - Similar to Playlist`;
+
+      const playlistInfo = await Promise.resolve(
+        createPlayList(playlistName, 'Created by HearItFresh'),
+      );
+
+      if ('isError' in playlistInfo) {
+        throw new Error(playlistInfo.err);
+      }
+
+      const { id, link, name } = playlistInfo;
+      const playListID = id.substring('spotify:playlist:'.length);
+
+      setLoadingMessage('Adding The Tracks To The Playlist');
+      await addTracksToPlayList(result.tracks, playListID);
+
+      addToUrl('link', link.split('/').at(-1) as string);
+      setPlayListData({ link, name });
+      setArtistArray([]);
+      clearSeeds();
+      toast.success('Playlist Created');
+    } catch (err: any) {
+      setErrorMessages({
+        ...errorMessages,
+        error: 'Error occurred while generating playlist: ' + (err.message || ''),
+      });
+      console.log(err);
+    } finally {
+      setLoading(false);
+      setButtonClicked(false);
+      setLoadingMessage(null);
+    }
+  };
+
+  const getSimilarArtists = async (artists: string[]) => {
+    if (buttonClick === true) {
+      setLoading(false);
+      return;
+    }
+    setButtonClicked(true);
+
+    try {
+      setLoadingMessage(`Getting the list of new artists`);
+
+      const finalList = await fetchSimilarArtistsFromAI(artists, {
+        isNotPopular: isNotPopularArtists,
+        isDifferent: isDifferentTypesOfArtists
+      });
 
 			setLoadingMessage(`Getting the albums of each artist`);
 			const albums = await getEveryAlbum(finalList);
 
 			setLoadingMessage('Getting All Tracks');
-			const tracks = await getAllTracks(albums as string[], 1);
+      const tracks = await getAllTracks(albums as string[], 1) as string[];
 
 			setLoadingMessage('Creating The PlayList');
 			const playlistName = `Similar to ${artists.join(', ')}`;
@@ -143,7 +204,6 @@ const SubmitButtion = () => {
 			setLoadingMessage(`Getting All Tracks In The Playlist`);
 			const playlistTracks = await getAllTracksInAPlaylist(playlistId);
 
-			setLoadingMessage(`Getting all Artist's In The Playlist`);
 			const trackArtists = playlistTracks
 				.flat()
 				.map((item: any) => item.track.artists.slice(0, 2));
@@ -152,14 +212,25 @@ const SubmitButtion = () => {
 				.map((item: any) => item.name);
 			const uniqueArtistNames = [...new Set(artistNames)];
 
-			getSimilarArtists(uniqueArtistNames);
-		} catch (err) {
-			setLoading(false);
+      // Phase 1: Set extracted songs into context for the UI picker
+      const formattedTracks = playlistTracks.flat().map((item: any) => ({
+        id: item.track.id,
+        name: item.track.name,
+        artist: item.track.artists.map((a: any) => a.name),
+        image: item.track.album.images[0]?.url,
+      }));
+
+      setExtractedSongs(formattedTracks);
+      setExtractedArtists(uniqueArtistNames);
+
+    } catch (err) {
 			setErrorMessages({
 				...errorMessages,
-				error: 'Error occured while generating a playlist. Try to login again',
+        error: 'Error occured while extracting playlist. Try to login again',
 			});
 			console.log(err);
+    } finally {
+      setLoading(false);
 		}
 	}
 
@@ -180,13 +251,17 @@ const SubmitButtion = () => {
 
 			array && array.length > 1 && getSimilarArtists(array);
 		} else if (type === 'playlist') {
-			setLoading(true);
-			if (!spotifyPlaylist.current) {
-				setLoading(false);
-				return;
-			}
-			const link = spotifyPlaylist.current.value;
-			handleIfItsAPlaylistLink(link);
+      if (extractedSongs.length > 0) {
+        handleSeedPlaylistGeneration();
+      } else {
+        setLoading(true);
+        if (!spotifyPlaylist.current) {
+          setLoading(false);
+          return;
+        }
+        const link = spotifyPlaylist.current.value;
+        handleIfItsAPlaylistLink(link);
+      }
 		}
 	};
 

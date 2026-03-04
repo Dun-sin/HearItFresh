@@ -22,10 +22,12 @@ interface AuthContextProps {
 	isLoggedIn: boolean;
 	isAuthInProgress: boolean;
 	user: User | null;
+  accessToken: string | null;
 	logIn: () => void;
 	logOut: () => void;
 	authInProgress: (state: boolean) => void;
 	setUserData: (data: User | null) => void;
+  setAccessToken: (token: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -33,11 +35,13 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const [isLoggedIn, setLoggedIn] = useState(false);
 	const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
 	const [isAuthInProgress, setAuthInProgress] = useState(false);
 
 	const logOut = () => {
 		setLoggedIn(false);
 		setAuthInProgress(false);
+    setAccessTokenState(null);
 		localStorage.clear();
 	};
 
@@ -49,18 +53,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const authInProgress = (state: boolean) => setAuthInProgress(state);
 
 	const setUserData = (data: User | null) => setUser(data);
+  const setAccessToken = (token: string | null) => setAccessTokenState(token);
 
 	const value = useMemo(
 		() => ({
 			isLoggedIn,
 			isAuthInProgress,
 			user,
+      accessToken,
 			logOut,
 			logIn,
 			authInProgress,
 			setUserData,
+      setAccessToken,
 		}),
-		[isLoggedIn, isAuthInProgress, user],
+    [isLoggedIn, isAuthInProgress, user, accessToken],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,11 +1,13 @@
 "use server";
 
-import { sql } from "@vercel/postgres";
+import { SpotifyTrack } from "@/app/types";
 import prisma from "../prisma";
+import { getCentroid } from "../utils";
 
 export interface HistoryEntry {
 	text: string;
 	lastUsed: string;
+	[key: string]: any;
 }
 
 export async function addUserHistory(
@@ -94,4 +96,71 @@ export async function getUserHistory(
 		console.error("Error fetching user history:", error);
 		throw error;
 	}
+}
+
+export async function getSong(spotifyId: string) {
+	return await prisma.song.findUnique({ where: { spotifyId } })
+}
+
+export async function addSong(spotifyTrack: SpotifyTrack, lyrics: string, summary?: string | null) {
+  return await prisma.song.create({
+    data: {
+      title: spotifyTrack.title,
+      artist: spotifyTrack.artist,
+      album: spotifyTrack.album,
+      spotifyId: spotifyTrack.id,
+      lyrics,
+      summary,
+    }
+  })
+}
+
+export async function addEmbeddingToSong(songId: string, embedding: number[]) {
+   return await prisma.$queryRawUnsafe(
+    `UPDATE "Song" SET embedding = $1::vector WHERE id = $2 RETURNING id`,
+    embedding,
+    songId
+  );
+}
+
+export async function findSimilarSongs(
+  seedEmbeddings: number[][],
+  excludeSpotifyIds: string[],
+  limit: number = 24
+): Promise<any[]> {
+  if (seedEmbeddings.length === 0) return [];
+
+  const centroid = getCentroid(seedEmbeddings);
+
+  // 1. Build the safe exclusion list
+  const safeExcludes = excludeSpotifyIds.filter(id => /^[a-zA-Z0-9]+$/.test(id));
+  const excludeClause = safeExcludes.length > 0
+    ? `AND "spotifyId" NOT IN (${safeExcludes.map(id => `'${id}'`).join(",")})`
+    : "";
+
+  // 2. Use Parameterized Query ($1) instead of string injection
+  return await prisma.$queryRawUnsafe(`
+    SELECT id, title, artist, album, "spotifyId",
+           embedding <=> $1::vector AS distance
+    FROM "Song"
+    WHERE embedding IS NOT NULL
+      AND "spotifyId" IS NOT NULL
+      ${excludeClause}
+    ORDER BY distance ASC
+    LIMIT $2
+  `, 
+  centroid, // Pass the raw number[] array as $1
+  limit     // Pass the limit as $2
+  );
+}
+
+export async function getSongEmbeddings(spotifyIds: string[]): Promise<{ embedding: string | number[] }[]> {
+  const safeIds = spotifyIds.filter(id => /^[a-zA-Z0-9]+$/.test(id))
+  if (safeIds.length === 0) return []
+
+  const list = safeIds.map(id => `'${id}'`).join(",")
+  return await prisma.$queryRawUnsafe(`
+    SELECT embedding::text FROM "Song"
+    WHERE "spotifyId" IN (${list}) AND embedding IS NOT NULL
+  `)
 }

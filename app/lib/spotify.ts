@@ -1,6 +1,5 @@
 import { playlistDetails, singleTrack, trackTypes } from "../types";
 
-import axios from "axios";
 import { convertToSubArray } from "./utils";
 import spotifyApi, { setAccessToken } from "./spotifyApi";
 
@@ -91,6 +90,10 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 			limit: 1,
 			offset: 0,
 		});
+		if (!_data.body.artists?.items[0]) {
+			console.log(`Artist not found: ${artist}`);
+			return [];
+		}
 		const artistId = _data.body.artists?.items[0].id as string;
 		const options = { limit: 10, album_type: "album", include_groups: "album" };
 		const data = await spotifyApi.getArtistAlbums(artistId, options);
@@ -130,7 +133,9 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 				.map((item: { id: any }) => item.id);
 			return randomlySelectedAlbum;
 		}
-	} catch (err) {
+	} catch (err: any) {
+		console.error(`Error in getArtistsAlbums for ${artist}:`, err?.message || err);
+		if (err?.response?.body) console.error('Spotify API Error Body:', err.response.body);
 		return err;
 	}
 }
@@ -154,6 +159,8 @@ export async function getTracks(
 						name: track.name,
 						albumName: item.name,
 						uri: track.uri,
+						id: track.id,
+						artistName: track.artists?.[0]?.name || item.artists?.[0]?.name || 'Unknown Artist',
 					});
 				})
 			);
