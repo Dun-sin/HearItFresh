@@ -1,6 +1,6 @@
 import { processSong } from "@/app/lib/processSong"
 
-export const maxDuration = 800
+export const maxDuration = 60
 
 export async function POST(req: Request) {
   const { songs } = await req.json()
