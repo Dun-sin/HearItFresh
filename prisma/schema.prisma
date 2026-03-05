@@ -1,17 +1,15 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
-  output   = "../app/generated/prisma"
+  provider        = "prisma-client-js"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+  engineType      = "library"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("PRISMA_DATABASE_URL")
+  provider   = "postgresql"
+  url      = env("PRISMA_DATABASE_URL") 
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  extensions = [vector]
 }
 
 model User {
@@ -21,4 +19,17 @@ model User {
   history         Json?
 
   @@map("users")
+}
+
+model Song {
+  id        String                 @id @default(cuid())
+  title     String
+  artist    String
+  album     String?
+  lyrics    String?
+  summary   String?
+  embedding Unsupported("vector")?
+  createdAt DateTime               @default(now())
+  spotifyId String?                @unique
+  youtubeId String?                @unique
 }

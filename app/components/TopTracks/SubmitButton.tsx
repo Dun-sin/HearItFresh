@@ -39,7 +39,7 @@ const SubmitButton = () => {
 
 			setLoadingMessage('Getting All Tracks');
 
-			const tracks = await getAllTracks(albums, maxTracksPerAlbum);
+			const tracks = await getAllTracks(albums, maxTracksPerAlbum) as string[];
 
 			setLoadingMessage('Creating The PlayList');
 			const playlistName = `Top Tracks from ${artists.join(', ')}`;
