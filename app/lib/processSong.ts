@@ -3,7 +3,6 @@ import { addEmbeddingToSong, addSong, getSong } from './db';
 import { Client } from 'genius-lyrics';
 import { SpotifyTrack } from '../types';
 import { cleanLyrics } from './utils';
-import { pipeline } from '@huggingface/transformers';
 
 const genius = new Client(process.env.GENIUS_ACCESS_TOKEN);
 
@@ -11,7 +10,11 @@ let extractor: any = null;
 
 async function getExtractor() {
 	if (!extractor) {
-		extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+		const transformers = await import('@huggingface/transformers' as any);
+		extractor = await transformers.pipeline(
+			'feature-extraction',
+			'Xenova/all-MiniLM-L6-v2',
+		);
 	}
 	return extractor;
 }
