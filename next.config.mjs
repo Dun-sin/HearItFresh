@@ -7,12 +7,13 @@ const nextConfig = {
     domains: ['i.scdn.co'],
   },
   experimental: {
-    serverComponentsExternalPackages: ['genius-lyrics', 'onnxruntime-node', '@huggingface/transformers'],
+    serverComponentsExternalPackages: ['genius-lyrics', 'sharp', 'onnxruntime-node', '@huggingface/transformers'],
 
   },
   webpack: (config) => {
-    config.resolve.alias['@prisma/client'] = './app/generated/prisma';
-    return config;
+    config.resolve.alias['@prisma/client'] = './app/generated/prisma'
+    config.resolve.alias['onnxruntime-node$'] = false
+    return config
   },
 };
 
