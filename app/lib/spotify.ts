@@ -1,7 +1,7 @@
 import { playlistDetails, singleTrack, trackTypes } from "../types";
+import spotifyApi, { setAccessToken } from './spotifyApi';
 
-import { convertToSubArray } from "./utils";
-import spotifyApi, { setAccessToken } from "./spotifyApi";
+import { convertToSubArray } from './utils';
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -26,12 +26,12 @@ export async function getAllTracksInAPlaylist(link: string): Promise<any> {
 export async function createPlayList(
 	name: string,
 	artists: string,
-	type?: "new" | "old"
+	type?: 'new' | 'old',
 ): Promise<playlistDetails | { isError: boolean; err: any }> {
-	let description = "";
-	if (type === "new") {
+	let description = '';
+	if (type === 'new') {
 		description = `Listen To Something New From ${artists}`;
-	} else if (type === "old") {
+	} else if (type === 'old') {
 		description = `Listen to songs from your favourite artists ${artists}`;
 	}
 	try {
@@ -62,7 +62,7 @@ export async function createPlayList(
 **/
 export async function addTracksToPlayList(
 	tracks: string[],
-	playListID: string
+	playListID: string,
 ) {
 	try {
 		const _data = await spotifyApi.addTracksToPlaylist(playListID, tracks);
@@ -95,7 +95,7 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 			return [];
 		}
 		const artistId = _data.body.artists?.items[0].id as string;
-		const options = { limit: 10, album_type: "album", include_groups: "album" };
+		const options = { limit: 10, album_type: 'album', include_groups: 'album' };
 		const data = await spotifyApi.getArtistAlbums(artistId, options);
 
 		let result = data.body.items.filter((album: { name: string }) => {
@@ -103,19 +103,19 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 
 			// Check if the track is a remix or a mix or an edit or a radio mix
 			const blacklistedWords = [
-				"remix",
-				"mix",
-				"edit",
-				"radio",
-				"- live",
-				" ver.",
-				"live-",
-				"version",
-				"tour",
-				"live",
-				"event",
-				"concert",
-				"tour",
+				'remix',
+				'mix',
+				'edit',
+				'radio',
+				'- live',
+				' ver.',
+				'live-',
+				'version',
+				'tour',
+				'live',
+				'event',
+				'concert',
+				'tour',
 			];
 			if (blacklistedWords.some((word) => trackName.includes(word))) {
 				return false;
@@ -134,14 +134,18 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 			return randomlySelectedAlbum;
 		}
 	} catch (err: any) {
-		console.error(`Error in getArtistsAlbums for ${artist}:`, err?.message || err);
-		if (err?.response?.body) console.error('Spotify API Error Body:', err.response.body);
+		console.error(
+			`Error in getArtistsAlbums for ${artist}:`,
+			err?.message || err,
+		);
+		if (err?.response?.body)
+			console.error('Spotify API Error Body:', err.response.body);
 		return err;
 	}
 }
 
 export async function getTracks(
-	albums: string[]
+	albums: string[],
 ): Promise<trackTypes | { isError: boolean; err: any }> {
 	const tracks: trackTypes[] = [];
 	const subArrays = convertToSubArray(albums);
@@ -160,28 +164,31 @@ export async function getTracks(
 						albumName: item.name,
 						uri: track.uri,
 						id: track.id,
-						artistName: track.artists?.[0]?.name || item.artists?.[0]?.name || 'Unknown Artist',
+						artistName:
+							track.artists?.[0]?.name ||
+							item.artists?.[0]?.name ||
+							'Unknown Artist',
 					});
-				})
+				}),
 			);
 			subTracks = subTracks.filter((track, index, self) => {
 				const trackName = track.name.toLowerCase();
 
 				// Check if the track is a remix or a mix or an edit or a radio mix
 				const blacklistedWords = [
-					"remix",
-					"mix",
-					"edit",
-					"radio",
-					"- live",
-					" ver.",
-					"live-",
-					"version",
-					"tour",
-					"live",
-					"event",
-					"concert",
-					"tour",
+					'remix',
+					'mix',
+					'edit',
+					'radio',
+					'- live',
+					' ver.',
+					'live-',
+					'version',
+					'tour',
+					'live',
+					'event',
+					'concert',
+					'tour',
 				];
 				if (blacklistedWords.some((word) => trackName.includes(word))) {
 					return false;
@@ -218,7 +225,7 @@ export async function getUserTopArtists() {
 
 export async function removeTracksFromPlaylists(
 	playlistId: string,
-	tracks: { uri: string }[]
+	tracks: { uri: string }[],
 ): Promise<boolean> {
 	try {
 		await spotifyApi.removeTracksFromPlaylist(playlistId, tracks);
@@ -245,6 +252,38 @@ export async function getUser(access_token: string) {
 
 	return user;
 }
+
+export async function getRelatedArtists(
+	artistName: string,
+	options: { isNotPopular: boolean; isDifferent: boolean },
+): Promise<string[]> {
+	try {
+		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=20`;
+
+		const res = await fetch(url);
+		const data = await res.json();
+
+		if (!data.similarartists?.artist) return [];
+
+		let artists = data.similarartists.artist as {
+			name: string;
+			listeners: string;
+		}[];
+
+		if (options.isNotPopular) {
+			artists = artists.filter((a) => parseInt(a.listeners) < 500000);
+		}
+
+		// Last.fm doesn't have a "different genre" concept easily
+    // so just return all for isDifferent and let lyrical similarity handle it
+    const finalArtist = artists.map((a) => a.name);
+		return finalArtist
+	} catch (err) {
+		console.error(`Error getting related artists for ${artistName}:`, err);
+		return [];
+	}
+}
+
 
 // /**
 //   Searches for an artist on Spotify and returns an array of their top tracks in the US.

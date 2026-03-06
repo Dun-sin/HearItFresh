@@ -1,4 +1,12 @@
-export type singleTrack = { name: string; albumName: string; uri: string; id: string; artistName: string; };
+import { Song } from './generated/prisma';
+
+export type singleTrack = {
+	name: string;
+	albumName: string;
+	uri: string;
+	id: string;
+	artistName: string;
+};
 
 export type trackTypes = singleTrack[];
 
@@ -25,18 +33,4 @@ export interface HistoryEntry {
 	lastUsed: Date;
 }
 
-export interface Song {
-	id: string;
-	title: string;
-	artist: string;
-	album: string;
-	spotifyId: string;
-	lyrics: string;
-}
-
-export interface SpotifyTrack {
-	id: string
-  title: string
-  artist: string
-  album?: string
-}
+export type SpotifyTrack = Pick<Song, 'id' | 'title' | 'artist' | 'album'>;

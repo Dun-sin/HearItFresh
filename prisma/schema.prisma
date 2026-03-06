@@ -17,6 +17,7 @@ model User {
   displayName     String  @map("display_name")
   profileImageUrl String? @map("profile_image_url")
   history         Json?
+  generatedSongIds String[]
 
   @@map("users")
 }

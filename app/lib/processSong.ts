@@ -1,8 +1,10 @@
 import { addEmbeddingToSong, addSong, getSong } from './db';
 
 import { Client } from 'genius-lyrics';
+import { Song } from '../generated/prisma';
 import { SpotifyTrack } from '../types';
 import { cleanLyrics } from './utils';
+import prisma from './prisma';
 
 const genius = new Client(process.env.GENIUS_ACCESS_TOKEN);
 
@@ -10,11 +12,9 @@ let extractor: any = null;
 
 async function getExtractor() {
 	if (!extractor) {
-		const transformers = await import('@huggingface/transformers' as any);
-		extractor = await transformers.pipeline(
-			'feature-extraction',
-			'Xenova/all-MiniLM-L6-v2',
-		);
+		const transformers = (await import('@huggingface/transformers')) as any;
+		const pipeline = transformers.default?.pipeline ?? transformers.pipeline;
+		extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
 	}
 	return extractor;
 }
@@ -64,12 +64,25 @@ async function getLyrics(
 	}
 }
 
-export async function processSong(spotifyTrack: SpotifyTrack) {
-	const startTime = performance.now();
-	// already in DB, skip
+export async function processSong(
+	spotifyTrack: SpotifyTrack,
+): Promise<Song & { embeddingData?: number[] | null }> {
 	const existing = await getSong(spotifyTrack.id);
-	if (existing) return existing;
 
+	if (existing) {
+		// check if embedding is missing
+		const hasEmbedding = await prisma.$queryRaw<{ has_embedding: boolean }[]>`
+      SELECT embedding IS NOT NULL as has_embedding 
+      FROM "Song" WHERE id = ${existing.id}
+    `;
+
+		if (!hasEmbedding[0]?.has_embedding && existing.lyrics) {
+			console.log(`Backfilling embedding for ${existing.title}`);
+			const embedding = await getEmbedding(existing.lyrics);
+			await addEmbeddingToSong(existing.id, embedding);
+		}
+		return existing;
+	}
 	// fetch lyrics
 	const getLyricsResult = await getLyrics(
 		spotifyTrack.title,
@@ -82,11 +95,11 @@ export async function processSong(spotifyTrack: SpotifyTrack) {
 	// save song first
 	const song = await addSong(spotifyTrack, lyrics ?? '', summary);
 
-	// generate and store embedding if we got lyrics
+	let embeddingData = null;
 	if (lyrics) {
-		const embedding = await getEmbedding(lyrics);
-		await addEmbeddingToSong(song.id, embedding);
+		embeddingData = await getEmbedding(lyrics);
+		await addEmbeddingToSong(song.id, embeddingData);
 	}
 
-	return song;
+	return { ...song, embeddingData };
 }
