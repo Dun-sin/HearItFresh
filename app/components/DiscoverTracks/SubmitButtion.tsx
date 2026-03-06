@@ -12,11 +12,13 @@ import {
 	isValidPlaylistLink,
 } from '@/app/lib/utils';
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import React from 'react';
 import SubmitButtionContainer from '../SubmitButtonContainer';
 import { addToUrl } from '@/app/lib/clientUtils';
 import { addUserHistory } from '@/app/lib/db';
+import { fetchSimilarArtistsFromAI } from '@/app/lib/utils';
+import { generateSeedPlaylist } from '@/app/lib/generateSeedPlaylist';
+import spotifyApi from '@/app/lib/spotifyApi';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
@@ -24,11 +26,8 @@ import { useHistory } from '@/app/context/HistoryContext';
 import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
-import { useType } from '@/app/context/DiscoverTracks/typeContext';
 import { useSeedSongs } from '@/app/context/DiscoverTracks/seedSongsContext';
-import { generateSeedPlaylist } from '@/app/lib/generateSeedPlaylist';
-import { fetchSimilarArtistsFromAI } from '@/app/lib/utils';
-import spotifyApi from '@/app/lib/spotifyApi';
+import { useType } from '@/app/context/DiscoverTracks/typeContext';
 
 const SubmitButtion = () => {
 	const { setLoading } = useLoading();
@@ -63,8 +62,9 @@ const SubmitButtion = () => {
 
     try {
       setLoadingMessage('Generating playlist based on your seeds...');
-
+      console.log('[handleSeedPlaylistGeneration] Starting...');
       const selectedSongsData = extractedSongs.filter((s: any) => selectedSeedIds.has(s.id));
+
 
       // Try context token, then localStorage singleton, then encrypted localStorage
       let tokenValue = accessToken || spotifyApi.getAccessToken();
@@ -73,43 +73,52 @@ const SubmitButtion = () => {
       }
 
       console.log('SubmitButtion - Spotify Access Token:', tokenValue ? 'FOUND (starts with ' + tokenValue.substring(0, 10) + '...)' : 'MISSING');
+      if (process.env.NODE_ENV === 'production') {
+        // Inngest path
+        const result = await fetch('/api/playlist/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            seeds: selectedSongsData,
+            artistNames: extractedArtists,
+            options: { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
+            accessToken: tokenValue,
+            userId: user?.user_id,
+          })
+        })
+        console.log('[handleSeedPlaylistGeneration] Got eventId, starting polling...');
+        const { eventId } = await result.json()
+        await pollForCompletion(eventId)
+      } else {
 
-      const result = await generateSeedPlaylist(
-        selectedSongsData,
-        extractedArtists,
-        { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
-        tokenValue ?? undefined
-      );
+        const result = await generateSeedPlaylist(
+          selectedSongsData,
+          extractedArtists,
+          { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
+          tokenValue ?? undefined,
+          user?.user_id,
+        );
 
-      if (result.error || !result.tracks || result.tracks.length === 0) {
-        throw new Error(result.error || 'Failed to generate tracks');
-      }
-
-      setLoadingMessage('Creating The PlayList');
+        if (result.error || !result.tracks || result.tracks.length === 0) {
+          throw new Error(result.error || 'Failed to generate tracks');
+        }
+        const seedCount = selectedSeedIds.size
       const playlistName = seedCount > 0
-        ? `HearItFresh - Lyrics Inspired`
-        : `HearItFresh - Similar to Playlist`;
+        ? 'HearItFresh - Lyrics Inspired'
+        : 'HearItFresh - Similar to Playlist'
 
-      const playlistInfo = await Promise.resolve(
-        createPlayList(playlistName, 'Created by HearItFresh'),
-      );
+        setLoadingMessage('Creating The Playlist')
+        const playlistInfo = await createPlayList(playlistName, 'Created by HearItFresh')
+        if ('isError' in playlistInfo) throw new Error(playlistInfo.err)
 
-      if ('isError' in playlistInfo) {
-        throw new Error(playlistInfo.err);
+        const { id, link, name } = playlistInfo
+        const playListID = id.substring('spotify:playlist:'.length)
+
+        setLoadingMessage('Adding The Tracks To The Playlist')
+        await addTracksToPlayList(result.tracks, playListID)
+        createSpotifyPlaylist(link, name)
       }
-
-      const { id, link, name } = playlistInfo;
-      const playListID = id.substring('spotify:playlist:'.length);
-
-      setLoadingMessage('Adding The Tracks To The Playlist');
-      await addTracksToPlayList(result.tracks, playListID);
-
-      addToUrl('link', link.split('/').at(-1) as string);
-      setPlayListData({ link, name });
-      setArtistArray([]);
-      clearSeeds();
-      toast.success('Playlist Created');
     } catch (err: any) {
+      console.log('[handleSeedPlaylistGeneration] Error:', err);
       setErrorMessages({
         ...errorMessages,
         error: 'Error occurred while generating playlist: ' + (err.message || ''),
@@ -121,6 +130,36 @@ const SubmitButtion = () => {
       setLoadingMessage(null);
     }
   };
+
+  const pollForCompletion = async (eventId: string) => {
+    console.log('[pollForCompletion] Starting poll for eventId:', eventId);
+    const res = await fetch(`/api/playlist/status?eventId=${eventId}`)
+    const data = await res.json()
+    console.log('[pollForCompletion] Status:', data.status, data);
+
+    if (data.status === 'Completed') {
+      console.log('[pollForCompletion] Completed!');
+      const { link, name } = data.output
+
+      await createSpotifyPlaylist(link, name)
+
+    } else if (data.status === 'Failed') {
+      console.log('[pollForCompletion] Failed!');
+      throw new Error('Playlist generation failed')
+    } else if (data.status === 'Running' || data.status === "Scheduled") {
+      console.log('[pollForCompletion] Still processing, polling again in 3s...');
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      await pollForCompletion(eventId)
+    }
+  }
+
+  const createSpotifyPlaylist = async (link: string, name: string) => {
+    addToUrl('link', link.split('/').at(-1) as string)
+    setPlayListData({ link, name })
+    setArtistArray([])
+    clearSeeds()
+    toast.success('Playlist Created')
+  }
 
   const getSimilarArtists = async (artists: string[]) => {
     if (buttonClick === true) {

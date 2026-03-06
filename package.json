@@ -4,7 +4,7 @@
 	"private": true,
 	"scripts": {
 		"dev": "next dev",
-		"build": "prisma migrate deploy && prisma generate && next build",
+		"build": "prisma migrate deploy && prisma generate --no-engine && next build",
 		"start": "next start",
 		"lint": "next lint",
 		"semantic-release": "semantic-release",
@@ -20,6 +20,7 @@
 		"crypto-js": "^4.2.0",
 		"dotenv": "^17.3.1",
 		"genius-lyrics": "^4.4.7",
+		"inngest": "^3.52.6",
 		"next": "14.1.0",
 		"next-auth": "^4.24.7",
 		"p-limit": "^7.3.0",
