@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/Dun-sin/HearItFresh/compare/v1.12.0...v1.13.0) (2026-03-14)
+
+
+### Features
+
+* use lyrics.ovh instead of genius ([d797342](https://github.com/Dun-sin/HearItFresh/commit/d7973427dae2d69279931207845716fb8ab23cb7))
+
 # 1.0.0 (2026-03-14)
 
 
