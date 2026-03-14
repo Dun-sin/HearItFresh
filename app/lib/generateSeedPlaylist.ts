@@ -39,7 +39,7 @@ export async function generateSeedPlaylist(
 		// 1. Process seeds to ensure they are in DB & have embeddings
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
-		await Promise.all(
+		const processedSeeds = await Promise.all(
 			seeds.map((seed) =>
 				processSong({
 					id: seed.id,
@@ -48,10 +48,14 @@ export async function generateSeedPlaylist(
 					album: seed.album || 'Unknown Album',
 				}),
 			),
-		);
+    );
+    
+    console.log('Processed seeds:', processedSeeds);
 
 		// 2. Fetch seed embeddings from DB
-		const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
+    const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
+    
+    console.log('Raw embeddings:', rawEmbeddings.slice(0, 5));
 		// PgVector from Prisma raw queries usually returns strings like "[0.1, 0.2, ...]"
 		const seedEmbeddings: number[][] = rawEmbeddings
 			.map((row: any) => {
