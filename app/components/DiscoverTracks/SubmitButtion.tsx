@@ -131,7 +131,8 @@ const SubmitButtion = () => {
     }
   };
 
-  const pollForCompletion = async (eventId: string) => {
+  const pollForCompletion = async (eventId: string, unexpectedRetries = 0) => {
+    const MAX_UNEXPECTED_RETRIES = 5
     console.log('[pollForCompletion] Starting poll for eventId:', eventId);
     const res = await fetch(`/api/playlist/status?eventId=${eventId}`)
     const data = await res.json()
@@ -149,7 +150,14 @@ const SubmitButtion = () => {
     } else if (data.status === 'Running' || data.status === "Scheduled") {
       console.log('[pollForCompletion] Still processing, polling again in 3s...');
       await new Promise(resolve => setTimeout(resolve, 3000))
-      await pollForCompletion(eventId)
+      await pollForCompletion(eventId, 0)
+    } else {
+      if (unexpectedRetries >= MAX_UNEXPECTED_RETRIES) {
+        throw new Error(`Polling stopped after ${MAX_UNEXPECTED_RETRIES} unexpected status responses: ${data.status}`)
+      }
+      console.warn('[pollForCompletion] Unexpected status:', data.status, `— retrying in 3s... (attempt ${unexpectedRetries + 1}/${MAX_UNEXPECTED_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      await pollForCompletion(eventId, unexpectedRetries + 1)
     }
   }
 
