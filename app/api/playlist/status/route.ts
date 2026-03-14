@@ -15,7 +15,8 @@ export async function GET(req: Request) {
 		},
 	});
 
-	const json = await response.json();
+  const json = await response.json();
+  console.log('Inngest response:', JSON.stringify(json))
 	const run = json.data?.[0];
 
 	return Response.json({

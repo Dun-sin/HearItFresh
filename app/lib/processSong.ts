@@ -96,8 +96,12 @@ export async function processSong(
 	const song = await addSong(spotifyTrack, lyrics ?? '', summary);
 
 	let embeddingData = null;
-	if (lyrics) {
-		embeddingData = await getEmbedding(lyrics);
+  if (lyrics) {
+    console.log('NODE_ENV:', process.env.NODE_ENV)
+console.log('calling getEmbedding for:', spotifyTrack.title)
+
+embeddingData = await getEmbedding(lyrics);
+console.log('embedding length:', embeddingData?.length)
 		await addEmbeddingToSong(song.id, embeddingData);
 	}
 
