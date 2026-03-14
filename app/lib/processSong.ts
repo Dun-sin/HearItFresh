@@ -53,18 +53,17 @@ async function getEmbeddingProd(text: string): Promise<number[]> {
 
 async function getLyrics(title: string, artist: string): Promise<string | null> {
   try {
-    console.log('Fetching lyrics for:', title, artist)
-    const searches = await genius.songs.search(`${title} ${artist}`)
-    console.log('Genius search results:', searches.length)
-    if (!searches.length) return null
-    const lyrics = await searches[0].lyrics()
-    console.log('Lyrics length:', lyrics?.length)
-    return lyrics
-  } catch (e) {
-    console.error('Genius error:', e)
+    const res = await fetch(
+      `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.lyrics ?? null
+  } catch {
     return null
   }
 }
+
 export async function processSong(
 	spotifyTrack: SpotifyTrack,
 ): Promise<Song & { embeddingData?: number[] | null }> {
