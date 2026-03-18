@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/Dun-sin/HearItFresh/compare/v1.13.0...v1.14.0) (2026-03-18)
+
+
+### Features
+
+* change recommendation song algorithm ([#42](https://github.com/Dun-sin/HearItFresh/issues/42)) ([22c6114](https://github.com/Dun-sin/HearItFresh/commit/22c61143bcd13bf9ffa7993e3c5aa6ce00f06f27))
+
 # [1.13.0](https://github.com/Dun-sin/HearItFresh/compare/v1.12.0...v1.13.0) (2026-03-14)
 
 
