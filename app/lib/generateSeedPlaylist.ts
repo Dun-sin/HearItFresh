@@ -117,42 +117,40 @@ export async function generateSeedPlaylist(
 				// p-limit concurrency of 15
 				const limit = pLimit(15);
 
-				let collected = 0;
+        // 0.7 is a good starting point, but you can tune this
+        const THRESHOLD = 0.7
+        const MIN_MATCHES = Math.floor(seedEmbeddings.length / 2) + 1
 
+        // we want to avoid low quality recommendations so we check that the ai tracks match at least MIN_MATCHES of the original seeds(songs) 
 				const scoredTracks = await Promise.all(
-					aiTracks.map((track) =>
-						limit(async () => {
-							if (collected >= remainingNeeded + 20) return null;
-							// Skip if already generated for this user
-							if (userId && previouslyGeneratedIds.includes(track.id)) {
-								return null;
-							}
+  aiTracks.map(track => limit(async () => {
+    try {
+      const processed = await processSong({
+        id: track.id,
+        title: track.name,
+        artist: track.artistName,
+        album: track.albumName,
+      })
 
-							try {
-								const processed = await processSong({
-									id: track.id,
-									title: track.name,
-									artist: track.artistName,
-									album: track.albumName,
-								});
+      const emb = processed.embeddingData
+      if (!emb) return null
 
-								const emb = processed.embeddingData;
-								if (!emb) return null;
+      const scores = seedEmbeddings.map(seedEmb => 
+        calculateCosineSimilarity(emb, seedEmb)
+      )
 
-								const similarity =
-									seedEmbeddings.reduce((sum, seedEmb) => {
-										return sum + calculateCosineSimilarity(emb, seedEmb);
-									}, 0) / seedEmbeddings.length;
+      const matchingSeeds = scores.filter(s => s >= THRESHOLD).length
+      if (matchingSeeds < MIN_MATCHES) return null // doesn't qualify
 
-								collected++;
-								return { uri: track.uri, similarity };
-							} catch (e) {
-								console.error(`Skipping ${track.name} due to error`);
-								return null;
-							}
-						}),
-					),
-				);
+      const maxScore = Math.max(...scores)
+      return { uri: track.uri, similarity: maxScore }
+
+    } catch (e) {
+      console.error(`Skipping ${track.name} due to error`)
+      return null
+    }
+  }))
+)
 
 				// Sort by similarity descending, filtering out nulls
 				fallbackTracksUris = (
