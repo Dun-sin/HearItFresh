@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/Dun-sin/HearItFresh/compare/v1.14.0...v1.15.0) (2026-03-18)
+
+
+### Features
+
+* reduce filter threshold ([ba122c9](https://github.com/Dun-sin/HearItFresh/commit/ba122c9e3a55a371a984312a24b6a6d359cb473f))
+
 # [1.14.0](https://github.com/Dun-sin/HearItFresh/compare/v1.13.0...v1.14.0) (2026-03-18)
 
 
