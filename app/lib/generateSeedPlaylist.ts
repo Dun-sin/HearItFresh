@@ -117,9 +117,9 @@ export async function generateSeedPlaylist(
 				// p-limit concurrency of 15
 				const limit = pLimit(15);
 
-        // 0.7 is a good starting point, but you can tune this
-        const THRESHOLD = 0.7
-        const MIN_MATCHES = Math.floor(seedEmbeddings.length / 2) + 1
+        // 0.6 is a good starting point, but you can tune this
+        const THRESHOLD = 0.6
+        const MIN_MATCHES = Math.floor(seedEmbeddings.length / 2)
 
         // we want to avoid low quality recommendations so we check that the ai tracks match at least MIN_MATCHES of the original seeds(songs) 
 				const scoredTracks = await Promise.all(
