@@ -119,10 +119,9 @@ export async function generateSeedPlaylist(
 
         // 0.6 is a good starting point, but you can tune this
         const THRESHOLD = 0.6
-        const MIN_MATCHES = Math.floor(seedEmbeddings.length / 2)
 
-        // we want to avoid low quality recommendations so we check that the ai tracks match at least MIN_MATCHES of the original seeds(songs) 
-				const scoredTracks = await Promise.all(
+        // we want to avoid low quality recommendations so we check each song against all seeds(selected songs) put that into an array and sort by the number of seeds that match the treshold then return the top 100
+const scoredTracks = await Promise.all(
   aiTracks.map(track => limit(async () => {
     try {
       const processed = await processSong({
@@ -131,7 +130,6 @@ export async function generateSeedPlaylist(
         artist: track.artistName,
         album: track.albumName,
       })
-
       const emb = processed.embeddingData
       if (!emb) return null
 
@@ -139,26 +137,21 @@ export async function generateSeedPlaylist(
         calculateCosineSimilarity(emb, seedEmb)
       )
 
-      const matchingSeeds = scores.filter(s => s >= THRESHOLD).length
-      if (matchingSeeds < MIN_MATCHES) return null // doesn't qualify
+      const thresholdHits = scores.filter(s => s >= THRESHOLD).length
 
-      const maxScore = Math.max(...scores)
-      return { uri: track.uri, similarity: maxScore }
+      return { uri: track.uri, thresholdHits, maxScore: Math.max(...scores) }
 
     } catch (e) {
-      console.error(`Skipping ${track.name} due to error`)
       return null
     }
   }))
 )
 
-				// Sort by similarity descending, filtering out nulls
-				fallbackTracksUris = (
-					scoredTracks as { uri: string; similarity: number }[]
-				)
-					.filter((t): t is { uri: string; similarity: number } => t !== null)
-					.sort((a, b) => b.similarity - a.similarity)
-					.map((t) => t.uri);
+fallbackTracksUris = scoredTracks
+  .filter((t): t is { uri: string; thresholdHits: number; maxScore: number } => t !== null)
+  .sort((a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore)
+  .map(t => t.uri)
+  .slice(0, remainingNeeded)
 			} else {
 				// If no seeds, just use the random tracks, filtering out previous ones
 				fallbackTracksUris = aiTracks
