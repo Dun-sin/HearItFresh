@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/Dun-sin/HearItFresh/compare/v1.15.0...v1.16.0) (2026-03-19)
+
+
+### Features
+
+* change algorithm to sort the somgs based on the threshold met ([4645855](https://github.com/Dun-sin/HearItFresh/commit/4645855942e73aa5e9511c58055407371da11a01))
+
 # [1.15.0](https://github.com/Dun-sin/HearItFresh/compare/v1.14.0...v1.15.0) (2026-03-18)
 
 
