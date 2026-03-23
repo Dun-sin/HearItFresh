@@ -301,7 +301,7 @@ export async function relatedArists(
 		let addedThisRound = 0;
 
 		for (const artistRelated of relatedArtistsPerSeed) {
-			if (finalList.length >= 20) break;
+			if (finalList.length >= 40) break;
 
 			// find next unused artist from this seed's related list
 			const candidate = artistRelated.find(
