@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/Dun-sin/HearItFresh/compare/v1.16.0...v1.17.0) (2026-03-23)
+
+
+### Features
+
+* increase song pool increase threshold and add a cutoff ([ac0ec3c](https://github.com/Dun-sin/HearItFresh/commit/ac0ec3cf55dec721e57e2172cfb054bb8c3a1bac))
+
 # [1.16.0](https://github.com/Dun-sin/HearItFresh/compare/v1.15.0...v1.16.0) (2026-03-19)
 
 
