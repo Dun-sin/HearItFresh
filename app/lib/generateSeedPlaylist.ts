@@ -124,6 +124,7 @@ const CUTOFF = THRESHOLD - 0.2
 const scoredTracks = await Promise.all(
   aiTracks.map(track => limit(async () => {
     try {
+      console.log(`Processing: "${track.name}" by ${track.artistName} (id: ${track.id})`);
       const processed = await processSong({
         id: track.id,
         title: track.name,
@@ -138,25 +139,40 @@ const scoredTracks = await Promise.all(
       )
 
       const maxScore = Math.max(...scores)
+      console.log(`Scores: [${scores.map(s => s.toFixed(4)).join(', ')}] | maxScore=${maxScore.toFixed(4)} | CUTOFF=${CUTOFF}`);
       
       // cut off songs that don't even come close
-      if (maxScore < CUTOFF) return null
+      if (maxScore < CUTOFF) {
+        console.log(`✗ Below cutoff (${maxScore.toFixed(4)} < ${CUTOFF}) — skipping`);
+        return null
+      }
 
       const thresholdHits = scores.filter(s => s >= THRESHOLD).length
+      console.log(`✓ Passed cutoff | thresholdHits=${thresholdHits} (THRESHOLD=${THRESHOLD})`);
 
       return { uri: track.uri, thresholdHits, maxScore }
 
     } catch (e) {
+      console.error(`✗ Error processing "${track.name}":`, e);
       return null
     }
   }))
 )
 
-fallbackTracksUris = scoredTracks
-  .filter((t): t is { uri: string; thresholdHits: number; maxScore: number } => t !== null)
-  .sort((a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore)
+const validScored = scoredTracks
+  .filter((t): t is { uri: string; thresholdHits: number; maxScore: number } => t !== null);
+console.log(`[Scoring Summary] ${validScored.length}/${aiTracks.length} tracks passed cutoff`);
+
+const sortedScored = validScored
+  .sort((a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore);
+console.log(`[Scoring Sorted] Top results:`, sortedScored.slice(0, 10).map(t => ({
+  uri: t.uri, hits: t.thresholdHits, max: t.maxScore.toFixed(4)
+})));
+
+fallbackTracksUris = sortedScored
   .map(t => t.uri)
   .slice(0, remainingNeeded)
+console.log(`[Scoring Final] Returning ${fallbackTracksUris.length} fallback tracks (remainingNeeded=${remainingNeeded})`);
 			} else {
 				// If no seeds, just use the random tracks, filtering out previous ones
 				fallbackTracksUris = aiTracks
