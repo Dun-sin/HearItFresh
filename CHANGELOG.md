@@ -1,3 +1,10 @@
+# [1.19.0](https://github.com/Dun-sin/HearItFresh/compare/v1.18.0...v1.19.0) (2026-03-23)
+
+
+### Features
+
+* increase the lyrics block we extract for better lyric matching ([6d32765](https://github.com/Dun-sin/HearItFresh/commit/6d32765183c61a46c63368caadaad99fe99d1e77))
+
 # [1.18.0](https://github.com/Dun-sin/HearItFresh/compare/v1.17.0...v1.18.0) (2026-03-23)
 
 
