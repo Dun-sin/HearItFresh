@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/Dun-sin/HearItFresh/compare/v1.17.0...v1.18.0) (2026-03-23)
+
+
+### Features
+
+* remove clean lyrics function because we use a different service for lyrics ([2fdfcab](https://github.com/Dun-sin/HearItFresh/commit/2fdfcab7931bef994ef675c5b24cbcf496332d48))
+
 # [1.17.0](https://github.com/Dun-sin/HearItFresh/compare/v1.16.0...v1.17.0) (2026-03-23)
 
 
