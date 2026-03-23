@@ -72,12 +72,12 @@ export const getAllTracks = async (
 		subArr.filter((obj) => Object.keys(obj).length !== 0),
 	);
 
-	// get one random track from each sub array
+	// get two random track from each sub array
 	const result: trackTypes = [];
 	removeEmptyObjects.forEach((subarray) => {
 		for (let i = 0; i < numTracks; i++) {
 			const randomIndex = Math.floor(Math.random() * subarray.length);
-			const randomTrack = subarray.splice(randomIndex, 1)[0];
+			const randomTrack = subarray.splice(randomIndex, 2)[0];
 			result.push(randomTrack);
 		}
 	});
@@ -90,7 +90,7 @@ export const getAllTracks = async (
 
 	const allTracksID = filteredResult
 		.map((item) => item.uri)
-		.filter((item) => !!item);
+		.filter((item) => !!item).flat();
 
 	return allTracksID as string[];
 };
