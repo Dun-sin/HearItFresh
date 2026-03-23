@@ -262,6 +262,7 @@ export async function getRelatedArtists(
 
 		const res = await fetch(url);
 		const data = await res.json();
+		console.log(`Last.fm response for "${artistName}":`, JSON.stringify(data).slice(0, 300));
 
 		if (!data.similarartists?.artist) return [];
 
