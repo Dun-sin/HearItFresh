@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/Dun-sin/HearItFresh/compare/v1.19.0...v1.20.0) (2026-03-23)
+
+
+### Features
+
+* increase the number of artist we use ([59dac9f](https://github.com/Dun-sin/HearItFresh/commit/59dac9f983aa6d23136ce0d1e740827f8853121a))
+
 # [1.19.0](https://github.com/Dun-sin/HearItFresh/compare/v1.18.0...v1.19.0) (2026-03-23)
 
 
