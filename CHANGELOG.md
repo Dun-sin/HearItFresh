@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/Dun-sin/HearItFresh/compare/v1.20.0...v1.21.0) (2026-03-23)
+
+
+### Features
+
+* increase artist pool ([55bce45](https://github.com/Dun-sin/HearItFresh/commit/55bce4562f6fe4119c549585b902d6f3bbbf3b44))
+
 # [1.20.0](https://github.com/Dun-sin/HearItFresh/compare/v1.19.0...v1.20.0) (2026-03-23)
 
 
