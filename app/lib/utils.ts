@@ -20,26 +20,23 @@ export const decrypt = (encryptedText: string): string => {
 
 	return originalText;
 };
-export const getEveryAlbum = async (artists: string[]) => {
-	console.log('Fetching albums for artists:', artists);
-	const artistAlbums = artists.map((item) =>
-		getArtistsAlbums(item, artists.length),
-	);
-	const albumArray = await Promise.all(artistAlbums);
-	console.log(
-		'Album results (might contain errors):',
-		albumArray.map((a) => {
-			if (Array.isArray(a)) return `Count: ${a.length}`;
-			console.log('Non-array album result encountered:', a);
-			return 'ERROR/EMPTY';
-		}),
-	);
-	const albums = [...new Set(albumArray.flat())];
-	const stringAlbums = albums.filter((item) => typeof item === 'string');
-	console.log('Final unique album IDs:', stringAlbums.length);
 
-	return stringAlbums;
-};
+/**
+ * Fetches all albums for a list of artists, shuffles them, and returns unique album IDs.
+ * @param artists - Array of artist names
+ * @returns Array of unique album IDs
+ */
+export const getEveryAlbum = async (artists: string[]) => {
+  const shuffled = [...artists].sort(() => Math.random() - 0.5)
+  const artistAlbums = shuffled.map((item) =>
+    getArtistsAlbums(item, shuffled.length),
+  )
+  const albumArray = await Promise.all(artistAlbums)
+  const albums = [...new Set(albumArray.flat())].sort(() => Math.random() - 0.5)
+  const stringAlbums = albums.filter((item) => typeof item === 'string')
+
+  return stringAlbums
+}
 
 export const getAllTracks = async (
 	albums: string[],

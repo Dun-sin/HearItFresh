@@ -39,7 +39,7 @@ export async function generateSeedPlaylist(
 		// 1. Process seeds to ensure they are in DB & have embeddings
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
-		const processedSeeds = await Promise.all(
+		await Promise.all(
 			seeds.map((seed) =>
 				processSong({
 					id: seed.id,
@@ -49,13 +49,10 @@ export async function generateSeedPlaylist(
 				}),
 			),
     );
-    
-    console.log('Processed seeds:', processedSeeds);
 
 		// 2. Fetch seed embeddings from DB
     const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
     
-    console.log('Raw embeddings:', rawEmbeddings.slice(0, 5));
 		// PgVector from Prisma raw queries usually returns strings like "[0.1, 0.2, ...]"
 		const seedEmbeddings: number[][] = rawEmbeddings
 			.map((row: any) => {
@@ -102,7 +99,7 @@ export async function generateSeedPlaylist(
 		const albums = await getEveryAlbum(finalList);
 
 		console.log('Getting tracks for albums...');
-		const aiTracks = (await getAllTracks(albums as string[], 3, true)) as any[]; // Need more tracks to filter down
+		const aiTracks = (await getAllTracks(albums as string[], 5, true)) as any[]; // Need more tracks to filter down
 
 		console.log('AI Tracks:', aiTracks);
 
@@ -118,9 +115,12 @@ export async function generateSeedPlaylist(
 				const limit = pLimit(15);
 
         // 0.6 is a good starting point, but you can tune this
-        const THRESHOLD = 0.6
+        const THRESHOLD = 0.75
 
         // we want to avoid low quality recommendations so we check each song against all seeds(selected songs) put that into an array and sort by the number of seeds that match the treshold then return the top 100
+        // we also want to avoid songs that are too far in similarity to the seeds so we set a cutoff of 0.2 below the threshold to give extra grace
+const CUTOFF = THRESHOLD - 0.2 
+
 const scoredTracks = await Promise.all(
   aiTracks.map(track => limit(async () => {
     try {
@@ -137,9 +137,14 @@ const scoredTracks = await Promise.all(
         calculateCosineSimilarity(emb, seedEmb)
       )
 
+      const maxScore = Math.max(...scores)
+      
+      // cut off songs that don't even come close
+      if (maxScore < CUTOFF) return null
+
       const thresholdHits = scores.filter(s => s >= THRESHOLD).length
 
-      return { uri: track.uri, thresholdHits, maxScore: Math.max(...scores) }
+      return { uri: track.uri, thresholdHits, maxScore }
 
     } catch (e) {
       return null
@@ -179,3 +184,5 @@ fallbackTracksUris = scoredTracks
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }
+
+// TODO: use the same algorithm for the songs coming from the db  - they should be scored and sorted as well
