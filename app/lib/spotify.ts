@@ -271,12 +271,15 @@ export async function getRelatedArtists(
 			listeners: string;
 		}[];
 
+		console.log(`Related artists for "${artistName}" BEFORE filter: ${artists.length}, isNotPopular=${options.isNotPopular}`);
 		if (options.isNotPopular) {
 			artists = artists.filter((a) => parseInt(a.listeners) < 500000);
+			console.log(`Related artists for "${artistName}" AFTER isNotPopular filter: ${artists.length}`);
 		}
 
 		// Last.fm doesn't have a "different genre" concept easily
     // so just return all for isDifferent and let lyrical similarity handle it
+    console.log(`Related artists for "${artistName}" BEFORE isDifferent filter: ${artists.length}`);
     const finalArtist = artists.map((a) => a.name);
 		return finalArtist
 	} catch (err) {
