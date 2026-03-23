@@ -88,7 +88,7 @@ export async function processSong(
 		spotifyTrack.title,
 		spotifyTrack.artist,
 	);
-	const lyrics = getLyricsResult?.split('\n').slice(0, 25).join('\n') ?? ''
+	const lyrics = getLyricsResult?.split('\n').slice(0, 60).join('\n') ?? ''
 
 	// save song first
 	const song = await addSong(spotifyTrack, lyrics);
