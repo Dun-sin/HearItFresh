@@ -119,7 +119,7 @@ export async function generateSeedPlaylist(
 
         // we want to avoid low quality recommendations so we check each song against all seeds(selected songs) put that into an array and sort by the number of seeds that match the treshold then return the top 100
         // we also want to avoid songs that are too far in similarity to the seeds so we set a cutoff of 0.2 below the threshold to give extra grace
-const CUTOFF = THRESHOLD - 0.2 
+const CUTOFF = THRESHOLD - 0.25 
 
 const scoredTracks = await Promise.all(
   aiTracks.map(track => limit(async () => {

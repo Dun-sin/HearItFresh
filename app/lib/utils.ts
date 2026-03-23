@@ -77,7 +77,7 @@ export const getAllTracks = async (
 	removeEmptyObjects.forEach((subarray) => {
 		for (let i = 0; i < numTracks; i++) {
 			const randomIndex = Math.floor(Math.random() * subarray.length);
-			const randomTrack = subarray.splice(randomIndex, 2)[0];
+			const randomTrack = subarray.splice(randomIndex, 1)[0];
 			result.push(randomTrack);
 		}
 	});
