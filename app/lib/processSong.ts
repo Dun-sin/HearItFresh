@@ -88,12 +88,10 @@ export async function processSong(
 		spotifyTrack.title,
 		spotifyTrack.artist,
 	);
-	const { lyrics, summary } = cleanLyrics(
-		getLyricsResult?.split('\n').slice(0, 25).join('\n') ?? '',
-	);
+	const lyrics = getLyricsResult?.split('\n').slice(0, 25).join('\n') ?? ''
 
 	// save song first
-	const song = await addSong(spotifyTrack, lyrics ?? '', summary);
+	const song = await addSong(spotifyTrack, lyrics);
 
 	let embeddingData = null;
   if (lyrics) {
