@@ -105,16 +105,25 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   }
 
   function storeToLocalStore(expires_in: number, refresh_token: string, access_token: string) {
+    console.log('storeToLocalStore called with expires:', expires_in);
     setExpires(expires_in);
 
     const currentTime = Date.now();
     localStorage.setItem('expires', currentTime + expires_in * 1000 + '');
+    
     if (access_token) {
+      console.log('storeToLocalStore: Saving access_token');
       localStorage.setItem('access_token', access_token);
+    } else {
+      console.log('storeToLocalStore: NOT saving access_token (falsy)');
     }
+    
     if (refresh_token) {
+      console.log('storeToLocalStore: Saving refresh_token');
       // refresh_token is already encrypted by the server
       localStorage.setItem('refresh_token', refresh_token);
+    } else {
+      console.log('storeToLocalStore: NOT saving refresh_token (falsy)');
     }
   }
 
