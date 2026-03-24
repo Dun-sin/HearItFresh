@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const [isAuthInProgress, setAuthInProgress] = useState(false);
 
 	const logOut = () => {
+		console.trace('logOut function called - clearing localStorage!');
 		setLoggedIn(false);
 		setAuthInProgress(false);
     setAccessTokenState(null);
