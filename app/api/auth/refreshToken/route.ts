@@ -9,7 +9,9 @@ const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
 
 export async function POST(req: Request) {
 	const res = await req.json();
-	const refreshToken = decrypt(res.refresh_token);
+	const encryptedRefreshToken = res.refresh_token;
+	const refreshToken = decrypt(encryptedRefreshToken);
+	console.log('Refresh token decrypt result:', refreshToken ? 'SUCCESS' : 'EMPTY/FAILED');
 
 	if (!refreshToken) {
 		return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
@@ -37,8 +39,13 @@ export async function POST(req: Request) {
 
 		const { access_token, refresh_token, expires_in } = response.data;
 		const user = await getUser(access_token);
+		// Spotify doesn't always return a new refresh_token on refresh;
+		// when missing, re-use the encrypted token the client already has
+		const encryptedRefresh = refresh_token
+			? encrypt(refresh_token)
+			: encryptedRefreshToken;
 		return NextResponse.json(
-			{ expires_in, refresh_token: encrypt(refresh_token), access_token, user },
+			{ expires_in, refresh_token: encryptedRefresh, access_token, user },
 			{ status: 200 },
 		);
 	} catch (error) {
