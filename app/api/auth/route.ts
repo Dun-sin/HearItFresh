@@ -1,6 +1,7 @@
 import axios, { AxiosError } from "axios";
 
 import { NextResponse } from "next/server";
+import { encrypt } from '@/app/lib/utils';
 import { getUser } from '@/app/lib/spotify';
 import prisma from '@/app/lib/prisma';
 
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
 		}
 
 		return NextResponse.json(
-			{ expires_in, refresh_token, access_token, user },
+			{ expires_in, refresh_token: encrypt(refresh_token), access_token, user },
 			{ status: 200 },
 		);
 	} catch (error) {

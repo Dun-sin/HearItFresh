@@ -1,7 +1,6 @@
 'use client';
 
 import axios, { AxiosResponse } from 'axios';
-import { decrypt, encrypt } from '@/app/lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
@@ -80,32 +79,30 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 
     try {
       if (getRefreshToken) {
-        const refreshtoken = decrypt(getRefreshToken);
-
-        if (!refreshtoken || refreshtoken === '') {
-          authInProgress(false);
-          return;
-        }
-
         const response = await axios.post('/api/auth/refreshToken', {
-          refresh_token: refreshtoken,
+          refresh_token: getRefreshToken,
         });
         processResponse(response);
       } else {
         authInProgress(false);
       }
     } catch (error) {
-      throw Error(error as string);
+      console.error('Failed to refresh Spotify access token', error);
+      authInProgress(false);
     }
   }
 
-  function storeToLocalStore(expires_in: number, refresh_token: string) {
+  function storeToLocalStore(expires_in: number, refresh_token: string, access_token: string) {
     setExpires(expires_in);
 
     const currentTime = Date.now();
     localStorage.setItem('expires', currentTime + expires_in * 1000 + '');
+    if (access_token) {
+      localStorage.setItem('access_token', access_token);
+    }
     if (refresh_token === '' || !refresh_token) return;
-    localStorage.setItem('refresh_token', encrypt(refresh_token));
+    // refresh_token is already encrypted by the server
+    localStorage.setItem('refresh_token', refresh_token);
   }
 
   function setToSpotifyAPI(
@@ -118,7 +115,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
     spotifyApi.setAccessToken(access_token);
     spotifyApi.setRefreshToken(refresh_token);
 
-    storeToLocalStore(expires_in, refresh_token);
+    storeToLocalStore(expires_in, refresh_token, access_token);
   }
 
   function processResponse(response: AxiosResponse<any, any>) {

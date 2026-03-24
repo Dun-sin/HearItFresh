@@ -8,7 +8,7 @@ const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-const key = process.env.secretKey as string;
+const key = process.env.SECRET_KEY as string;
 
 export const encrypt = (text: string): string => {
 	return crypto.AES.encrypt(text, key).toString();

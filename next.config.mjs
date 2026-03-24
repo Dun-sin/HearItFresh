@@ -1,9 +1,6 @@
 const isProd = process.env.NODE_ENV === 'production'
 
 const nextConfig = {
-  env: {
-    secretKey: process.env.SECRET_KEY,
-  },
   images: {
     domains: ['i.scdn.co'],
   },
