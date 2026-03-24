@@ -67,7 +67,12 @@ export async function POST(req: Request) {
 		}
 
 		return NextResponse.json(
-			{ expires_in, refresh_token: encrypt(refresh_token), access_token, user },
+			{ 
+				expires_in, 
+				refresh_token: refresh_token ? encrypt(refresh_token) : undefined, 
+				access_token, 
+				user 
+			},
 			{ status: 200 },
 		);
 	} catch (error) {

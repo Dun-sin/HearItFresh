@@ -59,7 +59,9 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   async function loginUser(code: string) {
     if (!code) return null;
     try {
+      console.log('loginUser: sending code to /api/auth...', code.substring(0, 10) + '...');
       const response = await axios.post('/api/auth', { code });
+      console.log('loginUser: received response with status:', response?.status);
       processResponse(response);
       return response;
     } catch (err: any) {
@@ -110,9 +112,10 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
     if (access_token) {
       localStorage.setItem('access_token', access_token);
     }
-    if (refresh_token === '' || !refresh_token) return;
-    // refresh_token is already encrypted by the server
-    localStorage.setItem('refresh_token', refresh_token);
+    if (refresh_token) {
+      // refresh_token is already encrypted by the server
+      localStorage.setItem('refresh_token', refresh_token);
+    }
   }
 
   function setToSpotifyAPI(
@@ -129,11 +132,16 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   }
 
   function processResponse(response: AxiosResponse<any, any>) {
+    console.log('processResponse running. Status:', response.status);
     const { expires_in, refresh_token, access_token, user } = response.data;
+    console.log('processResponse data extracted - has refresh_token?', !!refresh_token, 'has access_token?', !!access_token);
     if (response.status === 200) {
+      console.log('processResponse: calling setToSpotifyAPI...');
       setToSpotifyAPI(access_token, refresh_token, expires_in);
       setUserData(user);
       setAccessToken(access_token);
+    } else {
+      console.log('processResponse: ignored because status !== 200');
     }
   }
 
