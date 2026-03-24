@@ -1,3 +1,10 @@
+## [1.21.1](https://github.com/Dun-sin/HearItFresh/compare/v1.21.0...v1.21.1) (2026-03-24)
+
+
+### Bug Fixes
+
+* refresh token not working ([259af84](https://github.com/Dun-sin/HearItFresh/commit/259af84917d90ac75088bbd9ab4b33ba87b38bbb))
+
 # [1.21.0](https://github.com/Dun-sin/HearItFresh/compare/v1.20.0...v1.21.0) (2026-03-23)
 
 
