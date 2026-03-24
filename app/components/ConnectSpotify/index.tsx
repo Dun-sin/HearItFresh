@@ -22,6 +22,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 
   useEffect(() => {
     (async () => {
+      console.log('ConnectSpotify useEffect triggered');
       const current = new URLSearchParams(Array.from(searchParams.entries()));
       const extractedCode = searchParams.get('code');
 
@@ -50,6 +51,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
         return;
       }
 
+      console.log('ConnectSpotify calling refreshAccessToken() from useEffect');
       refreshAccessToken();
     })();
   }, []);
@@ -72,18 +74,26 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   }
 
   async function refreshAccessToken() {
-    if (isAuthInProgress) return;
+    console.log('refreshAccessToken() started. isAuthInProgress:', isAuthInProgress);
+    if (isAuthInProgress) {
+      console.log('refreshAccessToken() aborted because isAuthInProgress is true');
+      return;
+    }
 
     authInProgress(true);
     const getRefreshToken = localStorage.getItem('refresh_token');
+    console.log('refreshAccessToken: got refresh token from localStorage?', !!getRefreshToken);
 
     try {
       if (getRefreshToken) {
+        console.log('refreshAccessToken: calling /api/auth/refreshToken...');
         const response = await axios.post('/api/auth/refreshToken', {
           refresh_token: getRefreshToken,
         });
+        console.log('refreshAccessToken: received response status:', response?.status);
         processResponse(response);
       } else {
+        console.log('refreshAccessToken: no refresh_token found, setting authInProgress to false');
         authInProgress(false);
       }
     } catch (error) {
