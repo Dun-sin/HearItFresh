@@ -22,7 +22,6 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
 
   useEffect(() => {
     (async () => {
-      console.log('ConnectSpotify useEffect triggered');
       const current = new URLSearchParams(Array.from(searchParams.entries()));
       const extractedCode = searchParams.get('code');
 
@@ -51,7 +50,6 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
         return;
       }
 
-      console.log('ConnectSpotify calling refreshAccessToken() from useEffect');
       refreshAccessToken();
     })();
   }, []);
@@ -59,9 +57,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   async function loginUser(code: string) {
     if (!code) return null;
     try {
-      console.log('loginUser: sending code to /api/auth...', code.substring(0, 10) + '...');
       const response = await axios.post('/api/auth', { code });
-      console.log('loginUser: received response with status:', response?.status);
       processResponse(response);
       return response;
     } catch (err: any) {
@@ -76,26 +72,18 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   }
 
   async function refreshAccessToken() {
-    console.log('refreshAccessToken() started. isAuthInProgress:', isAuthInProgress);
-    if (isAuthInProgress) {
-      console.log('refreshAccessToken() aborted because isAuthInProgress is true');
-      return;
-    }
+    if (isAuthInProgress) return;
 
     authInProgress(true);
     const getRefreshToken = localStorage.getItem('refresh_token');
-    console.log('refreshAccessToken: got refresh token from localStorage?', !!getRefreshToken);
 
     try {
       if (getRefreshToken) {
-        console.log('refreshAccessToken: calling /api/auth/refreshToken...');
         const response = await axios.post('/api/auth/refreshToken', {
           refresh_token: getRefreshToken,
         });
-        console.log('refreshAccessToken: received response status:', response?.status);
         processResponse(response);
       } else {
-        console.log('refreshAccessToken: no refresh_token found, setting authInProgress to false');
         authInProgress(false);
       }
     } catch (error) {
@@ -105,25 +93,18 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   }
 
   function storeToLocalStore(expires_in: number, refresh_token: string, access_token: string) {
-    console.log('storeToLocalStore called with expires:', expires_in);
     setExpires(expires_in);
 
     const currentTime = Date.now();
     localStorage.setItem('expires', currentTime + expires_in * 1000 + '');
     
     if (access_token) {
-      console.log('storeToLocalStore: Saving access_token');
       localStorage.setItem('access_token', access_token);
-    } else {
-      console.log('storeToLocalStore: NOT saving access_token (falsy)');
     }
     
     if (refresh_token) {
-      console.log('storeToLocalStore: Saving refresh_token');
       // refresh_token is already encrypted by the server
       localStorage.setItem('refresh_token', refresh_token);
-    } else {
-      console.log('storeToLocalStore: NOT saving refresh_token (falsy)');
     }
   }
 
@@ -141,16 +122,11 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   }
 
   function processResponse(response: AxiosResponse<any, any>) {
-    console.log('processResponse running. Status:', response.status);
     const { expires_in, refresh_token, access_token, user } = response.data;
-    console.log('processResponse data extracted - has refresh_token?', !!refresh_token, 'has access_token?', !!access_token);
     if (response.status === 200) {
-      console.log('processResponse: calling setToSpotifyAPI...');
       setToSpotifyAPI(access_token, refresh_token, expires_in);
       setUserData(user);
       setAccessToken(access_token);
-    } else {
-      console.log('processResponse: ignored because status !== 200');
     }
   }
 

@@ -11,7 +11,6 @@ export async function POST(req: Request) {
 	const res = await req.json();
 	const encryptedRefreshToken = res.refresh_token;
 	const refreshToken = decrypt(encryptedRefreshToken);
-	console.log('Refresh token decrypt result:', refreshToken ? 'SUCCESS' : 'EMPTY/FAILED');
 
 	if (!refreshToken) {
 		return NextResponse.json({ error: 'Invalid request' }, { status: 400 });

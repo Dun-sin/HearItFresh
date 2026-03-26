@@ -18,7 +18,7 @@ const History = () => {
 
 	async function getHistory() {
 		if (!user) {
-			return logOut();
+			return;
 		}
 
 		const response = await axios.get(`api/users/${user.user_id}/history`);
