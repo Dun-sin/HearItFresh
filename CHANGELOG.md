@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/Dun-sin/HearItFresh/compare/v1.21.2...v1.22.0) (2026-03-26)
+
+
+### Features
+
+* add better loading messages ([d9a9b21](https://github.com/Dun-sin/HearItFresh/commit/d9a9b21d3dd9f9262439514a8c314f9dd3bc3bd4))
+
 ## [1.21.2](https://github.com/Dun-sin/HearItFresh/compare/v1.21.1...v1.21.2) (2026-03-26)
 
 
