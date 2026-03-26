@@ -61,7 +61,7 @@ const SubmitButtion = () => {
     setLoading(true);
 
     try {
-      setLoadingMessage('Generating playlist based on your seeds...');
+      setLoadingMessage('Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...');
       console.log('[handleSeedPlaylistGeneration] Starting...');
       const selectedSongsData = extractedSongs.filter((s: any) => selectedSeedIds.has(s.id));
 
@@ -106,22 +106,22 @@ const SubmitButtion = () => {
         ? 'HearItFresh - Lyrics Inspired'
         : 'HearItFresh - Similar to Playlist'
 
-        setLoadingMessage('Creating The Playlist')
+        setLoadingMessage('Creating your new playlist on Spotify...')
         const playlistInfo = await createPlayList(playlistName, 'Created by HearItFresh')
         if ('isError' in playlistInfo) throw new Error(playlistInfo.err)
 
         const { id, link, name } = playlistInfo
         const playListID = id.substring('spotify:playlist:'.length)
 
-        setLoadingMessage('Adding The Tracks To The Playlist')
+        setLoadingMessage('Adding the tracks to your Spotify playlist...')
         await addTracksToPlayList(result.tracks, playListID)
         createSpotifyPlaylist(link, name)
       }
     } catch (err: any) {
-      console.log('[handleSeedPlaylistGeneration] Error:', err);
+      console.log('[handleSeedPlaylistGeneration] Error:', err.message);
       setErrorMessages({
         ...errorMessages,
-        error: 'Error occurred while generating playlist: ' + (err.message || ''),
+        error: 'Error occurred while generating playlist: A playlist might have still been generated, please check your Spotify, before trying again',
       });
       console.log(err);
     } finally {
@@ -177,20 +177,20 @@ const SubmitButtion = () => {
     setButtonClicked(true);
 
     try {
-      setLoadingMessage(`Getting the list of new artists`);
+      setLoadingMessage('Discovering new artists similar to your selection...');
 
       const finalList = await fetchSimilarArtistsFromAI(artists, {
         isNotPopular: isNotPopularArtists,
         isDifferent: isDifferentTypesOfArtists
       });
 
-			setLoadingMessage(`Getting the albums of each artist`);
+      setLoadingMessage('Fetching latest albums from the discovered artists...');
 			const albums = await getEveryAlbum(finalList);
 
-			setLoadingMessage('Getting All Tracks');
+      setLoadingMessage('Gathering the best tracks from their albums...');
       const tracks = await getAllTracks(albums as string[], 1) as string[];
 
-			setLoadingMessage('Creating The PlayList');
+      setLoadingMessage('Creating your new Similar Artists playlist on Spotify...');
 			const playlistName = `Similar to ${artists.join(', ')}`;
 			const playlistInfo = await Promise.resolve(
 				createPlayList(
@@ -205,7 +205,7 @@ const SubmitButtion = () => {
 			const { id, link, name } = playlistInfo;
 			const playListID = id.substring('spotify:playlist:'.length);
 
-			setLoadingMessage('Adding The Tracks To The Playlist');
+      setLoadingMessage('Adding the selected tracks to your Spotify playlist...');
 
 			if (tracks === null) throw new Error('Track is empty');
 			addTracksToPlayList(tracks, playListID)
@@ -217,13 +217,13 @@ const SubmitButtion = () => {
 					return err;
 				});
 
-			setLoadingMessage('Done');
+      setLoadingMessage('Playlist successfully generated!');
 			setArtistArray([]);
 			toast.success('Playlist Created');
 		} catch (err) {
 			setErrorMessages({
 				...errorMessages,
-				error: 'Error occured while generating a playlist. Try to login again',
+        error: 'Error occured while generating a playlist: a playlist might have still been generated, please check your Spotify before trying again.',
 			});
 			console.log(err);
 		} finally {
@@ -243,12 +243,12 @@ const SubmitButtion = () => {
 		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
 
 		try {
-			setLoadingMessage(`Extracting Playlist Link`);
+      setLoadingMessage('Connecting to Spotify to extract your playlist details...');
 			const playlistId = extractPlaylistId(link);
 
 			await addHistoryToDB(playlistId);
 
-			setLoadingMessage(`Getting All Tracks In The Playlist`);
+      setLoadingMessage('Retrieving all tracks from the provided playlist...');
 			const playlistTracks = await getAllTracksInAPlaylist(playlistId);
 
 			const trackArtists = playlistTracks
