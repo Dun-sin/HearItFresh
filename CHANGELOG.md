@@ -1,3 +1,10 @@
+## [1.21.2](https://github.com/Dun-sin/HearItFresh/compare/v1.21.1...v1.21.2) (2026-03-26)
+
+
+### Bug Fixes
+
+* logging out when user doesn't exist when fetching history ([a56d3a6](https://github.com/Dun-sin/HearItFresh/commit/a56d3a63fa4abd81ef36b76fd1626660ef9d4f25))
+
 ## [1.21.1](https://github.com/Dun-sin/HearItFresh/compare/v1.21.0...v1.21.1) (2026-03-24)
 
 
