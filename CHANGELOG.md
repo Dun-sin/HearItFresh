@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/Dun-sin/HearItFresh/compare/v1.22.0...v1.23.0) (2026-06-16)
+
+
+### Features
+
+* add a cancel and retry option ([c207b86](https://github.com/Dun-sin/HearItFresh/commit/c207b8614da82b534b461876349e196538025bd6))
+
 # [1.22.0](https://github.com/Dun-sin/HearItFresh/compare/v1.21.2...v1.22.0) (2026-03-26)
 
 
