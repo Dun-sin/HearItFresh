@@ -24,8 +24,16 @@ export async function generateSeedPlaylist(
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	accessToken?: string,
 	userId?: string,
+	signal?: AbortSignal,
 ): Promise<{ tracks: string[]; error?: string }> {
+	const throwIfAborted = () => {
+		if (signal?.aborted) {
+			throw new Error('Aborted');
+		}
+	};
+
 	try {
+		throwIfAborted();
 		if (accessToken) setAccessToken(accessToken);
 		logToken(accessToken);
 		console.log('Generating seed playlist...');
@@ -40,16 +48,21 @@ export async function generateSeedPlaylist(
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
 		await Promise.all(
-			seeds.map((seed) =>
-				processSong({
-					id: seed.id,
-					title: seed.name,
-					artist: seed.artist[0] || 'Unknown Artist',
-					album: seed.album || 'Unknown Album',
-				}),
-			),
-    );
+			seeds.map(async (seed) => {
+				throwIfAborted();
+				return await processSong(
+					{
+						id: seed.id,
+						title: seed.name,
+						artist: seed.artist[0] || 'Unknown Artist',
+						album: seed.album || 'Unknown Album',
+					},
+					signal,
+				);
+			}),
+		);
 
+		throwIfAborted();
 		// 2. Fetch seed embeddings from DB
     const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
     
@@ -74,6 +87,7 @@ export async function generateSeedPlaylist(
 		if (seedEmbeddings.length > 0) {
 			const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
 			const dbSimilar = await findSimilarSongs(seedEmbeddings, excludeIds, 24);
+			throwIfAborted();
 			dbMatchesUris = dbSimilar.map(
 				(song: any) => `spotify:track:${song.spotifyId}`,
 			);
@@ -93,13 +107,16 @@ export async function generateSeedPlaylist(
 
 		// 4. AI Fallback for remaining songs
 		console.log(`AI Fallback check: remainingNeeded=${remainingNeeded}`);
-		const finalList = await relatedArists(artistNames, options);
+		throwIfAborted();
+		const finalList = await relatedArists(artistNames, options, signal);
+		throwIfAborted();
 
 		console.log('Getting albums for artists...', finalList);
-		const albums = await getEveryAlbum(finalList);
+		const albums = await getEveryAlbum(finalList, signal);
+		throwIfAborted();
 
 		console.log('Getting tracks for albums...');
-		const aiTracks = (await getAllTracks(albums as string[], 5, true)) as any[]; // Need more tracks to filter down
+		const aiTracks = (await getAllTracks(albums as string[], 5, true, signal)) as any[]; // Need more tracks to filter down
 
 		console.log('AI Tracks:', aiTracks);
 
@@ -123,6 +140,7 @@ const CUTOFF = THRESHOLD - 0.25
 
 const scoredTracks = await Promise.all(
   aiTracks.map(track => limit(async () => {
+    if (signal?.aborted) return null;
     try {
       console.log(`Processing: "${track.name}" by ${track.artistName} (id: ${track.id})`);
       const processed = await processSong({
@@ -130,7 +148,8 @@ const scoredTracks = await Promise.all(
         title: track.name,
         artist: track.artistName,
         album: track.albumName,
-      })
+      }, signal)
+      if (signal?.aborted) return null;
       const emb = processed.embeddingData
       if (!emb) return null
 
@@ -161,6 +180,7 @@ const scoredTracks = await Promise.all(
 
 const validScored = scoredTracks
   .filter((t): t is { uri: string; thresholdHits: number; maxScore: number } => t !== null);
+throwIfAborted();
 console.log(`[Scoring Summary] ${validScored.length}/${aiTracks.length} tracks passed cutoff`);
 
 const sortedScored = validScored

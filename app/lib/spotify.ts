@@ -256,11 +256,12 @@ export async function getUser(access_token: string) {
 export async function getRelatedArtists(
 	artistName: string,
 	options: { isNotPopular: boolean; isDifferent: boolean },
+	signal?: AbortSignal,
 ): Promise<string[]> {
 	try {
 		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=20`;
 
-		const res = await fetch(url);
+		const res = await fetch(url, { signal });
 		const data = await res.json();
 
 		if (!data.similarartists?.artist) return [];
@@ -278,7 +279,8 @@ export async function getRelatedArtists(
     // so just return all for isDifferent and let lyrical similarity handle it
     const finalArtist = artists.map((a) => a.name);
 		return finalArtist.sort(() => Math.random() - 0.5)
-	} catch (err) {
+	} catch (err: any) {
+		if (signal?.aborted) throw new Error('Aborted');
 		console.error(`Error getting related artists for ${artistName}:`, err);
 		return [];
 	}

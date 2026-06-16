@@ -26,12 +26,14 @@ export const decrypt = (encryptedText: string): string => {
  * @param artists - Array of artist names
  * @returns Array of unique album IDs
  */
-export const getEveryAlbum = async (artists: string[]) => {
+export const getEveryAlbum = async (artists: string[], signal?: AbortSignal) => {
+  if (signal?.aborted) throw new Error('Aborted');
   const shuffled = [...artists].sort(() => Math.random() - 0.5)
   const artistAlbums = shuffled.map((item) =>
     getArtistsAlbums(item, shuffled.length),
   )
   const albumArray = await Promise.all(artistAlbums)
+  if (signal?.aborted) throw new Error('Aborted');
   const albums = [...new Set(albumArray.flat())].sort(() => Math.random() - 0.5)
   const stringAlbums = albums.filter((item) => typeof item === 'string')
 
@@ -42,13 +44,16 @@ export const getAllTracks = async (
 	albums: string[],
 	numTracks: number,
 	returnObjects = false,
+	signal?: AbortSignal,
 ): Promise<string[] | singleTrack[] | null> => {
+  if (signal?.aborted) throw new Error('Aborted');
 	if (!albums || albums.length === 0) {
 		console.log('getAllTracks called with empty albums list');
 		return [];
 	}
 	const tracks = await getTracks(albums);
 
+	if (signal?.aborted) throw new Error('Aborted');
 	if (!tracks || 'isError' in tracks) {
 		console.log('getTracks returned error or nothing:', tracks);
 		return null;
@@ -273,6 +278,7 @@ export function cleanLyrics(raw: string): {
 export async function relatedArists(
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
+	signal?: AbortSignal,
 ) {
 	const relatedArtistsPerSeed = [];
 	const batches = [];
@@ -282,13 +288,15 @@ export async function relatedArists(
 	}
 
 	for (const batch of batches) {
+		if (signal?.aborted) throw new Error('Aborted');
 		const results = await Promise.all(
 			batch.map(async (name) => {
-				const related = await getRelatedArtists(name, options);
+				const related = await getRelatedArtists(name, options, signal);
 				return related.sort(() => Math.random() - 0.5);
 			}),
 		);
 		relatedArtistsPerSeed.push(...results);
+		if (signal?.aborted) throw new Error('Aborted');
 		await new Promise((r) => setTimeout(r, 300));
 	}
 

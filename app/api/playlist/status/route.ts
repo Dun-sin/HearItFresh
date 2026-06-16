@@ -22,5 +22,6 @@ export async function GET(req: Request) {
 	return Response.json({
 		status: run?.status,
 		output: run?.output,
+		runId: run?.run_id,
 	});
 }

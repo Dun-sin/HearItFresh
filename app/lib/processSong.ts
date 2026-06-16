@@ -19,19 +19,22 @@ async function getExtractor() {
 	return extractor;
 }
 
-async function getEmbedding(text: string): Promise<number[]> {
+async function getEmbedding(text: string, signal?: AbortSignal): Promise<number[]> {
 	return process.env.NODE_ENV === 'production'
-		? getEmbeddingProd(text)
-		: getEmbeddingDev(text);
+		? getEmbeddingProd(text, signal)
+		: getEmbeddingDev(text, signal);
 }
 
-async function getEmbeddingDev(text: string): Promise<number[]> {
+async function getEmbeddingDev(text: string, signal?: AbortSignal): Promise<number[]> {
+	if (signal?.aborted) throw new Error('Aborted');
 	const ext = await getExtractor();
+	if (signal?.aborted) throw new Error('Aborted');
 	const output = await ext(text, { pooling: 'mean', normalize: true });
+	if (signal?.aborted) throw new Error('Aborted');
 	return Array.from(output.data) as number[];
 }
 
-async function getEmbeddingProd(text: string): Promise<number[]> {
+async function getEmbeddingProd(text: string, signal?: AbortSignal): Promise<number[]> {
 	const response = await fetch(
 		'https://api.deepinfra.com/v1/openai/embeddings',
 		{
@@ -45,28 +48,34 @@ async function getEmbeddingProd(text: string): Promise<number[]> {
 				input: text,
 				encoding_format: 'float',
 			}),
+			signal,
 		},
 	);
 	const data = await response.json();
 	return data.data[0].embedding;
 }
 
-async function getLyrics(title: string, artist: string): Promise<string | null> {
+async function getLyrics(title: string, artist: string, signal?: AbortSignal): Promise<string | null> {
   try {
+    if (signal?.aborted) return null;
     const res = await fetch(
-      `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`
+      `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`,
+      { signal },
     )
     if (!res.ok) return null
     const data = await res.json()
     return data.lyrics ?? null
-  } catch {
+  } catch (err: any) {
+    if (signal?.aborted) throw new Error('Aborted');
     return null
   }
 }
 
 export async function processSong(
 	spotifyTrack: SpotifyTrack,
+	signal?: AbortSignal,
 ): Promise<Song & { embeddingData?: number[] | null }> {
+	if (signal?.aborted) throw new Error('Aborted');
 	const existing = await getSong(spotifyTrack.id);
 
 	if (existing) {
@@ -77,8 +86,10 @@ export async function processSong(
     `;
 
 		if (!hasEmbedding[0]?.has_embedding && existing.lyrics) {
+			if (signal?.aborted) throw new Error('Aborted');
 			console.log(`Backfilling embedding for ${existing.title}`);
-			const embedding = await getEmbedding(existing.lyrics);
+			const embedding = await getEmbedding(existing.lyrics, signal);
+			if (signal?.aborted) throw new Error('Aborted');
 			await addEmbeddingToSong(existing.id, embedding);
 		}
 		return existing;
@@ -87,6 +98,7 @@ export async function processSong(
 	const getLyricsResult = await getLyrics(
 		spotifyTrack.title,
 		spotifyTrack.artist,
+		signal,
 	);
 	const lyrics = getLyricsResult?.split('\n').slice(0, 60).join('\n') ?? ''
 
@@ -95,10 +107,12 @@ export async function processSong(
 
 	let embeddingData = null;
   if (lyrics) {
+    if (signal?.aborted) throw new Error('Aborted');
     console.log('NODE_ENV:', process.env.NODE_ENV)
 console.log('calling getEmbedding for:', spotifyTrack.title)
 
-embeddingData = await getEmbedding(lyrics);
+    embeddingData = await getEmbedding(lyrics, signal);
+    if (signal?.aborted) throw new Error('Aborted');
 console.log('embedding length:', embeddingData?.length)
 		await addEmbeddingToSong(song.id, embeddingData);
 	}
