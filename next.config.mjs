@@ -2,7 +2,7 @@ const isProd = process.env.NODE_ENV === 'production'
 
 const nextConfig = {
   images: {
-    domains: ['i.scdn.co'],
+    domains: ['i.scdn.co', 'lh3.googleusercontent.com'],
   },
   experimental: {
     serverComponentsExternalPackages: [

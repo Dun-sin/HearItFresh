@@ -4,7 +4,6 @@ import axios, { AxiosResponse } from 'axios';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-import spotifyApi from '@/app/lib/spotifyApi';
 import { useAuth } from '@/app/context/authContext';
 import useRefreshToken from '@/app/hooks/useRefreshToken';
 
@@ -65,7 +64,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
       console.error('Login exchange failed', err?.response?.data || err);
       authInProgress(false);
       // If the code expired, quickly redirect to start a fresh auth
-      const isExpired = err?.response?.data?.spotify_error?.error_description === 'Authorization code expired';
+      const isExpired = err?.response?.data?.google_error?.error_description === 'Authorization code expired';
       if (isExpired) window.location.href = authUrl;
       return err?.response || null;
     }
@@ -87,7 +86,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
         authInProgress(false);
       }
     } catch (error) {
-      console.error('Failed to refresh Spotify access token', error);
+      console.error('Failed to refresh Google access token', error);
       authInProgress(false);
     }
   }
@@ -108,15 +107,12 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
     }
   }
 
-  function setToSpotifyAPI(
+  function setToGoogleAPI(
     access_token: string,
     refresh_token: string,
     expires_in: number,
   ) {
     logIn();
-
-    spotifyApi.setAccessToken(access_token);
-    spotifyApi.setRefreshToken(refresh_token);
 
     storeToLocalStore(expires_in, refresh_token, access_token);
   }
@@ -124,7 +120,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   function processResponse(response: AxiosResponse<any, any>) {
     const { expires_in, refresh_token, access_token, user } = response.data;
     if (response.status === 200) {
-      setToSpotifyAPI(access_token, refresh_token, expires_in);
+      setToGoogleAPI(access_token, refresh_token, expires_in);
       setUserData(user);
       setAccessToken(access_token);
     }
@@ -137,14 +133,14 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
       <div className='absolute top-0 w-full h-full flex items-center justify-center backdrop-blur-sm bg-lightest/45 flex-col'>
         <p className={`text-flg md:text-fmd font-bold`}>
           {isAuthInProgress
-            ? 'Connecting your spotify'
-            : 'Please login to connect your spotify and use this tool'}
+            ? 'Connecting your Google account'
+            : 'Please login with Google to use this tool'}
         </p>
         {!isAuthInProgress && (
           <a
             href={authUrl}
             className='px-4 py-2 bg-brand rounded-md text-lightest'>
-            Connect Your Spotify
+            Connect Your Google Account
           </a>
         )}
       </div>
