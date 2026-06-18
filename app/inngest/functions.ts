@@ -3,6 +3,7 @@ import { addTracksToPlayList, createPlayList } from '../lib/spotify';
 import { generateSeedPlaylist } from '../lib/generateSeedPlaylist';
 import { inngest } from './client';
 import { setAccessToken } from '../lib/spotifyApi';
+import { getDummyAccessToken } from '../lib/spotify-dummy-auth';
 import prisma from '../lib/prisma';
 
 export const generatePlaylist = inngest.createFunction(
@@ -18,7 +19,7 @@ export const generatePlaylist = inngest.createFunction(
 	},
 	{ event: 'playlist/generate' },
 	async ({ event, step }) => {
-		const { seeds, artistNames, options, accessToken, userId, jobId } = event.data;
+		const { seeds, artistNames, options, userId, jobId } = event.data;
 
 		// generate tracks
 		const result = await step.run('generate-seed-playlist', async () => {
@@ -26,7 +27,6 @@ export const generatePlaylist = inngest.createFunction(
 				seeds,
 				artistNames,
 				options,
-				accessToken,
 				userId,
 			);
 		});
@@ -36,7 +36,8 @@ export const generatePlaylist = inngest.createFunction(
 
 		// create spotify playlist
 		const playlistInfo = await step.run('create-spotify-playlist', async () => {
-			setAccessToken(accessToken);
+			const token = await getDummyAccessToken();
+			setAccessToken(token);
 			const playlistName =
 				seeds.length > 0
 					? 'HearItFresh - Lyrics Inspired'
@@ -54,7 +55,8 @@ export const generatePlaylist = inngest.createFunction(
 		const playListID = id.substring('spotify:playlist:'.length);
 		
 		await step.run('add-tracks-to-playlist', async () => {
-			setAccessToken(accessToken);
+			const token = await getDummyAccessToken();
+			setAccessToken(token);
 			await addTracksToPlayList(result.tracks, playListID);
 		});
 
