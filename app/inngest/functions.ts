@@ -3,6 +3,7 @@ import { addTracksToPlayList, createPlayList } from '../lib/spotify';
 import { generateSeedPlaylist } from '../lib/generateSeedPlaylist';
 import { inngest } from './client';
 import { setAccessToken } from '../lib/spotifyApi';
+import prisma from '../lib/prisma';
 
 export const generatePlaylist = inngest.createFunction(
 	{
@@ -55,6 +56,22 @@ export const generatePlaylist = inngest.createFunction(
 		await step.run('add-tracks-to-playlist', async () => {
 			setAccessToken(accessToken);
 			await addTracksToPlayList(result.tracks, playListID);
+		});
+
+		// Save playlist to database
+		await step.run('save-playlist-to-db', async () => {
+			await prisma.generatedPlaylist.create({
+				data: {
+					userId,
+					playlistName: name,
+					playlistLink: link,
+					playlistId: playListID,
+					inngestRunId: jobId, // Will be updated with actual runId later
+					inngestEventId: '', // Will be set from the status endpoint
+					status: 'completed',
+					completedAt: new Date(),
+				},
+			});
 		});
 
 		return { link, name };

@@ -13,11 +13,12 @@ datasource db {
 }
 
 model User {
-  userId          String  @id @map("user_id")
-  displayName     String  @map("display_name")
-  profileImageUrl String? @map("profile_image_url")
-  history         Json?
-  generatedSongIds String[]
+  userId              String               @id @map("user_id")
+  displayName         String               @map("display_name")
+  profileImageUrl     String?              @map("profile_image_url")
+  history             Json?
+  generatedSongIds    String[]
+  generatedPlaylists  GeneratedPlaylist[]
 
   @@map("users")
 }
@@ -33,4 +34,21 @@ model Song {
   createdAt DateTime               @default(now())
   spotifyId String?                @unique
   youtubeId String?                @unique
+}
+
+model GeneratedPlaylist {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  playlistName    String   @map("playlist_name")
+  playlistLink    String   @map("playlist_link")
+  playlistId      String   @map("playlist_id")
+  inngestRunId    String   @map("inngest_run_id")
+  inngestEventId  String   @map("inngest_event_id")
+  status          String   @default("pending")
+  createdAt       DateTime @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  @@map("generated_playlists")
+  @@index([userId])
 }
