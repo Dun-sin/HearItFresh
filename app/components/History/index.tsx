@@ -22,9 +22,10 @@ const History = () => {
 
 		const response = await axios.get(`api/users/${user.user_id}/history`);
     const data = response?.data?.message?.map(
-			({ text, lastUsed }: { text: string; lastUsed: string }) => ({
+			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
 				text,
 				lastUsed: new Date(lastUsed),
+				generatedPlaylists,
 			}),
 		);
 
@@ -37,8 +38,13 @@ const History = () => {
 				<p className='font-bold text-fmd'>Your History</p>
 				<div className='flex flex-wrap justify-between items-center gap-5 w-full mt-2'>
 					{history && history.length > 0 ? (
-						history.map(({ text, lastUsed }) => (
-							<HistoryCard text={text} lastUsed={lastUsed} key={text} />
+						history.map(({ text, lastUsed, generatedPlaylists }) => (
+							<HistoryCard
+								text={text}
+								lastUsed={lastUsed}
+								generatedPlaylists={generatedPlaylists}
+								key={text}
+							/>
 						))
 					) : (
 						<p className='flex items-center font-light text-fsm'>

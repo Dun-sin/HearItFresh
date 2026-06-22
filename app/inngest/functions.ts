@@ -19,7 +19,7 @@ export const generatePlaylist = inngest.createFunction(
 	},
 	{ event: 'playlist/generate' },
 	async ({ event, step }) => {
-		const { seeds, artistNames, options, userId, jobId } = event.data;
+		const { seeds, artistNames, options, userId, jobId, sourcePlaylistId } = event.data;
 
 		// generate tracks
 		const result = await step.run('generate-seed-playlist', async () => {
@@ -68,6 +68,7 @@ export const generatePlaylist = inngest.createFunction(
 					playlistName: name,
 					playlistLink: link,
 					playlistId: playListID,
+					sourcePlaylistId,
 					inngestRunId: jobId, // Will be updated with actual runId later
 					inngestEventId: '', // Will be set from the status endpoint
 					status: 'completed',

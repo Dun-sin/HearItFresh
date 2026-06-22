@@ -43,6 +43,7 @@ model GeneratedPlaylist {
   playlistName    String   @map("playlist_name")
   playlistLink    String   @map("playlist_link")
   playlistId      String   @map("playlist_id")
+  sourcePlaylistId String?  @map("source_playlist_id")
   inngestRunId    String   @map("inngest_run_id")
   inngestEventId  String   @map("inngest_event_id")
   status          String   @default("pending")
@@ -51,4 +52,5 @@ model GeneratedPlaylist {
 
   @@map("generated_playlists")
   @@index([userId])
+  @@index([userId, sourcePlaylistId])
 }

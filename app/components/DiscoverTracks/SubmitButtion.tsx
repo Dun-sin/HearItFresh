@@ -3,13 +3,15 @@
 import {
   addTracksToPlayList,
   createPlayList,
-  getAllTracksInAPlaylist,
 } from '@/app/lib/spotify';
 import {
 	extractPlaylistId,
 	getAllTracks,
 	getEveryAlbum,
+	getPlaylistTracks,
+	isSpotifyPlaylistPermissionError,
 	isValidPlaylistLink,
+  SPOTIFY_PUBLIC_PLAYLIST_ERROR,
 } from '@/app/lib/utils';
 
 import React, { useRef, useState } from 'react';
@@ -93,6 +95,9 @@ const SubmitButtion = () => {
           options: { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
           userId: user?.user_id,
           jobId: activeJobIdRef.current,
+          sourcePlaylistId: spotifyPlaylist.current?.value
+            ? extractPlaylistId(spotifyPlaylist.current.value)
+            : undefined,
         };
         const result = await fetch('/api/playlist/generate', {
           method: 'POST',
@@ -170,7 +175,11 @@ const SubmitButtion = () => {
     if (abortedRef.current) return;
 
     console.log('[pollForCompletion] Polling for eventId:', eventId);
-    const res = await fetch(`/api/playlist/status?eventId=${eventId}`);
+    const params = new URLSearchParams({ eventId });
+    if (payload.userId) params.set('userId', payload.userId);
+    if (payload.jobId) params.set('jobId', payload.jobId);
+
+    const res = await fetch(`/api/playlist/status?${params.toString()}`);
     const data = await res.json();
     console.log('[pollForCompletion] Status:', data.status, data);
 
@@ -179,7 +188,11 @@ const SubmitButtion = () => {
 
     if (data.status === 'Completed') {
       console.log('[pollForCompletion] Completed!');
-      const { link, name } = data.output;
+      const playlist = data.output ?? data.lastPlaylist;
+      if (!playlist?.link || !playlist?.name) {
+        throw new Error('Playlist generation completed without playlist output');
+      }
+      const { link, name } = playlist;
       await createSpotifyPlaylist(link, name);
 
     } else if (data.status === 'Failed') {
@@ -380,7 +393,7 @@ const SubmitButtion = () => {
       if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
 
       setLoadingMessage('Retrieving all tracks from the provided playlist...');
-			const playlistTracks = await getAllTracksInAPlaylist(playlistId);
+			const playlistTracks = await getPlaylistTracks(playlistId);
       if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
 
 			const trackArtists = playlistTracks
@@ -406,7 +419,9 @@ const SubmitButtion = () => {
       if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
 			setErrorMessages({
 				...errorMessages,
-        error: 'Error occured while extracting playlist. Try to login again',
+        error: isSpotifyPlaylistPermissionError(err)
+          ? SPOTIFY_PUBLIC_PLAYLIST_ERROR
+          : 'Error occured while extracting playlist. Please try again later.',
 			});
 			console.log(err);
     } finally {
@@ -455,9 +470,10 @@ const SubmitButtion = () => {
 		const { message, history } = await addUserHistory(userId, text);
 
 		const newHistory = history.map(
-			({ text, lastUsed }: { text: string; lastUsed: string }) => ({
+			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
 				text,
 				lastUsed: new Date(lastUsed),
+				generatedPlaylists,
 			}),
 		);
 		if (message === 'success') setHistory(newHistory);

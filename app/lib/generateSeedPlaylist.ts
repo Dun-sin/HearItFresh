@@ -150,7 +150,7 @@ const scoredTracks = await Promise.all(
         album: track.albumName,
       }, signal)
       if (signal?.aborted) return null;
-      const emb = processed.embeddingData
+      const emb = processed?.embeddingData
       if (!emb) return null
 
       const scores = seedEmbeddings.map(seedEmb => 

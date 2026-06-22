@@ -74,7 +74,7 @@ async function getLyrics(title: string, artist: string, signal?: AbortSignal): P
 export async function processSong(
 	spotifyTrack: SpotifyTrack,
 	signal?: AbortSignal,
-): Promise<Song & { embeddingData?: number[] | null }> {
+): Promise<(Song & { embeddingData?: number[] | null }) | null> {
 	if (signal?.aborted) throw new Error('Aborted');
 	const existing = await getSong(spotifyTrack.id);
 
@@ -100,22 +100,24 @@ export async function processSong(
 		spotifyTrack.artist,
 		signal,
 	);
-	const lyrics = getLyricsResult?.split('\n').slice(0, 60).join('\n') ?? ''
+	const lyrics = getLyricsResult?.split('\n').slice(0, 60).join('\n').trim() ?? '';
+
+	if (!lyrics) {
+		console.log(`Skipping "${spotifyTrack.title}" by ${spotifyTrack.artist}: no lyrics found`);
+		return null;
+	}
 
 	// save song first
 	const song = await addSong(spotifyTrack, lyrics);
 
-	let embeddingData = null;
-  if (lyrics) {
-    if (signal?.aborted) throw new Error('Aborted');
-    console.log('NODE_ENV:', process.env.NODE_ENV)
+	if (signal?.aborted) throw new Error('Aborted');
+	console.log('NODE_ENV:', process.env.NODE_ENV)
 console.log('calling getEmbedding for:', spotifyTrack.title)
 
-    embeddingData = await getEmbedding(lyrics, signal);
-    if (signal?.aborted) throw new Error('Aborted');
+	const embeddingData = await getEmbedding(lyrics, signal);
+	if (signal?.aborted) throw new Error('Aborted');
 console.log('embedding length:', embeddingData?.length)
-		await addEmbeddingToSong(song.id, embeddingData);
-	}
+	await addEmbeddingToSong(song.id, embeddingData);
 
 	return { ...song, embeddingData };
 }

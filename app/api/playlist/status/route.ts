@@ -1,9 +1,15 @@
 import prisma from '@/app/lib/prisma';
+import {
+	formatPlaylistOutput,
+	normalizeOutput,
+	normalizeStatus,
+} from '@/app/lib/utils';
 
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const eventId = searchParams.get('eventId');
 	const userId = searchParams.get('userId');
+	const jobId = searchParams.get('jobId');
 
 	if (!eventId) return Response.json({ error: 'No eventId' }, { status: 400 });
 
@@ -21,9 +27,9 @@ export async function GET(req: Request) {
 	const json = await response.json();
 	const run = json.data?.[0];
 
-	const status = run?.status;
+	const status = normalizeStatus(run?.status);
 	const runId = run?.run_id;
-	const output = run?.output;
+	const output = normalizeOutput(run?.output);
 
 	// Update the database with the runId and eventId if we have a userId
 	if (userId && runId) {
@@ -31,7 +37,7 @@ export async function GET(req: Request) {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
-					inngestRunId: eventId, // Temporary jobId - update with actual runId
+					inngestRunId: jobId ?? eventId,
 				},
 				data: {
 					inngestRunId: runId,
@@ -44,7 +50,7 @@ export async function GET(req: Request) {
 	}
 
 	// If cancelled, update the status in database
-	if (status === 'cancelled' && userId) {
+	if (status === 'Cancelled' && userId) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
@@ -68,6 +74,15 @@ export async function GET(req: Request) {
 				where: {
 					userId,
 					status: 'completed',
+					...(jobId
+						? {
+								OR: [
+									{ inngestRunId: jobId },
+									...(runId ? [{ inngestRunId: runId }] : []),
+									{ inngestEventId: eventId },
+								],
+							}
+						: {}),
 				},
 				orderBy: {
 					completedAt: 'desc',
@@ -80,12 +95,9 @@ export async function GET(req: Request) {
 
 	return Response.json({
 		status,
-		output,
+		output: output ?? formatPlaylistOutput(lastPlaylist),
 		runId,
-		lastPlaylist: lastPlaylist ? {
-			playlistLink: lastPlaylist.playlistLink,
-			playlistName: lastPlaylist.playlistName,
-			completedAt: lastPlaylist.completedAt,
-		} : null,
+		lastPlaylist: formatPlaylistOutput(lastPlaylist),
 	});
 }
+
