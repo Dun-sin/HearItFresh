@@ -387,15 +387,15 @@ function safeParseJson(value: string) {
 
 export function formatPlaylistOutput(
 	playlist: {
-		playlistLink: string;
-		playlistName: string;
+		playlistLink: string | null;
+		playlistName: string | null;
 		completedAt: Date | null;
 	} | null,
 ) {
 	return playlist
 		? {
-				link: playlist.playlistLink,
-				name: playlist.playlistName,
+				link: playlist.playlistLink ?? '',
+				name: playlist.playlistName ?? '',
 				completedAt: playlist.completedAt,
 			}
 		: null;

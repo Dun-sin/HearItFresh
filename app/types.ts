@@ -35,11 +35,14 @@ export interface HistoryEntry {
 }
 
 export type GeneratedPlaylistHistory = {
-	playlistId: string;
-	playlistName: string;
-	playlistLink: string;
+	playlistId: string | null;
+	playlistName: string | null;
+	playlistLink: string | null;
 	completedAt: Date | string | null;
 	createdAt: Date | string;
+	status?: string;
+	errorMessage?: string | null;
+	id?: string;
 };
 
 export type SpotifyTrack = Pick<Song, 'id' | 'title' | 'artist' | 'album'>;

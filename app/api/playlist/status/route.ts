@@ -49,16 +49,21 @@ export async function GET(req: Request) {
 		}
 	}
 
-	// If cancelled, update the status in database
-	if (status === 'Cancelled' && userId) {
+	// If cancelled or failed, update the status in database
+	if ((status === 'Cancelled' || status === 'Failed') && userId) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
-					status: 'pending',
+					OR: [
+						...(jobId ? [{ inngestRunId: jobId }] : []),
+						...(runId ? [{ inngestRunId: runId }] : []),
+						{ inngestEventId: eventId },
+					],
 				},
 				data: {
-					status: 'cancelled',
+					status: status === 'Cancelled' ? 'cancelled' : 'failed',
+					errorMessage: status === 'Failed' ? (run?.output?.error ?? 'Unknown error') : null,
 				},
 			});
 		} catch (error) {

@@ -34,6 +34,6 @@ get-refresh-token.js
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.vercel
+.kilo
 
 /app/generated/prisma

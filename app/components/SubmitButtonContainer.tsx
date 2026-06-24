@@ -8,11 +8,13 @@ import { useLoading } from '@/app/context/loadingContext';
 const SubmitButtionContainer = ({
 	handleSubmit,
 	onCancel,
-	onRetry,
+	failed,
+	errorMessage,
 }: {
 	handleSubmit: () => void;
 	onCancel?: () => void;
-	onRetry?: () => void;
+	failed?: boolean;
+	errorMessage?: string | null;
 }) => {
 	const { loading, loadingMessage } = useLoading();
 	const { buttonClick } = useGeneralState();
@@ -24,8 +26,7 @@ const SubmitButtionContainer = ({
 				{onCancel && (
 					<button
 						onClick={onCancel}
-						className='text-sm text-gray-400 hover:text-red-400 transition-colors underline underline-offset-2'
-					>
+						className='text-sm text-gray-400 hover:text-red-400 transition-colors underline underline-offset-2'>
 						Cancel
 					</button>
 				)}
@@ -33,23 +34,16 @@ const SubmitButtionContainer = ({
 		);
 	}
 
-	if (onRetry) {
+	if (failed) {
 		return (
 			<div className='flex flex-col items-center gap-3 w-full'>
-				<p className='text-sm text-gray-400 text-center'>
-					The generation was cancelled by the server.
+				<p className='text-sm text-red-400 text-center'>
+					Generation failed: {errorMessage}
 				</p>
 				<button
 					className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
-					onClick={onRetry}
-				>
-					Retry
-				</button>
-				<button
-					className='text-sm text-gray-400 hover:text-white transition-colors underline underline-offset-2'
-					onClick={handleSubmit}
-				>
-					Start fresh instead
+					onClick={handleSubmit}>
+					Try Again
 				</button>
 			</div>
 		);
@@ -59,8 +53,7 @@ const SubmitButtionContainer = ({
 		!buttonClick && (
 			<button
 				className={`bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all`}
-				onClick={handleSubmit}
-			>
+				onClick={handleSubmit}>
 				Generate Playlist
 			</button>
 		)

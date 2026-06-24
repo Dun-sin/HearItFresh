@@ -62,15 +62,18 @@ export const generatePlaylist = inngest.createFunction(
 
 		// Save playlist to database
 		await step.run('save-playlist-to-db', async () => {
-			await prisma.generatedPlaylist.create({
+			await prisma.generatedPlaylist.updateMany({
+				where: {
+					OR: [
+						{ inngestRunId: jobId },
+						{ inngestEventId: event.id },
+					],
+				},
 				data: {
-					userId,
 					playlistName: name,
 					playlistLink: link,
 					playlistId: playListID,
-					sourcePlaylistId,
-					inngestRunId: jobId, // Will be updated with actual runId later
-					inngestEventId: '', // Will be set from the status endpoint
+					inngestEventId: event.id,
 					status: 'completed',
 					completedAt: new Date(),
 				},

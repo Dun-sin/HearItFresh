@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 
 import HistoryCard from './HistoryCard';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useHistory } from '@/app/context/HistoryContext';
 
 const History = () => {
-	const { user, logOut } = useAuth();
+	const { user } = useAuth();
 	const { history, setHistory } = useHistory();
 
 	useEffect(() => {
@@ -21,7 +22,7 @@ const History = () => {
 		}
 
 		const response = await axios.get(`api/users/${user.user_id}/history`);
-    const data = response?.data?.message?.map(
+		const data = response?.data?.message?.map(
 			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
 				text,
 				lastUsed: new Date(lastUsed),
@@ -31,6 +32,31 @@ const History = () => {
 
 		setHistory(data);
 	}
+
+	const handleRetry = async (playlistDbId: string) => {
+		const toastId = toast.loading('Re-queuing playlist generation...');
+		try {
+			const response = await axios.post('/api/playlist/retry', { playlistDbId });
+			const { eventId } = response.data;
+			console.log('Retry initiated, eventId:', eventId);
+			toast.update(toastId, {
+				render: 'Retry started! The history will refresh automatically.',
+				type: 'success',
+				isLoading: false,
+				autoClose: 4000,
+			});
+			// Refresh history after a short delay so the card reflects the reset status
+			setTimeout(() => getHistory(), 2000);
+		} catch (error) {
+			console.error('Failed to retry playlist:', error);
+			toast.update(toastId, {
+				render: 'Failed to retry playlist generation. Please try again.',
+				type: 'error',
+				isLoading: false,
+				autoClose: 4000,
+			});
+		}
+	};
 
 	return (
 		user && (
@@ -43,6 +69,7 @@ const History = () => {
 								text={text}
 								lastUsed={lastUsed}
 								generatedPlaylists={generatedPlaylists}
+								onRetry={handleRetry}
 								key={text}
 							/>
 						))

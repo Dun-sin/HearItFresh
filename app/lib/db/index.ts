@@ -12,11 +12,14 @@ export interface HistoryEntry {
 }
 
 export type GeneratedPlaylistHistory = {
-	playlistId: string;
-	playlistName: string;
-	playlistLink: string;
+	playlistId: string | null;
+	playlistName: string | null;
+	playlistLink: string | null;
 	completedAt: Date | null;
 	createdAt: Date;
+	status?: string;
+	errorMessage?: string | null;
+	id?: string;
 };
 
 export async function addUserHistory(
@@ -109,16 +112,19 @@ export async function getUserHistory(
 			where: {
 				userId,
 				sourcePlaylistId: { in: sourcePlaylistIds },
-				status: 'completed',
+				status: { in: ['completed', 'failed', 'cancelled'] },
 			},
 			orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
 			select: {
+				id: true,
 				sourcePlaylistId: true,
 				playlistId: true,
 				playlistName: true,
 				playlistLink: true,
 				completedAt: true,
 				createdAt: true,
+				status: true,
+				errorMessage: true,
 			},
 		});
 
@@ -127,11 +133,14 @@ export async function getUserHistory(
 				if (!playlist.sourcePlaylistId) return acc;
 				const playlists = acc.get(playlist.sourcePlaylistId) ?? [];
 				playlists.push({
+					id: playlist.id,
 					playlistId: playlist.playlistId,
 					playlistName: playlist.playlistName,
 					playlistLink: playlist.playlistLink,
 					completedAt: playlist.completedAt,
 					createdAt: playlist.createdAt,
+					status: playlist.status,
+					errorMessage: playlist.errorMessage,
 				});
 				acc.set(playlist.sourcePlaylistId, playlists);
 				return acc;

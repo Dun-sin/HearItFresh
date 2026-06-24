@@ -5,40 +5,47 @@ import { useAuth } from '@/app/context/authContext';
 import { useEffect } from 'react';
 import { useInput } from '@/app/context/inputContext';
 import { useType } from '@/app/context/DiscoverTracks/typeContext';
+import { GeneratedPlaylistHistory } from '@/app/types';
 
 type HistoryCardType = {
 	text: string;
 	lastUsed: Date;
+	generatedPlaylists?: GeneratedPlaylistHistory[];
+	onRetry?: (playlistDbId: string) => void;
 };
 
-const HistoryCard = ({ text, lastUsed }: HistoryCardType) => {
-  const { setArtistArray, spotifyPlaylist } = useInput();
-  const { setType, type } = useType();
+const HistoryCard = ({ text, lastUsed, generatedPlaylists, onRetry }: HistoryCardType) => {
+	const { setArtistArray, spotifyPlaylist } = useInput();
+	const { setType, type } = useType();
 	const { user } = useAuth();
 	const artistArray = text.split(', ');
 
 	const isArtists = text.includes(',');
 
-  const handleClick = () => {
-    console.log({ type })
-    if (isArtists) {
-      type === 'playlist' && setType('artist');
+	const handleClick = () => {
+		console.log({ type });
+		if (isArtists) {
+			type === 'playlist' && setType('artist');
 		} else {
-      type === 'artist' && setType('playlist');
-    }
-  };
+			type === 'artist' && setType('playlist');
+		}
+	};
 
-  useEffect(() => {
-    if (type === 'playlist') {
-      if (spotifyPlaylist.current) {
-        spotifyPlaylist.current.value = addPlaylistFullLinkFromID(text);
-      }
-    }
+	useEffect(() => {
+		if (type === 'playlist') {
+			if (spotifyPlaylist.current) {
+				spotifyPlaylist.current.value = addPlaylistFullLinkFromID(text);
+			}
+		}
 
-    if (type === 'artist') {
-      setArtistArray(artistArray);
-    }
-  }, [type])
+		if (type === 'artist') {
+			setArtistArray(artistArray);
+		}
+	}, [type]);
+
+	const hasFailedPlaylists = generatedPlaylists?.some(
+		(p) => p.status === 'failed' || p.status === 'cancelled',
+	);
 
 	return (
 		user && (
@@ -69,6 +76,27 @@ const HistoryCard = ({ text, lastUsed }: HistoryCardType) => {
 						Use
 					</button>
 				</div>
+
+				{hasFailedPlaylists && generatedPlaylists && (
+					<div className='mt-2 pt-2 border-t border-gray border-opacity-30'>
+						{generatedPlaylists
+							.filter((p) => p.status === 'failed' || p.status === 'cancelled')
+							.map((playlist) => (
+								<div
+									key={playlist.id}
+									className='flex items-center justify-between text-xs text-red-400 mb-1'>
+									<span className='truncate'>
+										{playlist.status === 'failed' ? 'Failed' : 'Cancelled'}: {playlist.errorMessage}
+									</span>
+									<button
+										onClick={() => onRetry?.(playlist.id!)}
+										className='px-2 py-0.5 ml-2 bg-brand rounded text-lightest hover:bg-opacity-85'>
+										Retry
+									</button>
+								</div>
+							))}
+					</div>
+				)}
 
 				<DeleteButton id={user.user_id} text={text} />
 			</div>

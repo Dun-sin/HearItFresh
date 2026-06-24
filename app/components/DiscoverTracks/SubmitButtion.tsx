@@ -55,8 +55,9 @@ const SubmitButtion = () => {
   const activeJobIdRef = useRef<string | null>(null);
   const inngestStartedRef = useRef(false);
 
-  // Only set when Inngest itself reports status = 'Cancelled' (not user-initiated)
-  const [cancelledPayload, setCancelledPayload] = useState<Record<string, any> | null>(null);
+  // Terminal state flags
+  const [failed, setFailed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSeedPlaylistGeneration = async () => {
     if (buttonClick === true) return;
@@ -76,39 +77,47 @@ const SubmitButtion = () => {
     activeRunIdRef.current = null;
     activeJobIdRef.current = Math.random().toString(36).substring(2, 15);
     const currentJobId = activeJobIdRef.current;
-    setCancelledPayload(null);
 
     setButtonClicked(true);
     setLoading(true);
 
     try {
-      setLoadingMessage('Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...');
-      console.log('[handleSeedPlaylistGeneration] Starting...');
-      const selectedSongsData = extractedSongs.filter((s: any) => selectedSeedIds.has(s.id));
+			setLoadingMessage(
+				'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
+			);
+			console.log('[handleSeedPlaylistGeneration] Starting...');
+			const selectedSongsData = extractedSongs.filter((s: any) =>
+				selectedSeedIds.has(s.id),
+			);
 
-      if (process.env.NODE_ENV === 'production') {
-        // Inngest path
-        inngestStartedRef.current = true;
-        const payload = {
-          seeds: selectedSongsData,
-          artistNames: extractedArtists,
-          options: { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
-          userId: user?.user_id,
-          jobId: activeJobIdRef.current,
-          sourcePlaylistId: spotifyPlaylist.current?.value
-            ? extractPlaylistId(spotifyPlaylist.current.value)
-            : undefined,
-        };
-        const result = await fetch('/api/playlist/generate', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        console.log('[handleSeedPlaylistGeneration] Got eventId, starting polling...');
-        const { eventId } = await result.json();
-        await pollForCompletion(eventId, payload);
-      } else {
-        inngestStartedRef.current = false;
-        abortControllerRef.current = new AbortController();
+			// if (process.env.NODE_ENV === 'production') {
+			// Inngest path
+			inngestStartedRef.current = true;
+			const payload = {
+				seeds: selectedSongsData,
+				artistNames: extractedArtists,
+				options: {
+					isNotPopular: isNotPopularArtists,
+					isDifferent: isDifferentTypesOfArtists,
+				},
+				userId: user?.user_id,
+				jobId: activeJobIdRef.current,
+				sourcePlaylistId: spotifyPlaylist.current?.value
+					? extractPlaylistId(spotifyPlaylist.current.value)
+					: undefined,
+			};
+			const result = await fetch('/api/playlist/generate', {
+				method: 'POST',
+				body: JSON.stringify(payload),
+			});
+			console.log(
+				'[handleSeedPlaylistGeneration] Got eventId, starting polling...',
+			);
+			const { eventId, playlistDbId } = await result.json();
+			await pollForCompletion(eventId, payload, 0, playlistDbId);
+			// } else {
+			//   inngestStartedRef.current = false;
+			//   abortControllerRef.current = new AbortController();
 
         const result = await fetch('/api/playlist/dev-generate', {
           method: 'POST',
@@ -153,9 +162,10 @@ const SubmitButtion = () => {
       console.log({err})
       console.log('[handleSeedPlaylistGeneration] Error:', err.message);
       setErrorMessages({
-        ...errorMessages,
-        error: 'Error occurred while generating playlist: A playlist might have still been generated, please check your Spotify, before trying again',
-      });
+				...errorMessages,
+				error:
+					'Error occurred while generating playlist: A playlist might have still been created, refresh the page, before trying again',
+			});
       console.log(err);
     } finally {
       setLoading(false);
@@ -169,6 +179,7 @@ const SubmitButtion = () => {
     eventId: string,
     payload: Record<string, any>,
     unexpectedRetries = 0,
+    playlistDbId?: string,
   ): Promise<void> => {
     const MAX_UNEXPECTED_RETRIES = 10;
 
@@ -197,19 +208,21 @@ const SubmitButtion = () => {
 
     } else if (data.status === 'Failed') {
       console.log('[pollForCompletion] Failed!');
-      throw new Error('Playlist generation failed');
+      setFailed(true);
+      setErrorMessage(data.errorMessage || 'Playlist generation failed');
+      throw new Error(data.errorMessage || 'Playlist generation failed');
 
     } else if (data.status === 'Cancelled') {
-      // Inngest itself cancelled the job — surface Retry button to the user
       console.warn('[pollForCompletion] Inngest reported job as Cancelled.');
-      setCancelledPayload(payload);
-      // Return normally; the finally block in the caller clears loading state
+      setFailed(true);
+      setErrorMessage('Generation was cancelled');
+      return;
 
     } else if (data.status === 'Running' || data.status === 'Scheduled') {
       console.log('[pollForCompletion] Still processing, polling again in 10s...');
       await new Promise(resolve => setTimeout(resolve, 10000));
       if (!abortedRef.current) {
-        await pollForCompletion(eventId, payload, 0);
+        await pollForCompletion(eventId, payload, 0, playlistDbId);
       }
 
     } else {
@@ -219,18 +232,17 @@ const SubmitButtion = () => {
       console.warn('[pollForCompletion] Unexpected status:', data.status, `— retrying in 10s... (attempt ${unexpectedRetries + 1}/${MAX_UNEXPECTED_RETRIES})`);
       await new Promise(resolve => setTimeout(resolve, 10000));
       if (!abortedRef.current) {
-        await pollForCompletion(eventId, payload, unexpectedRetries + 1);
+        await pollForCompletion(eventId, payload, unexpectedRetries + 1, playlistDbId);
       }
     }
   };
 
-  /**
-   * User-initiated cancel. Stops polling and calls the Inngest cancel API.
-   * Returns to the normal "Generate Playlist" state — no Retry button shown.
-   */
+/**
+    * User-initiated cancel. Stops polling and calls the Inngest cancel API.
+    * Returns to the normal "Generate Playlist" state — no Retry button shown.
+    */
   const handleCancel = async () => {
     abortedRef.current = true;
-    // Immediately reset UI — don't wait for the in-flight await to resolve
     setLoading(false);
     setButtonClicked(false);
     setLoadingMessage(null);
@@ -239,7 +251,6 @@ const SubmitButtion = () => {
     abortControllerRef.current = null;
     activeRunIdRef.current = null;
     activeJobIdRef.current = null;
-    setCancelledPayload(null);
 
     if (jobId && inngestStartedRef.current) {
       try {
@@ -253,49 +264,9 @@ const SubmitButtion = () => {
         console.warn('[handleCancel] Failed to cancel Inngest run:', e);
       }
     }
-    // Do NOT set cancelledPayload — user cancelled deliberately, just go back to normal
+    setFailed(false);
+    setErrorMessage(null);
     toast.info('Generation cancelled.');
-  };
-
-  /**
-   * Retry — only shown when Inngest itself reported status = 'Cancelled'.
-   * Re-fires the original payload as a new Inngest job.
-   */
-  const handleRetry = async () => {
-    const payload = cancelledPayload;
-    if (!payload) return;
-
-    setCancelledPayload(null);
-    abortedRef.current = false;
-    activeRunIdRef.current = null;
-    activeJobIdRef.current = Math.random().toString(36).substring(2, 15);
-    inngestStartedRef.current = true;
-    
-    const newPayload = { ...payload, jobId: activeJobIdRef.current };
-
-    setButtonClicked(true);
-    setLoading(true);
-    setLoadingMessage('Retrying playlist generation...');
-
-    try {
-      const result = await fetch('/api/playlist/generate', {
-        method: 'POST',
-        body: JSON.stringify(newPayload),
-      });
-      const { eventId } = await result.json();
-      await pollForCompletion(eventId, newPayload);
-    } catch (err: any) {
-      if (abortedRef.current) return;
-      console.log('[handleRetry] Error:', err.message);
-      setErrorMessages({
-        ...errorMessages,
-        error: 'Error occurred while generating playlist: A playlist might have still been generated, please check your Spotify, before trying again',
-      });
-    } finally {
-      setLoading(false);
-      setButtonClicked(false);
-      setLoadingMessage(null);
-    }
   };
 
   const createSpotifyPlaylist = async (link: string, name: string) => {
@@ -483,7 +454,8 @@ const SubmitButtion = () => {
     <SubmitButtionContainer
       handleSubmit={handleSubmit}
       onCancel={handleCancel}
-      onRetry={cancelledPayload ? handleRetry : undefined}
+      failed={failed}
+      errorMessage={errorMessage}
     />
   );
 };
