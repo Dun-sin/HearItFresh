@@ -6,7 +6,10 @@ export async function POST(req: Request) {
 	const { playlistDbId } = await req.json();
 
 	if (!playlistDbId) {
-		return Response.json({ error: 'No playlistDbId provided' }, { status: 400 });
+		return Response.json(
+			{ error: 'No playlistDbId provided' },
+			{ status: 400 },
+		);
 	}
 
 	const record = await prisma.generatedPlaylist.findUnique({
@@ -14,7 +17,10 @@ export async function POST(req: Request) {
 	});
 
 	if (!record || record.status === 'completed') {
-		return Response.json({ error: 'Invalid or completed playlist record' }, { status: 400 });
+		return Response.json(
+			{ error: 'Invalid or completed playlist record' },
+			{ status: 400 },
+		);
 	}
 
 	const existingPendingRecords = await prisma.generatedPlaylist.findMany({
@@ -33,7 +39,10 @@ export async function POST(req: Request) {
 				const run = await getInngestRunStatus(pendingRecord.inngestRunId);
 				if (run && run.status === 'Running') {
 					return Response.json(
-						{ error: 'A playlist generation is already in progress. Please wait for it to complete.' },
+						{
+							error:
+								'A playlist generation is already in progress. Please wait for it to complete.',
+						},
 						{ status: 400 },
 					);
 				}
@@ -48,7 +57,10 @@ export async function POST(req: Request) {
 			const run = await getInngestRunStatus(record.inngestRunId);
 			if (run && run.status === 'Running') {
 				return Response.json(
-					{ error: 'A playlist generation is already in progress. Please wait for it to complete.' },
+					{
+						error:
+							'A playlist generation is already in progress. Please wait for it to complete.',
+					},
 					{ status: 400 },
 				);
 			}
@@ -67,8 +79,15 @@ export async function POST(req: Request) {
 	} else {
 		const seeds = record.seeds as any[] | undefined;
 		const artistNames = seeds?.map((s) => s.artist).flat() ?? [];
-		const eventData = { seeds, artistNames, options: {}, userId: record.userId, sourcePlaylistId: record.sourcePlaylistId, generatedPlaylistId: playlistDbId };
-		
+		const eventData = {
+			seeds,
+			artistNames,
+			options: {},
+			userId: record.userId,
+			sourcePlaylistId: record.sourcePlaylistId,
+			generatedPlaylistId: playlistDbId,
+		};
+
 		await inngest.send({
 			name: 'playlist/generate',
 			data: eventData,

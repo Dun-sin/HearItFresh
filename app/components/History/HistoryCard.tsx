@@ -15,7 +15,13 @@ type HistoryCardType = {
 	isRetrying?: boolean;
 };
 
-const HistoryCard = ({ text, lastUsed, generatedPlaylists, onRetry, isRetrying }: HistoryCardType) => {
+const HistoryCard = ({
+	text,
+	lastUsed,
+	generatedPlaylists,
+	onRetry,
+	isRetrying,
+}: HistoryCardType) => {
 	const { setArtistArray, spotifyPlaylist } = useInput();
 	const { setType, type } = useType();
 	const { user } = useAuth();
@@ -87,14 +93,15 @@ const HistoryCard = ({ text, lastUsed, generatedPlaylists, onRetry, isRetrying }
 									key={playlist.id}
 									className='flex items-center justify-between text-xs text-red-400 mb-1'>
 									<span className='truncate'>
-										{playlist.status === 'failed' ? 'Failed' : 'Cancelled'}: {playlist.errorMessage}
+										{playlist.status === 'failed' ? 'Failed' : 'Cancelled'}:{' '}
+										{playlist.errorMessage}
 									</span>
-<button
-									onClick={() => onRetry?.(playlist.id!)}
-									disabled={isRetrying}
-									className='px-2 py-0.5 ml-2 bg-brand rounded text-lightest hover:bg-opacity-85 disabled:opacity-50 disabled:cursor-not-allowed'>
-									Retry
-								</button>
+									<button
+										onClick={() => onRetry?.(playlist.id!)}
+										disabled={isRetrying}
+										className='px-2 py-0.5 ml-2 bg-brand rounded text-lightest hover:bg-opacity-85 disabled:opacity-50 disabled:cursor-not-allowed'>
+										Retry
+									</button>
 								</div>
 							))}
 					</div>

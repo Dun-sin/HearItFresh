@@ -2,7 +2,8 @@ import { inngest } from '@/app/inngest/client';
 import prisma from '@/app/lib/prisma';
 
 export async function POST(req: Request) {
-	const { seeds, artistNames, options, userId, sourcePlaylistId } = await req.json();
+	const { seeds, artistNames, options, userId, sourcePlaylistId } =
+		await req.json();
 
 	let dbRecord: { id: string } | null = null;
 
@@ -17,11 +18,21 @@ export async function POST(req: Request) {
 		});
 	} catch (error: any) {
 		console.error('Failed to create playlist DB record:', error);
-		return Response.json({ error: error.message || 'Failed to create generation record' }, { status: 500 });
+		return Response.json(
+			{ error: error.message || 'Failed to create generation record' },
+			{ status: 500 },
+		);
 	}
 
 	try {
-		const eventData = { seeds, artistNames, options, userId, sourcePlaylistId, generatedPlaylistId: dbRecord.id };
+		const eventData = {
+			seeds,
+			artistNames,
+			options,
+			userId,
+			sourcePlaylistId,
+			generatedPlaylistId: dbRecord.id,
+		};
 		const { ids } = await inngest.send({
 			name: 'playlist/generate',
 			data: eventData,
@@ -50,8 +61,14 @@ export async function POST(req: Request) {
 				},
 			});
 		} catch (dbError) {
-			console.error('Failed to update DB record to failed after Inngest error:', dbError);
+			console.error(
+				'Failed to update DB record to failed after Inngest error:',
+				dbError,
+			);
 		}
-		return Response.json({ error: error.message || 'Failed to start generation' }, { status: 500 });
+		return Response.json(
+			{ error: error.message || 'Failed to start generation' },
+			{ status: 500 },
+		);
 	}
 }

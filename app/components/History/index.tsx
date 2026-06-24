@@ -24,7 +24,15 @@ const History = () => {
 
 		const response = await axios.get(`api/users/${user.user_id}/history`);
 		const data = response?.data?.message?.map(
-			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
+			({
+				text,
+				lastUsed,
+				generatedPlaylists,
+			}: {
+				text: string;
+				lastUsed: string;
+				generatedPlaylists?: any[];
+			}) => ({
 				text,
 				lastUsed: new Date(lastUsed),
 				generatedPlaylists,
@@ -38,7 +46,9 @@ const History = () => {
 		setIsRetrying(true);
 		const toastId = toast.loading('Re-queuing playlist generation...');
 		try {
-			const response = await axios.post('/api/playlist/retry', { playlistDbId });
+			const response = await axios.post('/api/playlist/retry', {
+				playlistDbId,
+			});
 			const { eventId } = response.data;
 			console.log('Retry initiated, eventId:', eventId);
 			toast.update(toastId, {

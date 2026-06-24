@@ -38,13 +38,17 @@ export async function GET(req: Request) {
 		}
 	}
 
-	if ((status === 'Cancelled' || status === 'Failed') && userId && playlistDbId) {
+	if (
+		(status === 'Cancelled' || status === 'Failed') &&
+		userId &&
+		playlistDbId
+	) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
 					id: playlistDbId,
-					status: { not: status === 'Cancelled' ? 'cancelled' : 'failed' }, 
+					status: { not: status === 'Cancelled' ? 'cancelled' : 'failed' },
 				},
 				data: {
 					status: status === 'Cancelled' ? 'cancelled' : 'failed',
