@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import HistoryCard from './HistoryCard';
 import axios from 'axios';
@@ -11,6 +11,7 @@ import { useHistory } from '@/app/context/HistoryContext';
 const History = () => {
 	const { user } = useAuth();
 	const { history, setHistory } = useHistory();
+	const [isRetrying, setIsRetrying] = useState(false);
 
 	useEffect(() => {
 		getHistory();
@@ -34,6 +35,7 @@ const History = () => {
 	}
 
 	const handleRetry = async (playlistDbId: string) => {
+		setIsRetrying(true);
 		const toastId = toast.loading('Re-queuing playlist generation...');
 		try {
 			const response = await axios.post('/api/playlist/retry', { playlistDbId });
@@ -45,7 +47,6 @@ const History = () => {
 				isLoading: false,
 				autoClose: 4000,
 			});
-			// Refresh history after a short delay so the card reflects the reset status
 			setTimeout(() => getHistory(), 2000);
 		} catch (error) {
 			console.error('Failed to retry playlist:', error);
@@ -55,6 +56,8 @@ const History = () => {
 				isLoading: false,
 				autoClose: 4000,
 			});
+		} finally {
+			setIsRetrying(false);
 		}
 	};
 
@@ -70,6 +73,7 @@ const History = () => {
 								lastUsed={lastUsed}
 								generatedPlaylists={generatedPlaylists}
 								onRetry={handleRetry}
+								isRetrying={isRetrying}
 								key={text}
 							/>
 						))

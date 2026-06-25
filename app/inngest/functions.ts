@@ -19,16 +19,12 @@ export const generatePlaylist = inngest.createFunction(
 	},
 	{ event: 'playlist/generate' },
 	async ({ event, step }) => {
-		const { seeds, artistNames, options, userId, jobId, sourcePlaylistId } = event.data;
+		const { seeds, artistNames, options, userId, jobId } =
+			event.data;
 
 		// generate tracks
 		const result = await step.run('generate-seed-playlist', async () => {
-			return await generateSeedPlaylist(
-				seeds,
-				artistNames,
-				options,
-				userId,
-			);
+			return await generateSeedPlaylist(seeds, artistNames, options, userId);
 		});
 
 		if (result.error || !result.tracks?.length)
@@ -43,17 +39,14 @@ export const generatePlaylist = inngest.createFunction(
 					? 'HearItFresh - Lyrics Inspired'
 					: 'HearItFresh - Similar to Playlist';
 
-			return await createPlayList(
-				playlistName,
-				'Created by HearItFresh',
-			);
+			return await createPlayList(playlistName, 'Created by HearItFresh');
 		});
 
 		if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
 
 		const { id, link, name } = playlistInfo;
 		const playListID = id.substring('spotify:playlist:'.length);
-		
+
 		await step.run('add-tracks-to-playlist', async () => {
 			const token = await getDummyAccessToken();
 			setAccessToken(token);
@@ -64,10 +57,7 @@ export const generatePlaylist = inngest.createFunction(
 		await step.run('save-playlist-to-db', async () => {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
-					OR: [
-						{ inngestRunId: jobId },
-						{ inngestEventId: event.id },
-					],
+					OR: [{ inngestRunId: jobId }, { inngestEventId: event.id }],
 				},
 				data: {
 					playlistName: name,
@@ -81,5 +71,30 @@ export const generatePlaylist = inngest.createFunction(
 		});
 
 		return { link, name };
+	},
+);
+
+export const handleRunCancelled = inngest.createFunction(
+	{ id: 'run-cancelled' },
+	{ event: 'inngest/function.cancelled' },
+	async ({ event, step }) => {
+		if (event.data.function_id !== 'generate-playlist') {
+			return { skipped: true };
+		}
+
+		await step.run('rollback-database-state', async () => {
+			await prisma.generatedPlaylist.updateMany({
+				where: {
+					inngestRunId: event.data.run_id,
+					status: { not: 'cancelled' },
+				},
+				data: {
+					status: 'cancelled',
+					errorMessage: 'Run was manually cancelled',
+				},
+			});
+		});
+
+		return { success: true };
 	},
 );

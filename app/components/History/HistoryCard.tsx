@@ -12,9 +12,10 @@ type HistoryCardType = {
 	lastUsed: Date;
 	generatedPlaylists?: GeneratedPlaylistHistory[];
 	onRetry?: (playlistDbId: string) => void;
+	isRetrying?: boolean;
 };
 
-const HistoryCard = ({ text, lastUsed, generatedPlaylists, onRetry }: HistoryCardType) => {
+const HistoryCard = ({ text, lastUsed, generatedPlaylists, onRetry, isRetrying }: HistoryCardType) => {
 	const { setArtistArray, spotifyPlaylist } = useInput();
 	const { setType, type } = useType();
 	const { user } = useAuth();
@@ -88,11 +89,12 @@ const HistoryCard = ({ text, lastUsed, generatedPlaylists, onRetry }: HistoryCar
 									<span className='truncate'>
 										{playlist.status === 'failed' ? 'Failed' : 'Cancelled'}: {playlist.errorMessage}
 									</span>
-									<button
-										onClick={() => onRetry?.(playlist.id!)}
-										className='px-2 py-0.5 ml-2 bg-brand rounded text-lightest hover:bg-opacity-85'>
-										Retry
-									</button>
+<button
+									onClick={() => onRetry?.(playlist.id!)}
+									disabled={isRetrying}
+									className='px-2 py-0.5 ml-2 bg-brand rounded text-lightest hover:bg-opacity-85 disabled:opacity-50 disabled:cursor-not-allowed'>
+									Retry
+								</button>
 								</div>
 							))}
 					</div>

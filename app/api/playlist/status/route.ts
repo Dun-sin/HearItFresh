@@ -1,4 +1,5 @@
 import prisma from '@/app/lib/prisma';
+import { getInngestEventRuns } from '@/app/lib/inngest';
 import {
 	formatPlaylistOutput,
 	normalizeOutput,
@@ -13,19 +14,8 @@ export async function GET(req: Request) {
 
 	if (!eventId) return Response.json({ error: 'No eventId' }, { status: 400 });
 
-	const baseUrl =
-		process.env.NODE_ENV === 'production'
-			? 'https://api.inngest.com'
-			: 'http://localhost:8288';
-
-	const response = await fetch(`${baseUrl}/v1/events/${eventId}/runs`, {
-		headers: {
-			Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
-		},
-	});
-
-	const json = await response.json();
-	const run = json.data?.[0];
+	const data = await getInngestEventRuns(eventId);
+	const run = data?.[0];
 
 	const status = normalizeStatus(run?.status);
 	const runId = run?.run_id;
@@ -55,6 +45,7 @@ export async function GET(req: Request) {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
+					status: { not: status === 'Cancelled' ? 'cancelled' : 'failed' }, 
 					OR: [
 						...(jobId ? [{ inngestRunId: jobId }] : []),
 						...(runId ? [{ inngestRunId: runId }] : []),
@@ -63,7 +54,10 @@ export async function GET(req: Request) {
 				},
 				data: {
 					status: status === 'Cancelled' ? 'cancelled' : 'failed',
-					errorMessage: status === 'Failed' ? (run?.output?.error ?? 'Unknown error') : null,
+					errorMessage:
+						status === 'Failed'
+							? (run?.output?.error ?? 'Unknown error')
+							: null,
 				},
 			});
 		} catch (error) {
