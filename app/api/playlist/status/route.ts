@@ -10,7 +10,7 @@ export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const eventId = searchParams.get('eventId');
 	const userId = searchParams.get('userId');
-	const jobId = searchParams.get('jobId');
+	const playlistDbId = searchParams.get('playlistDbId');
 
 	if (!eventId) return Response.json({ error: 'No eventId' }, { status: 400 });
 
@@ -21,12 +21,13 @@ export async function GET(req: Request) {
 	const runId = run?.run_id;
 	const output = normalizeOutput(run?.output);
 
-	if (userId && runId) {
+	if (userId && runId && playlistDbId) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
-					inngestRunId: jobId ?? runId,
+					id: playlistDbId,
+					inngestRunId: { not: runId },
 				},
 				data: {
 					inngestRunId: runId,
@@ -37,13 +38,13 @@ export async function GET(req: Request) {
 		}
 	}
 
-	if ((status === 'Cancelled' || status === 'Failed') && userId) {
+	if ((status === 'Cancelled' || status === 'Failed') && userId && playlistDbId) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
+					id: playlistDbId,
 					status: { not: status === 'Cancelled' ? 'cancelled' : 'failed' }, 
-					inngestRunId: jobId ?? runId,
 				},
 				data: {
 					status: status === 'Cancelled' ? 'cancelled' : 'failed',
@@ -59,17 +60,13 @@ export async function GET(req: Request) {
 	}
 
 	let lastPlaylist = null;
-	if (userId) {
+	if (userId && playlistDbId) {
 		try {
 			lastPlaylist = await prisma.generatedPlaylist.findFirst({
 				where: {
 					userId,
+					id: playlistDbId,
 					status: 'completed',
-					...(jobId
-						? {
-								inngestRunId: jobId,
-							}
-						: {}),
 				},
 				orderBy: {
 					completedAt: 'desc',
@@ -87,4 +84,3 @@ export async function GET(req: Request) {
 		lastPlaylist: formatPlaylistOutput(lastPlaylist),
 	});
 }
-
