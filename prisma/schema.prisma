@@ -37,21 +37,21 @@ model Song {
 }
 
 model GeneratedPlaylist {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  user            User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  playlistName    String?  @map("playlist_name")
-  playlistLink    String?  @map("playlist_link")
-  playlistId      String?  @map("playlist_id")
-  sourcePlaylistId String?  @map("source_playlist_id")
-  inngestRunId    String   @map("inngest_run_id")
-  inngestEventId  String?  @map("inngest_event_id")
-  status          String   @default("pending")
+  id              String          @id @default(cuid())
+  userId          String          @map("user_id")
+  user            User            @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  playlistName    String?         @map("playlist_name")
+  playlistLink    String?         @map("playlist_link")
+  playlistId      String?         @map("playlist_id")
+  sourcePlaylistId String?        @map("source_playlist_id")
+  inngestRunId    String?         @map("inngest_run_id")
+  event           Json?
+  status          String          @default("pending")
   seeds           Json?
-  errorMessage    String?  @map("error_message")
-  retryCount      Int      @default(0) @map("retry_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-  completedAt     DateTime? @map("completed_at")
+  errorMessage    String?         @map("error_message")
+  retryCount      Int             @default(0) @map("retry_count")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  completedAt     DateTime?       @map("completed_at")
 
   @@map("generated_playlists")
   @@index([userId])

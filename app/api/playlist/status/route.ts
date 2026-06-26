@@ -21,17 +21,15 @@ export async function GET(req: Request) {
 	const runId = run?.run_id;
 	const output = normalizeOutput(run?.output);
 
-	// Update the database with the runId and eventId if we have a userId
 	if (userId && runId) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
-					inngestRunId: jobId ?? eventId,
+					inngestRunId: jobId ?? runId,
 				},
 				data: {
 					inngestRunId: runId,
-					inngestEventId: eventId,
 				},
 			});
 		} catch (error) {
@@ -39,18 +37,13 @@ export async function GET(req: Request) {
 		}
 	}
 
-	// If cancelled or failed, update the status in database
 	if ((status === 'Cancelled' || status === 'Failed') && userId) {
 		try {
 			await prisma.generatedPlaylist.updateMany({
 				where: {
 					userId,
 					status: { not: status === 'Cancelled' ? 'cancelled' : 'failed' }, 
-					OR: [
-						...(jobId ? [{ inngestRunId: jobId }] : []),
-						...(runId ? [{ inngestRunId: runId }] : []),
-						{ inngestEventId: eventId },
-					],
+					inngestRunId: jobId ?? runId,
 				},
 				data: {
 					status: status === 'Cancelled' ? 'cancelled' : 'failed',
@@ -65,7 +58,6 @@ export async function GET(req: Request) {
 		}
 	}
 
-	// Get the last generated playlist for this user
 	let lastPlaylist = null;
 	if (userId) {
 		try {
@@ -75,11 +67,7 @@ export async function GET(req: Request) {
 					status: 'completed',
 					...(jobId
 						? {
-								OR: [
-									{ inngestRunId: jobId },
-									...(runId ? [{ inngestRunId: runId }] : []),
-									{ inngestEventId: eventId },
-								],
+								inngestRunId: jobId,
 							}
 						: {}),
 				},

@@ -18,11 +18,35 @@ export const generatePlaylist = inngest.createFunction(
 		],
 	},
 	{ event: 'playlist/generate' },
-	async ({ event, step }) => {
-		const { seeds, artistNames, options, userId, jobId } =
+	async ({ event, step, runId }) => {
+		const { seeds, artistNames, options, userId, generatedPlaylistId } =
 			event.data;
 
-		// generate tracks
+		await step.run('save-run-id', async () => {
+			const existingRecord = await prisma.generatedPlaylist.findUnique({
+				where: { id: generatedPlaylistId },
+			});
+
+			const existingEventId = (existingRecord?.event as { id?: string } | null)
+				?.id;
+			const isRetry = existingEventId !== event.id;
+
+			await prisma.generatedPlaylist.update({
+				where: { id: generatedPlaylistId },
+				data: {
+					inngestRunId: runId,
+					event: {
+						name: 'playlist/generate',
+						id: event.id,
+						data: event.data,
+					},
+					status: 'pending',
+					...(isRetry && { retryCount: { increment: 1 } }),
+					...(isRetry && { errorMessage: null }),
+				},
+			});
+		});
+
 		const result = await step.run('generate-seed-playlist', async () => {
 			return await generateSeedPlaylist(seeds, artistNames, options, userId);
 		});
@@ -30,7 +54,6 @@ export const generatePlaylist = inngest.createFunction(
 		if (result.error || !result.tracks?.length)
 			throw new Error(result.error || 'Failed to generate tracks');
 
-		// create spotify playlist
 		const playlistInfo = await step.run('create-spotify-playlist', async () => {
 			const token = await getDummyAccessToken();
 			setAccessToken(token);
@@ -53,17 +76,13 @@ export const generatePlaylist = inngest.createFunction(
 			await addTracksToPlayList(result.tracks, playListID);
 		});
 
-		// Save playlist to database
 		await step.run('save-playlist-to-db', async () => {
 			await prisma.generatedPlaylist.updateMany({
-				where: {
-					OR: [{ inngestRunId: jobId }, { inngestEventId: event.id }],
-				},
+				where: { inngestRunId: runId },
 				data: {
 					playlistName: name,
 					playlistLink: link,
 					playlistId: playListID,
-					inngestEventId: event.id,
 					status: 'completed',
 					completedAt: new Date(),
 				},
@@ -78,7 +97,7 @@ export const handleRunCancelled = inngest.createFunction(
 	{ id: 'run-cancelled' },
 	{ event: 'inngest/function.cancelled' },
 	async ({ event, step }) => {
-		if (event.data.function_id !== 'generate-playlist') {
+		if (!event.data.function_id.includes('generate-playlist')) {
 			return { skipped: true };
 		}
 
@@ -98,3 +117,5 @@ export const handleRunCancelled = inngest.createFunction(
 		return { success: true };
 	},
 );
+
+// TODO: remove the seed details and use the stored info from event data

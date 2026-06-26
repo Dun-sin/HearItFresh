@@ -4,7 +4,7 @@ const getInngestBaseUrl = () => {
 		: 'http://localhost:8288';
 };
 
-const getInngestRunStatus = async (runId: string) => {
+export const getInngestRunStatus = async (runId: string) => {
 	const baseUrl = getInngestBaseUrl();
 
 	const response = await fetch(`${baseUrl}/v1/runs/${runId}`, {
@@ -21,7 +21,7 @@ const getInngestRunStatus = async (runId: string) => {
 	return json.data;
 };
 
-const getInngestEventRuns = async (eventId: string) => {
+export const getInngestEventRuns = async (eventId: string) => {
 	const baseUrl = getInngestBaseUrl();
 
 	const response = await fetch(`${baseUrl}/v1/events/${eventId}/runs`, {
@@ -37,5 +37,3 @@ const getInngestEventRuns = async (eventId: string) => {
 	const json = await response.json();
 	return json.data;
 };
-
-export { getInngestRunStatus, getInngestEventRuns };

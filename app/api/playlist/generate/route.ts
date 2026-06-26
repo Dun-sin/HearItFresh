@@ -2,7 +2,7 @@ import { inngest } from '@/app/inngest/client';
 import prisma from '@/app/lib/prisma';
 
 export async function POST(req: Request) {
-	const { seeds, artistNames, options, userId, jobId, sourcePlaylistId } = await req.json();
+	const { seeds, artistNames, options, userId, sourcePlaylistId } = await req.json();
 
 	let dbRecord: { id: string } | null = null;
 
@@ -11,8 +11,6 @@ export async function POST(req: Request) {
 			data: {
 				userId,
 				sourcePlaylistId,
-				inngestRunId: jobId,
-				inngestEventId: '',
 				status: 'pending',
 				seeds,
 			},
@@ -23,14 +21,25 @@ export async function POST(req: Request) {
 	}
 
 	try {
+		const eventData = { seeds, artistNames, options, userId, sourcePlaylistId, generatedPlaylistId: dbRecord.id };
 		const { ids } = await inngest.send({
 			name: 'playlist/generate',
-			data: { seeds, artistNames, options, userId, jobId, sourcePlaylistId },
+			data: eventData,
+		});
+
+		await prisma.generatedPlaylist.update({
+			where: { id: dbRecord.id },
+			data: {
+				event: {
+					name: 'playlist/generate',
+					id: ids[0],
+					data: eventData,
+				},
+			},
 		});
 
 		return Response.json({ eventId: ids[0], playlistDbId: dbRecord.id });
 	} catch (error: any) {
-		// Inngest send failed — mark the pending record as failed immediately
 		console.error('Failed to send Inngest event:', error);
 		try {
 			await prisma.generatedPlaylist.update({

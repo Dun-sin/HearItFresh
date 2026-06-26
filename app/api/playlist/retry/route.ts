@@ -43,54 +43,46 @@ export async function POST(req: Request) {
 		}
 	}
 
-	const seeds = record.seeds as any[] | undefined;
-	const artistNames = seeds?.map((s) => s.artist).flat() ?? [];
-
-	let newJobId: string;
-	let eventId: string;
-
 	if (record.inngestRunId) {
-		newJobId = record.inngestRunId;
-		const { ids } = await inngest.send({
-			name: 'playlist/generate',
-			data: {
-				seeds,
-				artistNames,
-				options: {},
-				userId: record.userId,
-				jobId: newJobId,
-				sourcePlaylistId: record.sourcePlaylistId,
-			},
+		try {
+			const run = await getInngestRunStatus(record.inngestRunId);
+			if (run && run.status === 'Running') {
+				return Response.json(
+					{ error: 'A playlist generation is already in progress. Please wait for it to complete.' },
+					{ status: 400 },
+				);
+			}
+		} catch (error) {
+			console.error('Error checking Inngest run status:', error);
+		}
+	}
+
+	const event = record.event as { name: string; id: string; data: any } | null;
+
+	if (event) {
+		await inngest.send({
+			name: event.name,
+			data: event.data,
 		});
-		eventId = ids[0];
 	} else {
-		newJobId = Math.random().toString(36).substring(2, 15);
-		const { ids } = await inngest.send({
+		const seeds = record.seeds as any[] | undefined;
+		const artistNames = seeds?.map((s) => s.artist).flat() ?? [];
+		const eventData = { seeds, artistNames, options: {}, userId: record.userId, sourcePlaylistId: record.sourcePlaylistId, generatedPlaylistId: playlistDbId };
+		
+		await inngest.send({
 			name: 'playlist/generate',
-			data: {
-				seeds,
-				artistNames,
-				options: {},
-				userId: record.userId,
-				jobId: newJobId,
-				sourcePlaylistId: record.sourcePlaylistId,
-			},
+			data: eventData,
 		});
-		eventId = ids[0];
 	}
 
 	await prisma.generatedPlaylist.update({
 		where: { id: playlistDbId },
 		data: {
-			inngestRunId: newJobId,
-			inngestEventId: eventId,
 			status: 'pending',
-			retryCount: { increment: 1 },
-			errorMessage: null,
 		},
 	});
 
-	return Response.json({ eventId, playlistDbId: record.id });
+	return Response.json({ playlistDbId: record.id });
 }
 
 // TODO: add an option to see input used in playlist in frontend, so user can see what they used to generate the playlist
