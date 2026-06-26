@@ -111,88 +111,81 @@ export async function generateSeedPlaylist(
 		const finalList = await relatedArists(artistNames, options, signal);
 		throwIfAborted();
 
-		console.log('Getting albums for artists...', finalList);
 		const albums = await getEveryAlbum(finalList, signal);
 		throwIfAborted();
 
-		console.log('Getting tracks for albums...');
 		const aiTracks = (await getAllTracks(albums as string[], 5, true, signal)) as any[]; // Need more tracks to filter down
-
-		console.log('AI Tracks:', aiTracks);
 
 		let fallbackTracksUris: string[] = [];
 
 		if (aiTracks && aiTracks.length > 0) {
 			if (seedEmbeddings.length > 0) {
-				console.log(
-					`Running concurrent lyrical similarity on ${aiTracks.length} AI tracks...`,
-				);
-
 				// p-limit concurrency of 15
 				const limit = pLimit(15);
 
-        // 0.6 is a good starting point, but you can tune this
-        const THRESHOLD = 0.85;
+				// 0.6 is a good starting point, but you can tune this
+				const THRESHOLD = 0.85;
 
-        // we want to avoid low quality recommendations so we check each song against all seeds(selected songs) put that into an array and sort by the number of seeds that match the treshold then return the top 100
-        // we also want to avoid songs that are too far in similarity to the seeds so we set a cutoff of 0.2 below the threshold to give extra grace
-const CUTOFF = THRESHOLD - 0.25 
+				// we want to avoid low quality recommendations so we check each song against all seeds(selected songs) put that into an array and sort by the number of seeds that match the treshold then return the top 100
+				// we also want to avoid songs that are too far in similarity to the seeds so we set a cutoff of 0.2 below the threshold to give extra grace
+				const CUTOFF = THRESHOLD - 0.25;
 
-const scoredTracks = await Promise.all(
-  aiTracks.map(track => limit(async () => {
-    if (signal?.aborted) return null;
-    try {
-      console.log(`Processing: "${track.name}" by ${track.artistName} (id: ${track.id})`);
-      const processed = await processSong({
-        id: track.id,
-        title: track.name,
-        artist: track.artistName,
-        album: track.albumName,
-      }, signal)
-      if (signal?.aborted) return null;
-      const emb = processed?.embeddingData
-      if (!emb) return null
+				const scoredTracks = await Promise.all(
+					aiTracks.map((track) =>
+						limit(async () => {
+							if (signal?.aborted) return null;
+							try {
+								const processed = await processSong(
+									{
+										id: track.id,
+										title: track.name,
+										artist: track.artistName,
+										album: track.albumName,
+									},
+									signal,
+								);
+								if (signal?.aborted) return null;
+								const emb = processed?.embeddingData;
+								if (!emb) return null;
 
-      const scores = seedEmbeddings.map(seedEmb => 
-        calculateCosineSimilarity(emb, seedEmb)
-      )
+								const scores = seedEmbeddings.map((seedEmb) =>
+									calculateCosineSimilarity(emb, seedEmb),
+								);
 
-      const maxScore = Math.max(...scores)
-      console.log(`Scores: [${scores.map(s => s.toFixed(4)).join(', ')}] | maxScore=${maxScore.toFixed(4)} | CUTOFF=${CUTOFF}`);
-      
-      // cut off songs that don't even come close
-      if (maxScore < CUTOFF) {
-        console.log(`✗ Below cutoff (${maxScore.toFixed(4)} < ${CUTOFF}) — skipping`);
-        return null
-      }
+								const maxScore = Math.max(...scores);
+								// cut off songs that don't even come close
+								if (maxScore < CUTOFF) {
+									return null;
+								}
 
-      const thresholdHits = scores.filter(s => s >= THRESHOLD).length
-      console.log(`✓ Passed cutoff | thresholdHits=${thresholdHits} (THRESHOLD=${THRESHOLD})`);
+								const thresholdHits = scores.filter(
+									(s) => s >= THRESHOLD,
+								).length;
+								return { uri: track.uri, thresholdHits, maxScore };
+							} catch (e) {
+								console.error(`✗ Error processing "${track.name}":`, e);
+								return null;
+							}
+						}),
+					),
+				);
 
-      return { uri: track.uri, thresholdHits, maxScore }
+				const validScored = scoredTracks.filter(
+					(t): t is { uri: string; thresholdHits: number; maxScore: number } =>
+						t !== null,
+				);
+				throwIfAborted();
+				console.log(
+					`[Scoring Summary] ${validScored.length}/${aiTracks.length} tracks passed cutoff`,
+				);
 
-    } catch (e) {
-      console.error(`✗ Error processing "${track.name}":`, e);
-      return null
-    }
-  }))
-)
-
-const validScored = scoredTracks
-  .filter((t): t is { uri: string; thresholdHits: number; maxScore: number } => t !== null);
-throwIfAborted();
-console.log(`[Scoring Summary] ${validScored.length}/${aiTracks.length} tracks passed cutoff`);
-
-const sortedScored = validScored
-  .sort((a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore);
-console.log(`[Scoring Sorted] Top results:`, sortedScored.slice(0, 10).map(t => ({
-  uri: t.uri, hits: t.thresholdHits, max: t.maxScore.toFixed(4)
-})));
-
-fallbackTracksUris = sortedScored
-  .map(t => t.uri)
-  .slice(0, remainingNeeded)
-console.log(`[Scoring Final] Returning ${fallbackTracksUris.length} fallback tracks (remainingNeeded=${remainingNeeded})`);
+				const sortedScored = validScored.sort(
+					(a, b) =>
+						b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore,
+				);
+				fallbackTracksUris = sortedScored
+					.map((t) => t.uri)
+					.slice(0, remainingNeeded);
 			} else {
 				// If no seeds, just use the random tracks, filtering out previous ones
 				fallbackTracksUris = aiTracks

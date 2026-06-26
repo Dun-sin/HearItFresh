@@ -103,7 +103,6 @@ export async function processSong(
 	const lyrics = getLyricsResult?.split('\n').slice(0, 60).join('\n').trim() ?? '';
 
 	if (!lyrics) {
-		console.log(`Skipping "${spotifyTrack.title}" by ${spotifyTrack.artist}: no lyrics found`);
 		return null;
 	}
 
