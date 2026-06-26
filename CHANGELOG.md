@@ -1,3 +1,10 @@
+# [1.24.0](https://github.com/Dun-sin/HearItFresh/compare/v1.23.0...v1.24.0) (2026-06-26)
+
+
+### Features
+
+* remove spotify auth dependency ([#43](https://github.com/Dun-sin/HearItFresh/issues/43)) ([6937c73](https://github.com/Dun-sin/HearItFresh/commit/6937c7346ec4a8aaa2936ac1315400a2ad9dfa35))
+
 # [1.23.0](https://github.com/Dun-sin/HearItFresh/compare/v1.22.0...v1.23.0) (2026-06-16)
 
 
