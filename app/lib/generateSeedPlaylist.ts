@@ -17,12 +17,12 @@ import {
 import pLimit from 'p-limit';
 import { processSong } from './processSong';
 import { setAccessToken } from './spotifyApi';
+import { getDummyAccessToken } from './spotify-dummy-auth';
 
 export async function generateSeedPlaylist(
 	seeds: { id: string; name: string; artist: string[]; album?: string }[],
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
-	accessToken?: string,
 	userId?: string,
 	signal?: AbortSignal,
 ): Promise<{ tracks: string[]; error?: string }> {
@@ -34,8 +34,8 @@ export async function generateSeedPlaylist(
 
 	try {
 		throwIfAborted();
-		if (accessToken) setAccessToken(accessToken);
-		logToken(accessToken);
+		const token = await getDummyAccessToken();
+		setAccessToken(token);
 		console.log('Generating seed playlist...');
 
 		// Fetch previously generated songs for this user

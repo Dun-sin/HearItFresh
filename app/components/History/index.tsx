@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 
 import HistoryCard from './HistoryCard';
 import axios from 'axios';
-import { getUser } from '@/app/lib/spotify';
 import { useAuth } from '@/app/context/authContext';
 import { useHistory } from '@/app/context/HistoryContext';
 

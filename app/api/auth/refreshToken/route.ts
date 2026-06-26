@@ -2,10 +2,35 @@ import axios, { AxiosError } from 'axios';
 
 import { NextResponse } from 'next/server';
 import { decrypt, encrypt } from '@/app/lib/utils';
-import { getUser } from '@/app/lib/spotify';
 
-const client_id = process.env.SPOTIFY_CLIENT_ID;
-const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
+const client_id = process.env.GOOGLE_CLIENT_ID;
+const client_secret = process.env.GOOGLE_CLIENT_SECRET;
+
+// Note: Refresh token endpoint doesn't use redirect_uri
+
+async function getGoogleUser(access_token: string) {
+	if (!access_token) return null;
+
+	try {
+		const response = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+			headers: {
+				'Authorization': `Bearer ${access_token}`,
+			},
+		});
+
+		const { name, id, picture } = response.data;
+		const user = {
+			display_name: name,
+			user_id: id,
+			profile_image_url: picture,
+		};
+
+		return user;
+	} catch (error) {
+		console.error('Failed to fetch Google user info:', error);
+		return null;
+	}
+}
 
 export async function POST(req: Request) {
 	const res = await req.json();
@@ -21,24 +46,22 @@ export async function POST(req: Request) {
 			grant_type: 'refresh_token',
 			refresh_token: refreshToken,
 			client_id: client_id || '',
+			client_secret: client_secret || '',
 		}).toString();
 
 		const response = await axios.post(
-			'https://accounts.spotify.com/api/token',
+			'https://oauth2.googleapis.com/token',
 			body,
 			{
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
-					Authorization:
-						'Basic ' +
-						Buffer.from(`${client_id}:${client_secret}`).toString('base64'),
 				},
 			},
 		);
 
 		const { access_token, refresh_token, expires_in } = response.data;
-		const user = await getUser(access_token);
-		// Spotify doesn't always return a new refresh_token on refresh;
+		const user = await getGoogleUser(access_token);
+		// Google doesn't always return a new refresh_token on refresh;
 		// when missing, re-use the encrypted token the client already has
 		const encryptedRefresh = refresh_token
 			? encrypt(refresh_token)
@@ -48,12 +71,12 @@ export async function POST(req: Request) {
 			{ status: 200 },
 		);
 	} catch (error) {
-		console.error('Spotify refresh token exchange failed');
+		console.error('Google refresh token exchange failed');
 		const axiosErr = error as AxiosError | any;
 		if (axiosErr?.response?.data) {
-			console.error('Spotify response:', axiosErr.response.data);
+			console.error('Google response:', axiosErr.response.data);
 			return NextResponse.json(
-				{ spotify_error: axiosErr.response.data },
+				{ google_error: axiosErr.response.data },
 				{ status: 400 },
 			);
 		}

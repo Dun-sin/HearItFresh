@@ -1,5 +1,6 @@
 import { playlistDetails, singleTrack, trackTypes } from "../types";
 import spotifyApi, { setAccessToken } from './spotifyApi';
+import { getDummyAccessToken } from './spotify-dummy-auth';
 
 import { convertToSubArray } from './utils';
 
@@ -236,10 +237,9 @@ export async function removeTracksFromPlaylists(
 	}
 }
 
-export async function getUser(access_token: string) {
-	if (!access_token) return null;
-
-	setAccessToken(access_token);
+export async function getUser() {
+	const token = await getDummyAccessToken();
+	setAccessToken(token);
 
 	const res = await spotifyApi.getMe();
 

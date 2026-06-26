@@ -17,7 +17,6 @@ import SubmitButtionContainer from '../SubmitButtonContainer';
 import { addToUrl } from '@/app/lib/clientUtils';
 import { addUserHistory } from '@/app/lib/db';
 import { fetchSimilarArtistsFromAI } from '@/app/lib/utils';
-import spotifyApi from '@/app/lib/spotifyApi';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
@@ -38,7 +37,7 @@ const SubmitButtion = () => {
 		setButtonClicked,
 		setPlayListData,
 	} = useGeneralState();
-  const { user, logOut, accessToken } = useAuth();
+	const { user, logOut } = useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { artistName, artistArray, spotifyPlaylist, setArtistArray } =
 		useInput();
@@ -85,14 +84,6 @@ const SubmitButtion = () => {
       console.log('[handleSeedPlaylistGeneration] Starting...');
       const selectedSongsData = extractedSongs.filter((s: any) => selectedSeedIds.has(s.id));
 
-      // Try context token, then localStorage singleton, then encrypted localStorage
-      let tokenValue = accessToken || spotifyApi.getAccessToken();
-      if (!tokenValue) {
-        tokenValue = localStorage.getItem('access_token') ?? undefined;
-      }
-
-      console.log('SubmitButtion - Spotify Access Token:', tokenValue ? 'FOUND (starts with ' + tokenValue.substring(0, 10) + '...)' : 'MISSING');
-
       if (process.env.NODE_ENV === 'production') {
         // Inngest path
         inngestStartedRef.current = true;
@@ -100,7 +91,6 @@ const SubmitButtion = () => {
           seeds: selectedSongsData,
           artistNames: extractedArtists,
           options: { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
-          accessToken: tokenValue,
           userId: user?.user_id,
           jobId: activeJobIdRef.current,
         };
@@ -122,7 +112,6 @@ const SubmitButtion = () => {
             seeds: selectedSongsData,
             artistNames: extractedArtists,
             options: { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
-            accessToken: tokenValue,
             userId: user?.user_id,
           }),
           signal: abortControllerRef.current.signal,
