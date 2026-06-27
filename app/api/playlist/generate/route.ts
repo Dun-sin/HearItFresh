@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 			},
 		});
 
-		return Response.json({ eventId: ids[0], playlistDbId: dbRecord.id });
+		return Response.json({ eventId: ids[0], generatedPlaylistId: dbRecord.id });
 	} catch (error: any) {
 		console.error('Failed to send Inngest event:', error);
 		try {

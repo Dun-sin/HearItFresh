@@ -27,22 +27,12 @@ export const generatePlaylist = inngest.createFunction(
 				where: { id: generatedPlaylistId },
 			});
 
-			const existingEventId = (existingRecord?.event as { id?: string } | null)
-				?.id;
-			const isRetry = existingEventId !== event.id;
-
 			await prisma.generatedPlaylist.update({
 				where: { id: generatedPlaylistId },
 				data: {
 					inngestRunId: runId,
-					event: {
-						name: 'playlist/generate',
-						id: event.id,
-						data: event.data,
-					},
 					status: 'pending',
-					...(isRetry && { retryCount: { increment: 1 } }),
-					...(isRetry && { errorMessage: null }),
+					...(existingRecord?.event ? {} : { event: { name: 'playlist/generate', id: event.id, data: event.data } }),
 				},
 			});
 		});

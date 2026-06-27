@@ -11,7 +11,7 @@ type HistoryCardType = {
 	text: string;
 	lastUsed: Date;
 	generatedPlaylists?: GeneratedPlaylistHistory[];
-	onRetry?: (playlistDbId: string) => void;
+	onRetry?: (generatedPlaylistId: string) => void;
 	isRetrying?: boolean;
 };
 

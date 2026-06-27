@@ -42,15 +42,15 @@ const History = () => {
 		setHistory(data);
 	}
 
-	const handleRetry = async (playlistDbId: string) => {
+	const handleRetry = async (generatedPlaylistId: string) => {
 		setIsRetrying(true);
 		const toastId = toast.loading('Re-queuing playlist generation...');
 		try {
 			const response = await axios.post('/api/playlist/retry', {
-				playlistDbId,
+				generatedPlaylistId,
 			});
-			const { eventId } = response.data;
-			console.log('Retry initiated, eventId:', eventId);
+			const { generatedPlaylistId: responseDbId } = response.data;
+			console.log('Retry initiated, generatedPlaylistId:', responseDbId);
 			toast.update(toastId, {
 				render: 'Retry started! The history will refresh automatically.',
 				type: 'success',

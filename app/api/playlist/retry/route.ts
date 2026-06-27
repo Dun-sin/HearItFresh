@@ -3,17 +3,17 @@ import prisma from '@/app/lib/prisma';
 import { getInngestRunStatus } from '@/app/lib/inngest';
 
 export async function POST(req: Request) {
-	const { playlistDbId } = await req.json();
+	const { generatedPlaylistId } = await req.json();
 
-	if (!playlistDbId) {
+	if (!generatedPlaylistId) {
 		return Response.json(
-			{ error: 'No playlistDbId provided' },
+			{ error: 'No generatedPlaylistId provided' },
 			{ status: 400 },
 		);
 	}
 
 	const record = await prisma.generatedPlaylist.findUnique({
-		where: { id: playlistDbId },
+		where: { id: generatedPlaylistId },
 	});
 
 	if (!record || record.status === 'completed') {
@@ -21,35 +21,6 @@ export async function POST(req: Request) {
 			{ error: 'Invalid or completed playlist record' },
 			{ status: 400 },
 		);
-	}
-
-	const existingPendingRecords = await prisma.generatedPlaylist.findMany({
-		where: {
-			userId: record.userId,
-			status: 'pending',
-			NOT: {
-				id: playlistDbId,
-			},
-		},
-	});
-
-	for (const pendingRecord of existingPendingRecords) {
-		if (pendingRecord.inngestRunId) {
-			try {
-				const run = await getInngestRunStatus(pendingRecord.inngestRunId);
-				if (run && run.status === 'Running') {
-					return Response.json(
-						{
-							error:
-								'A playlist generation is already in progress. Please wait for it to complete.',
-						},
-						{ status: 400 },
-					);
-				}
-			} catch (error) {
-				console.error('Error checking Inngest run status:', error);
-			}
-		}
 	}
 
 	if (record.inngestRunId) {
@@ -71,37 +42,28 @@ export async function POST(req: Request) {
 
 	const event = record.event as { name: string; id: string; data: any } | null;
 
-	if (event) {
-		await inngest.send({
-			name: event.name,
-			data: event.data,
-		});
-	} else {
-		const seeds = record.seeds as any[] | undefined;
-		const artistNames = seeds?.map((s) => s.artist).flat() ?? [];
-		const eventData = {
-			seeds,
-			artistNames,
-			options: {},
-			userId: record.userId,
-			sourcePlaylistId: record.sourcePlaylistId,
-			generatedPlaylistId: playlistDbId,
-		};
-
-		await inngest.send({
-			name: 'playlist/generate',
-			data: eventData,
-		});
+	if (!event) {
+		return Response.json(
+			{ error: 'No event data found for retry' },
+			{ status: 400 },
+		);
 	}
 
+	await inngest.send({
+		name: event.name,
+		data: event.data,
+	});
+
 	await prisma.generatedPlaylist.update({
-		where: { id: playlistDbId },
+		where: { id: generatedPlaylistId },
 		data: {
 			status: 'pending',
+			inngestRunId: null,
+			retryCount: { increment: 1 },
 		},
 	});
 
-	return Response.json({ playlistDbId: record.id });
+	return Response.json({ generatedPlaylistId: record.id });
 }
 
 // TODO: add an option to see input used in playlist in frontend, so user can see what they used to generate the playlist

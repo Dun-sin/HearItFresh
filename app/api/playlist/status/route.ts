@@ -1,5 +1,5 @@
 import prisma from '@/app/lib/prisma';
-import { getInngestEventRuns } from '@/app/lib/inngest';
+import { getInngestRunStatus } from '@/app/lib/inngest';
 import {
 	formatPlaylistOutput,
 	normalizeOutput,
@@ -8,68 +8,43 @@ import {
 
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
-	const eventId = searchParams.get('eventId');
 	const userId = searchParams.get('userId');
-	const playlistDbId = searchParams.get('playlistDbId');
+	const generatedPlaylistId = searchParams.get('generatedPlaylistId');
 
-	if (!eventId) return Response.json({ error: 'No eventId' }, { status: 400 });
-
-	const data = await getInngestEventRuns(eventId);
-	const run = data?.[0];
-
-	const status = normalizeStatus(run?.status);
-	const runId = run?.run_id;
-	const output = normalizeOutput(run?.output);
-
-	if (userId && runId && playlistDbId) {
-		try {
-			await prisma.generatedPlaylist.updateMany({
-				where: {
-					userId,
-					id: playlistDbId,
-					inngestRunId: { not: runId },
-				},
-				data: {
-					inngestRunId: runId,
-				},
-			});
-		} catch (error) {
-			console.error('Failed to update playlist runId:', error);
-		}
+	if (!generatedPlaylistId) {
+		return Response.json({ error: 'No generatedPlaylistId' }, { status: 400 });
 	}
 
-	if (
-		(status === 'Cancelled' || status === 'Failed') &&
-		userId &&
-		playlistDbId
-	) {
-		try {
-			await prisma.generatedPlaylist.updateMany({
-				where: {
-					userId,
-					id: playlistDbId,
-					status: { not: status === 'Cancelled' ? 'cancelled' : 'failed' },
-				},
-				data: {
-					status: status === 'Cancelled' ? 'cancelled' : 'failed',
-					errorMessage:
-						status === 'Failed'
-							? (run?.output?.error ?? 'Unknown error')
-							: null,
-				},
-			});
-		} catch (error) {
-			console.error('Failed to update playlist status:', error);
-		}
+	const record = await prisma.generatedPlaylist.findUnique({
+		where: { id: generatedPlaylistId },
+	});
+
+	if (!record) {
+		return Response.json(
+			{ error: 'Playlist record not found' },
+			{ status: 404 },
+		);
+	}
+
+	if (record.inngestRunId) {
+		const run = await getInngestRunStatus(record.inngestRunId);
+		const status = normalizeStatus(run?.status);
+		const output = normalizeOutput(run?.output);
+
+		return Response.json({
+			status,
+			output: output ?? formatPlaylistOutput(record),
+			runId: record.inngestRunId,
+			lastPlaylist: formatPlaylistOutput(record),
+		});
 	}
 
 	let lastPlaylist = null;
-	if (userId && playlistDbId) {
+	if (userId) {
 		try {
 			lastPlaylist = await prisma.generatedPlaylist.findFirst({
 				where: {
 					userId,
-					id: playlistDbId,
 					status: 'completed',
 				},
 				orderBy: {
@@ -82,9 +57,9 @@ export async function GET(req: Request) {
 	}
 
 	return Response.json({
-		status,
-		output: output ?? formatPlaylistOutput(lastPlaylist),
-		runId,
+		status: 'Pending',
+		output: formatPlaylistOutput(record) ?? formatPlaylistOutput(lastPlaylist),
+		runId: null,
 		lastPlaylist: formatPlaylistOutput(lastPlaylist),
 	});
 }
