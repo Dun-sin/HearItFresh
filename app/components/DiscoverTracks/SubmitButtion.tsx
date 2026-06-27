@@ -53,7 +53,6 @@ const SubmitButtion = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeRunIdRef = useRef<string | null>(null);
   const activeGeneratedPlaylistIdRef = useRef<string | null>(null);
-	const activeJobIdRef = useRef<string | null>(null);
 	const inngestStartedRef = useRef(false);
 
 	// Terminal state flags
@@ -364,8 +363,8 @@ const SubmitButtion = () => {
 		// Reset abort flag — this is a fresh user-initiated operation
 		abortedRef.current = false;
         inngestStartedRef.current = false;
-        activeJobIdRef.current = Math.random().toString(36).substring(2, 15);
-        const currentJobId = activeJobIdRef.current;
+        activeGeneratedPlaylistIdRef.current = Math.random().toString(36).substring(2, 15);
+        const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
 
 		if (!isValidPlaylistLink(link)) {
 			setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: true });
@@ -380,11 +379,11 @@ const SubmitButtion = () => {
 			const playlistId = extractPlaylistId(link);
 
 			await addHistoryToDB(playlistId);
-      if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
+      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
 
       setLoadingMessage('Retrieving all tracks from the provided playlist...');
 			const playlistTracks = await getPlaylistTracks(playlistId);
-      if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
+      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
 
 			const trackArtists = playlistTracks
 				.flat()
@@ -406,7 +405,7 @@ const SubmitButtion = () => {
       setExtractedArtists(uniqueArtistNames);
 
     } catch (err) {
-      if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
+      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
 			setErrorMessages({
 				...errorMessages,
         error: isSpotifyPlaylistPermissionError(err)
