@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAllTracksInAPlaylist } from '@/app/lib/spotify';
+import { getAllTracksInAPlaylist, getPlaylistDetails } from '@/app/lib/spotify';
 import { getDummyAccessToken } from '@/app/lib/spotify-dummy-auth';
 import { setAccessToken } from '@/app/lib/spotifyApi';
 
@@ -20,13 +20,22 @@ export async function POST(req: Request) {
 		const token = await getDummyAccessToken();
 		setAccessToken(token);
 
-		const tracks = await getAllTracksInAPlaylist(playlistId);
+		const [tracks, playlist] = await Promise.all([
+			getAllTracksInAPlaylist(playlistId),
+			getPlaylistDetails(playlistId),
+		]);
 
 		if (!Array.isArray(tracks)) {
 			throw tracks;
 		}
 
-		return NextResponse.json({ tracks });
+		return NextResponse.json({
+			tracks,
+			playlist:
+				playlist && typeof playlist === 'object' && 'id' in playlist
+					? playlist
+					: { id: playlistId, name: playlistId },
+		});
 	} catch (err: any) {
 		const status = getSpotifyStatusCode(err);
 

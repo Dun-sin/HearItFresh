@@ -74,6 +74,7 @@ export const generatePlaylist = inngest.createFunction(
 					playlistLink: link,
 					playlistId: playListID,
 					status: 'completed',
+					errorMessage: null,
 					completedAt: new Date(),
 				},
 			});

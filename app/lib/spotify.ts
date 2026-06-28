@@ -21,6 +21,21 @@ export async function getAllTracksInAPlaylist(link: string): Promise<any> {
 	}
 }
 
+export async function getPlaylistDetails(playlistId: string) {
+	try {
+		const data = await spotifyApi.getPlaylist(playlistId, {
+			fields: 'id,name',
+		});
+
+		return {
+			id: data.body.id,
+			name: data.body.name,
+		};
+	} catch (err) {
+		return err;
+	}
+}
+
 /**
   Creates a new playlist on Spotify with a specific name and description based on the provided artists.
 **/

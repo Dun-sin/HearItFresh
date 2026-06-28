@@ -400,7 +400,10 @@ export const isSpotifyPlaylistPermissionError = (err: any) => {
 	);
 };
 
-export const getPlaylistTracks = async (playlistId: string) => {
+export const getPlaylistTracks = async (
+	playlistId: string,
+	includeDetails = false,
+) => {
 	const response = await fetch('/api/playlist/tracks', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -412,7 +415,7 @@ export const getPlaylistTracks = async (playlistId: string) => {
 		throw data;
 	}
 
-	return data.tracks;
+	return includeDetails ? data : data.tracks;
 };
 
 export function isLRCLibResult(value: unknown): value is LRCLibResult {
