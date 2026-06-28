@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/Dun-sin/HearItFresh/compare/v1.24.0...v1.25.0) (2026-06-28)
+
+
+### Features
+
+* add retry system ([#44](https://github.com/Dun-sin/HearItFresh/issues/44)) ([0158f44](https://github.com/Dun-sin/HearItFresh/commit/0158f440e2bb178e4bf2bca167168aeb4753ea2d))
+
 # [1.24.0](https://github.com/Dun-sin/HearItFresh/compare/v1.23.0...v1.24.0) (2026-06-26)
 
 
