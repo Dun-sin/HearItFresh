@@ -7,9 +7,9 @@ import React, {
 	useState,
 } from 'react';
 import {
-	getAllTracksInAPlaylist,
 	removeTracksFromPlaylists,
 } from '../lib/spotify';
+import { getPlaylistTracks } from '../lib/utils';
 import { loadingType, playlistSongDetails } from '../types';
 
 import { useGeneralState } from '../context/generalStateContext';
@@ -68,11 +68,16 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	}, [showingTracks, tracks]);
 
 	const getTracks = useCallback(async () => {
-		const data = await getAllTracksInAPlaylist(link);
+		const data = await getPlaylistTracks(link);
+
+		if (!Array.isArray(data)) {
+			console.error('Failed to load playlist tracks:', data);
+			return;
+		}
 
 		const tracks = data.map((item: any) => {
 			const track = item.track;
-			const image = track.album.images[1].url;
+			const image = track.album.images?.[1]?.url ?? track.album.images?.[0]?.url;
 			const artist = track.artists.map((subitem: any) => subitem.name);
 			return { id: track.id, name: track.name, artist, image };
 		});

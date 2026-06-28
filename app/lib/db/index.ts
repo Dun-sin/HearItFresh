@@ -7,8 +7,20 @@ import prisma from '../prisma';
 export interface HistoryEntry {
 	text: string;
 	lastUsed: string;
+	generatedPlaylists?: GeneratedPlaylistHistory[];
 	[key: string]: any;
 }
+
+export type GeneratedPlaylistHistory = {
+	playlistId: string | null;
+	playlistName: string | null;
+	playlistLink: string | null;
+	completedAt: Date | null;
+	createdAt: Date;
+	status?: string;
+	errorMessage?: string | null;
+	id?: string;
+};
 
 export async function addUserHistory(
 	userId: string,
@@ -89,7 +101,57 @@ export async function getUserHistory(
 		const history = (await prisma.user.findUnique({ where: { userId } }))
 			?.history;
 
-		return history as unknown as HistoryEntry[];
+		const userHistory = (history as unknown as HistoryEntry[]) ?? [];
+		const sourcePlaylistIds = userHistory
+			.filter((entry) => !entry.text.includes(','))
+			.map((entry) => entry.text);
+
+		if (sourcePlaylistIds.length === 0) return userHistory;
+
+		const generatedPlaylists = await prisma.generatedPlaylist.findMany({
+			where: {
+				userId,
+				sourcePlaylistId: { in: sourcePlaylistIds },
+				status: { in: ['completed', 'failed', 'cancelled'] },
+			},
+			orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+			select: {
+				id: true,
+				sourcePlaylistId: true,
+				playlistId: true,
+				playlistName: true,
+				playlistLink: true,
+				completedAt: true,
+				createdAt: true,
+				status: true,
+				errorMessage: true,
+			},
+		});
+
+		const playlistsBySource = generatedPlaylists.reduce(
+			(acc, playlist) => {
+				if (!playlist.sourcePlaylistId) return acc;
+				const playlists = acc.get(playlist.sourcePlaylistId) ?? [];
+				playlists.push({
+					id: playlist.id,
+					playlistId: playlist.playlistId,
+					playlistName: playlist.playlistName,
+					playlistLink: playlist.playlistLink,
+					completedAt: playlist.completedAt,
+					createdAt: playlist.createdAt,
+					status: playlist.status,
+					errorMessage: playlist.errorMessage,
+				});
+				acc.set(playlist.sourcePlaylistId, playlists);
+				return acc;
+			},
+			new Map<string, GeneratedPlaylistHistory[]>(),
+		);
+
+		return userHistory.map((entry) => ({
+			...entry,
+			generatedPlaylists: playlistsBySource.get(entry.text) ?? [],
+		}));
 	} catch (error) {
 		console.error('Error fetching user history:', error);
 		throw error;

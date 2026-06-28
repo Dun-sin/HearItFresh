@@ -31,6 +31,18 @@ export type loadingType = {
 export interface HistoryEntry {
 	text: string;
 	lastUsed: Date;
+	generatedPlaylists?: GeneratedPlaylistHistory[];
 }
+
+export type GeneratedPlaylistHistory = {
+	playlistId: string | null;
+	playlistName: string | null;
+	playlistLink: string | null;
+	completedAt: Date | string | null;
+	createdAt: Date | string;
+	status?: string;
+	errorMessage?: string | null;
+	id?: string;
+};
 
 export type SpotifyTrack = Pick<Song, 'id' | 'title' | 'artist' | 'album'>;

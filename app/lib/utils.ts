@@ -9,6 +9,8 @@ const genAI = new GoogleGenerativeAI(API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 const key = process.env.SECRET_KEY as string;
+export const SPOTIFY_PUBLIC_PLAYLIST_ERROR =
+	'Spotify could not access this playlist. Please make the playlist public, then try again.';
 
 export const encrypt = (text: string): string => {
 	return crypto.AES.encrypt(text, key).toString();
@@ -26,19 +28,24 @@ export const decrypt = (encryptedText: string): string => {
  * @param artists - Array of artist names
  * @returns Array of unique album IDs
  */
-export const getEveryAlbum = async (artists: string[], signal?: AbortSignal) => {
-  if (signal?.aborted) throw new Error('Aborted');
-  const shuffled = [...artists].sort(() => Math.random() - 0.5)
-  const artistAlbums = shuffled.map((item) =>
-    getArtistsAlbums(item, shuffled.length),
-  )
-  const albumArray = await Promise.all(artistAlbums)
-  if (signal?.aborted) throw new Error('Aborted');
-  const albums = [...new Set(albumArray.flat())].sort(() => Math.random() - 0.5)
-  const stringAlbums = albums.filter((item) => typeof item === 'string')
+export const getEveryAlbum = async (
+	artists: string[],
+	signal?: AbortSignal,
+) => {
+	if (signal?.aborted) throw new Error('Aborted');
+	const shuffled = [...artists].sort(() => Math.random() - 0.5);
+	const artistAlbums = shuffled.map((item) =>
+		getArtistsAlbums(item, shuffled.length),
+	);
+	const albumArray = await Promise.all(artistAlbums);
+	if (signal?.aborted) throw new Error('Aborted');
+	const albums = [...new Set(albumArray.flat())].sort(
+		() => Math.random() - 0.5,
+	);
+	const stringAlbums = albums.filter((item) => typeof item === 'string');
 
-  return stringAlbums
-}
+	return stringAlbums;
+};
 
 export const getAllTracks = async (
 	albums: string[],
@@ -46,7 +53,7 @@ export const getAllTracks = async (
 	returnObjects = false,
 	signal?: AbortSignal,
 ): Promise<string[] | singleTrack[] | null> => {
-  if (signal?.aborted) throw new Error('Aborted');
+	if (signal?.aborted) throw new Error('Aborted');
 	if (!albums || albums.length === 0) {
 		console.log('getAllTracks called with empty albums list');
 		return [];
@@ -95,7 +102,8 @@ export const getAllTracks = async (
 
 	const allTracksID = filteredResult
 		.map((item) => item.uri)
-		.filter((item) => !!item).flat();
+		.filter((item) => !!item)
+		.flat();
 
 	return allTracksID as string[];
 };
@@ -331,3 +339,99 @@ export async function relatedArists(
 
 	return finalList;
 }
+
+export function normalizeStatus(status?: string) {
+	if (!status) return status;
+	const lowerStatus = status.toLowerCase();
+
+	if (lowerStatus === 'completed') return 'Completed';
+	if (lowerStatus === 'failed') return 'Failed';
+	if (lowerStatus === 'cancelled' || lowerStatus === 'canceled')
+		return 'Cancelled';
+	if (lowerStatus === 'running') return 'Running';
+	if (lowerStatus === 'scheduled') return 'Scheduled';
+
+	return status;
+}
+
+export function normalizeOutput(
+	output: unknown,
+): { link: string; name: string } | null {
+	if (!output) return null;
+
+	const parsedOutput =
+		typeof output === 'string' ? safeParseJson(output) : output;
+
+	if (
+		parsedOutput &&
+		typeof parsedOutput === 'object' &&
+		'link' in parsedOutput &&
+		'name' in parsedOutput
+	) {
+		return {
+			link: String(parsedOutput.link),
+			name: String(parsedOutput.name),
+		};
+	}
+
+	return null;
+}
+
+function safeParseJson(value: string) {
+	try {
+		return JSON.parse(value);
+	} catch {
+		return null;
+	}
+}
+
+export function formatPlaylistOutput(
+	playlist: {
+		playlistLink: string | null;
+		playlistName: string | null;
+		completedAt: Date | null;
+	} | null,
+) {
+	return playlist
+		? {
+				link: playlist.playlistLink ?? '',
+				name: playlist.playlistName ?? '',
+				completedAt: playlist.completedAt,
+			}
+		: null;
+}
+
+export const isSpotifyPlaylistPermissionError = (err: any) => {
+	const statusCode = err?.statusCode ?? err?.status ?? err?.response?.status;
+	const errorStatus =
+		err?.body?.error?.status ?? err?.response?.body?.error?.status;
+	const message = [
+		err?.message,
+		err?.body?.error?.message,
+		err?.body?.error,
+		err?.response?.body?.error?.message,
+		err?.response?.body?.error,
+	]
+		.filter(Boolean)
+		.join(' ')
+		.toLowerCase();
+
+	return (
+		statusCode === 403 || errorStatus === 403 || message.includes('forbidden')
+	);
+};
+
+export const getPlaylistTracks = async (playlistId: string) => {
+	const response = await fetch('/api/playlist/tracks', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ playlistId }),
+	});
+	const data = await response.json();
+
+	if (!response.ok) {
+		throw data;
+	}
+
+	return data.tracks;
+};

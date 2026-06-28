@@ -13,28 +13,37 @@ export const generatePlaylist = inngest.createFunction(
 		cancelOn: [
 			{
 				event: 'playlist/cancel',
-				match: 'data.jobId',
+				match: 'data.generatedPlaylistId',
 			},
 		],
 	},
 	{ event: 'playlist/generate' },
-	async ({ event, step }) => {
-		const { seeds, artistNames, options, userId, jobId } = event.data;
+	async ({ event, step, runId }) => {
+		const { seeds, artistNames, options, userId, generatedPlaylistId } =
+			event.data;
 
-		// generate tracks
+		await step.run('save-run-id', async () => {
+			const existingRecord = await prisma.generatedPlaylist.findUnique({
+				where: { id: generatedPlaylistId },
+			});
+
+			await prisma.generatedPlaylist.update({
+				where: { id: generatedPlaylistId },
+				data: {
+					inngestRunId: runId,
+					status: 'pending',
+					...(existingRecord?.event ? {} : { event: { name: 'playlist/generate', id: event.id, data: event.data } }),
+				},
+			});
+		});
+
 		const result = await step.run('generate-seed-playlist', async () => {
-			return await generateSeedPlaylist(
-				seeds,
-				artistNames,
-				options,
-				userId,
-			);
+			return await generateSeedPlaylist(seeds, artistNames, options, userId);
 		});
 
 		if (result.error || !result.tracks?.length)
 			throw new Error(result.error || 'Failed to generate tracks');
 
-		// create spotify playlist
 		const playlistInfo = await step.run('create-spotify-playlist', async () => {
 			const token = await getDummyAccessToken();
 			setAccessToken(token);
@@ -43,33 +52,27 @@ export const generatePlaylist = inngest.createFunction(
 					? 'HearItFresh - Lyrics Inspired'
 					: 'HearItFresh - Similar to Playlist';
 
-			return await createPlayList(
-				playlistName,
-				'Created by HearItFresh',
-			);
+			return await createPlayList(playlistName, 'Created by HearItFresh');
 		});
 
 		if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
 
 		const { id, link, name } = playlistInfo;
 		const playListID = id.substring('spotify:playlist:'.length);
-		
+
 		await step.run('add-tracks-to-playlist', async () => {
 			const token = await getDummyAccessToken();
 			setAccessToken(token);
 			await addTracksToPlayList(result.tracks, playListID);
 		});
 
-		// Save playlist to database
 		await step.run('save-playlist-to-db', async () => {
-			await prisma.generatedPlaylist.create({
+			await prisma.generatedPlaylist.updateMany({
+				where: { inngestRunId: runId },
 				data: {
-					userId,
 					playlistName: name,
 					playlistLink: link,
 					playlistId: playListID,
-					inngestRunId: jobId, // Will be updated with actual runId later
-					inngestEventId: '', // Will be set from the status endpoint
 					status: 'completed',
 					completedAt: new Date(),
 				},
@@ -79,3 +82,30 @@ export const generatePlaylist = inngest.createFunction(
 		return { link, name };
 	},
 );
+
+export const handleRunCancelled = inngest.createFunction(
+	{ id: 'run-cancelled' },
+	{ event: 'inngest/function.cancelled' },
+	async ({ event, step }) => {
+		if (!event.data.function_id.includes('generate-playlist')) {
+			return { skipped: true };
+		}
+
+		await step.run('rollback-database-state', async () => {
+			await prisma.generatedPlaylist.updateMany({
+				where: {
+					inngestRunId: event.data.run_id,
+					status: { not: 'cancelled' },
+				},
+				data: {
+					status: 'cancelled',
+					errorMessage: 'Run was manually cancelled',
+				},
+			});
+		});
+
+		return { success: true };
+	},
+);
+
+// TODO: remove the seed details and use the stored info from event data

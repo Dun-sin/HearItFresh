@@ -1,66 +1,44 @@
 import prisma from '@/app/lib/prisma';
+import { getInngestRunStatus } from '@/app/lib/inngest';
+import {
+	formatPlaylistOutput,
+	normalizeOutput,
+	normalizeStatus,
+} from '@/app/lib/utils';
 
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
-	const eventId = searchParams.get('eventId');
 	const userId = searchParams.get('userId');
+	const generatedPlaylistId = searchParams.get('generatedPlaylistId');
 
-	if (!eventId) return Response.json({ error: 'No eventId' }, { status: 400 });
+	if (!generatedPlaylistId) {
+		return Response.json({ error: 'No generatedPlaylistId' }, { status: 400 });
+	}
 
-	const baseUrl =
-		process.env.NODE_ENV === 'production'
-			? 'https://api.inngest.com'
-			: 'http://localhost:8288';
-
-	const response = await fetch(`${baseUrl}/v1/events/${eventId}/runs`, {
-		headers: {
-			Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
-		},
+	const record = await prisma.generatedPlaylist.findUnique({
+		where: { id: generatedPlaylistId },
 	});
 
-	const json = await response.json();
-	const run = json.data?.[0];
-
-	const status = run?.status;
-	const runId = run?.run_id;
-	const output = run?.output;
-
-	// Update the database with the runId and eventId if we have a userId
-	if (userId && runId) {
-		try {
-			await prisma.generatedPlaylist.updateMany({
-				where: {
-					userId,
-					inngestRunId: eventId, // Temporary jobId - update with actual runId
-				},
-				data: {
-					inngestRunId: runId,
-					inngestEventId: eventId,
-				},
-			});
-		} catch (error) {
-			console.error('Failed to update playlist runId:', error);
-		}
+	if (!record) {
+		return Response.json(
+			{ error: 'Playlist record not found' },
+			{ status: 404 },
+		);
 	}
 
-	// If cancelled, update the status in database
-	if (status === 'cancelled' && userId) {
-		try {
-			await prisma.generatedPlaylist.updateMany({
-				where: {
-					userId,
-					status: 'pending',
-				},
-				data: {
-					status: 'cancelled',
-				},
-			});
-		} catch (error) {
-			console.error('Failed to update playlist status:', error);
-		}
+	if (record.inngestRunId) {
+		const run = await getInngestRunStatus(record.inngestRunId);
+		const status = normalizeStatus(run?.status);
+		const output = normalizeOutput(run?.output);
+
+		return Response.json({
+			status,
+			output: output ?? formatPlaylistOutput(record),
+			runId: record.inngestRunId,
+			lastPlaylist: formatPlaylistOutput(record),
+		});
 	}
 
-	// Get the last generated playlist for this user
 	let lastPlaylist = null;
 	if (userId) {
 		try {
@@ -79,13 +57,9 @@ export async function GET(req: Request) {
 	}
 
 	return Response.json({
-		status,
-		output,
-		runId,
-		lastPlaylist: lastPlaylist ? {
-			playlistLink: lastPlaylist.playlistLink,
-			playlistName: lastPlaylist.playlistName,
-			completedAt: lastPlaylist.completedAt,
-		} : null,
+		status: 'Pending',
+		output: formatPlaylistOutput(record) ?? formatPlaylistOutput(lastPlaylist),
+		runId: null,
+		lastPlaylist: formatPlaylistOutput(lastPlaylist),
 	});
 }
