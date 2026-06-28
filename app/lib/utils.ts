@@ -1,5 +1,5 @@
 import { getArtistsAlbums, getRelatedArtists, getTracks } from './spotify';
-import { singleTrack, trackTypes } from '../types';
+import { LRCLibResult, singleTrack, trackTypes } from '../types';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto-js';
@@ -262,27 +262,6 @@ export async function fetchSimilarArtistsFromAI(
 //   return nonEmptyTracks;
 // }
 
-export function cleanLyrics(raw: string): {
-	summary: string | null;
-	lyrics: string;
-} {
-	const firstBracket = raw.indexOf('[');
-	if (firstBracket === -1) return { summary: null, lyrics: raw };
-
-	const before = raw.slice(0, firstBracket).trim();
-	const after = raw
-		.slice(firstBracket)
-		.replace(/\[.*?\]/g, '')
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
-
-	// strip the contributor count from the start e.g. "97 ContributorsTranslations..."
-	const summary =
-		before.replace(/^\d+\s*Contributors?.*?(?=\w{10})/s, '').trim() || null;
-
-	return { summary, lyrics: after };
-}
-
 export async function relatedArists(
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
@@ -435,3 +414,95 @@ export const getPlaylistTracks = async (playlistId: string) => {
 
 	return data.tracks;
 };
+
+export function isLRCLibResult(value: unknown): value is LRCLibResult {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		('plainLyrics' in value || 'artistName' in value || 'trackName' in value)
+	);
+}
+
+export function cleanLyrics(raw: string): string | null {
+	if (!raw) return null;
+
+	const cleanedLyrics = raw
+		.replace(/\[.*?\]/g, '')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+
+	return cleanedLyrics;
+}
+
+export function cleanMusicMetadata(text: string): string {
+	return (
+		text
+			// 1. Remove everything after common trailing dividers
+			.split(/ - (?:19|20)\d{2}\b| - Remaster| - Live| - Radio Edit/i)[0]
+			// 2. Strip brackets and parentheses containing features, remasters, or audio types
+			.replace(
+				/\s*[\(\[][^]*?(?:feat|ft|remaster|live|official|version|explicit|mono|stereo|bonus|audio|video)[^]*?[\)\]]/gi,
+				'',
+			)
+			// 3. Remove clean remnants that might be missed
+			.replace(
+				/\s*-\s*(?:remastered|live|radio edit|studio version|mono|stereo)\b/gi,
+				'',
+			)
+			// 4. Remove clean accidental double spaces or trailing whitespace
+			.replace(/\s+/g, ' ')
+			.trim()
+	);
+}
+
+
+export function filterBestPlainTrack(
+	results: LRCLibResult[] | null,
+	targetArtist: string,
+	targetTrack: string,
+): LRCLibResult | null {
+	if (!Array.isArray(results) || results.length === 0) return null;
+
+	const clean = (str: string | undefined) =>
+		String(str || '')
+			.toLowerCase()
+			.replace(/[^a-z0-9]/g, '');
+	const cleanArtist = clean(targetArtist);
+	const cleanTrack = clean(targetTrack);
+
+	let candidates = results.filter((item) => {
+		const itemArtist = clean(item.artistName || '');
+		const itemTrack = clean(item.trackName || '');
+		return (
+			(itemArtist.includes(cleanArtist) || cleanArtist.includes(itemArtist)) &&
+			(itemTrack.includes(cleanTrack) || cleanTrack.includes(itemTrack))
+		);
+	});
+
+	candidates = candidates.filter(
+		(item) =>
+			item.instrumental !== true &&
+			typeof item.plainLyrics === 'string' &&
+			item.plainLyrics.trim().length > 0,
+	);
+
+	if (candidates.length === 0) return null;
+
+	const score = (item: LRCLibResult) => {
+		const itemArtist = clean(item.artistName);
+		const itemTrack = clean(item.trackName);
+
+		const exactArtist = itemArtist === cleanArtist ? 2 : 0;
+		const exactTrack = itemTrack === cleanTrack ? 2 : 0;
+		const artistIncludes =
+			itemArtist.includes(cleanArtist) || cleanArtist.includes(itemArtist)
+				? 1
+				: 0;
+		const trackIncludes =
+			itemTrack.includes(cleanTrack) || cleanTrack.includes(itemTrack) ? 1 : 0;
+
+		return exactArtist + exactTrack + artistIncludes + trackIncludes;
+	};
+
+	return [...candidates].sort((a, b) => score(b) - score(a))[0] ?? null;
+}

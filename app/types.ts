@@ -46,3 +46,10 @@ export type GeneratedPlaylistHistory = {
 };
 
 export type SpotifyTrack = Pick<Song, 'id' | 'title' | 'artist' | 'album'>;
+
+export type LRCLibResult = {
+	instrumental?: boolean;
+	plainLyrics?: string;
+	artistName?: string;
+	trackName?: string;
+};
