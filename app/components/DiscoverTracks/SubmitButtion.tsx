@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  addTracksToPlayList,
-  createPlayList,
+	addTracksToPlayList,
+	createPlayList,
 } from '@/app/lib/spotify';
 import {
 	extractPlaylistId,
@@ -11,13 +11,12 @@ import {
 	getPlaylistTracks,
 	isSpotifyPlaylistPermissionError,
 	isValidPlaylistLink,
-  SPOTIFY_PUBLIC_PLAYLIST_ERROR,
+	SPOTIFY_PUBLIC_PLAYLIST_ERROR,
 } from '@/app/lib/utils';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import SubmitButtionContainer from '../SubmitButtonContainer';
 import { addToUrl } from '@/app/lib/clientUtils';
-import { addUserHistory } from '@/app/lib/db';
 import { fetchSimilarArtistsFromAI } from '@/app/lib/utils';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
@@ -59,6 +58,78 @@ const SubmitButtion = () => {
 	const [failed, setFailed] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+	useEffect(() => {
+		if (!user?.user_id) return;
+
+		const userId = user.user_id;
+
+		async function checkPendingGeneration() {
+			const response = await fetch('/api/playlist/reconcile', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId }),
+			});
+
+			const data = await response.json();
+
+			if (data.active?.generatedPlaylistId) {
+				await pollPendingGeneration(data.active.generatedPlaylistId);
+			}
+
+			if (data.updated?.length) {
+				await refreshHistory();
+			}
+		}
+
+		checkPendingGeneration();
+	}, [user?.user_id]);
+
+	const refreshHistory = async () => {
+		const response = await fetch(`/api/users/${user?.user_id}/history`);
+		const data = await response.json();
+		const history = data.message?.map(
+			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
+				text,
+				lastUsed: new Date(lastUsed),
+				generatedPlaylists,
+			}),
+		) ?? [];
+		setHistory(history);
+	};
+
+	const pollPendingGeneration = async (generatedPlaylistId: string) => {
+		setLoading(true);
+		setLoadingMessage('Generating your playlist. Please do not leave the page...');
+
+		const response = await fetch('/api/playlist/reconcile', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ userId: user?.user_id ?? '', generatedPlaylistId }),
+		});
+
+		const data = await response.json();
+
+		const currentStatus = data.status ?? data.active?.status;
+
+		if (currentStatus === 'Running' || currentStatus === 'Scheduled' || currentStatus === 'Pending') {
+			setTimeout(() => pollPendingGeneration(generatedPlaylistId), 10000);
+			return;
+		}
+
+		const completed = data.updated?.find(
+			(item: any) => item.status === 'Completed' && item.output?.link && item.output?.name,
+		);
+
+		if (completed) {
+			addToUrl('link', completed.output.link.split('/').at(-1) as string);
+			setPlayListData({ link: completed.output.link, name: completed.output.name });
+			await refreshHistory();
+		}
+
+		setLoading(false);
+		setLoadingMessage(null);
+	};
+
 	const handleSeedPlaylistGeneration = async () => {
 		if (buttonClick === true) return;
 
@@ -91,73 +162,100 @@ const SubmitButtion = () => {
 				selectedSeedIds.has(s.id),
 			);
 
-			// if (process.env.NODE_ENV === 'production') {
-			// Inngest path
-			inngestStartedRef.current = true;
-			const payload = {
-				seeds: selectedSongsData,
-				artistNames: extractedArtists,
-				options: {
-					isNotPopular: isNotPopularArtists,
-					isDifferent: isDifferentTypesOfArtists,
-				},
-				userId: user?.user_id,
-				sourcePlaylistId: spotifyPlaylist.current?.value
-					? extractPlaylistId(spotifyPlaylist.current.value)
-					: undefined,
-			};
-			const result = await fetch('/api/playlist/generate', {
-				method: 'POST',
-				body: JSON.stringify(payload),
-			});
-			console.log('[handleSeedPlaylistGeneration] Starting polling...');
-			const { generatedPlaylistId } = await result.json();
-			console.log(
-				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-			);
-			activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
-			await pollForCompletion(payload, 0);
-			// } else {
-			  inngestStartedRef.current = false;
-			  abortControllerRef.current = new AbortController();
+			if (process.env.NODE_ENV === 'production') {
+				// Inngest path
+				inngestStartedRef.current = true;
+				const payload = {
+					seeds: selectedSongsData,
+					artistNames: extractedArtists,
+					options: {
+						isNotPopular: isNotPopularArtists,
+						isDifferent: isDifferentTypesOfArtists,
+					},
+					userId: user?.user_id,
+					sourcePlaylistId: spotifyPlaylist.current?.value
+						? extractPlaylistId(spotifyPlaylist.current.value)
+						: undefined,
+				};
+				const result = await fetch('/api/playlist/generate', {
+					method: 'POST',
+					body: JSON.stringify(payload),
+				});
+				console.log('[handleSeedPlaylistGeneration] Starting polling...');
+				const { generatedPlaylistId } = await result.json();
+				console.log(
+					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+				);
+				activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
+				await pollForCompletion(payload, 0);
+			} else {
+				inngestStartedRef.current = false;
+				abortControllerRef.current = new AbortController();
+				activeGeneratedPlaylistIdRef.current = Math.random()
+					.toString(36)
+					.substring(2, 15);
+				const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
 
-        const result = await fetch('/api/playlist/dev-generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            seeds: selectedSongsData,
-            artistNames: extractedArtists,
-            options: { isNotPopular: isNotPopularArtists, isDifferent: isDifferentTypesOfArtists },
-            userId: user?.user_id,
-          }),
-          signal: abortControllerRef.current.signal,
-        });
+				const result = await fetch('/api/playlist/dev-generate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						seeds: selectedSongsData,
+						artistNames: extractedArtists,
+						options: {
+							isNotPopular: isNotPopularArtists,
+							isDifferent: isDifferentTypesOfArtists,
+						},
+						userId: user?.user_id,
+					}),
+					signal: abortControllerRef.current.signal,
+				});
 
-        if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
+				if (
+					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+					abortedRef.current
+				)
+					return;
 
-        const resultData = await result.json();
+				const resultData = await result.json();
 
-        if (resultData.error || !resultData.tracks || resultData.tracks.length === 0) {
-          throw new Error(resultData.error || 'Failed to generate tracks');
-        }
+				if (
+					resultData.error ||
+					!resultData.tracks ||
+					resultData.tracks.length === 0
+				) {
+					throw new Error(resultData.error || 'Failed to generate tracks');
+				}
 
-        const playlistName = seedCount > 0
-          ? 'HearItFresh - Lyrics Inspired'
-          : 'HearItFresh - Similar to Playlist';
+				const playlistName =
+					seedCount > 0
+						? 'HearItFresh - Lyrics Inspired'
+						: 'HearItFresh - Similar to Playlist';
 
-        setLoadingMessage('Creating your new playlist on Spotify...');
-        const playlistInfo = await createPlayList(playlistName, 'Created by HearItFresh');
-        if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
-        if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
+				setLoadingMessage('Creating your new playlist on Spotify...');
+				const playlistInfo = await createPlayList(
+					playlistName,
+					'Created by HearItFresh',
+				);
+				if (
+					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+					abortedRef.current
+				)
+					return;
+				if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
 
-        const { id, link, name } = playlistInfo;
-        const playListID = id.substring('spotify:playlist:'.length);
+				const { id, link, name } = playlistInfo;
+				const playListID = id.substring('spotify:playlist:'.length);
 
-			//   setLoadingMessage('Adding the tracks to your Spotify playlist...');
-			//   await addTracksToPlayList(resultData.tracks, playListID);
-			//   if (activeJobIdRef.current !== currentJobId || abortedRef.current) return;
-			//   createSpotifyPlaylist(link, name);
-			// }
+				setLoadingMessage('Adding the tracks to your Spotify playlist...');
+				await addTracksToPlayList(resultData.tracks, playListID);
+				if (
+					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+					abortedRef.current
+				)
+					return;
+				createSpotifyPlaylist(link, name);
+			}
 		} catch (err: any) {
 			// Swallow errors that occurred after a user-initiated cancel
 			if (abortedRef.current) return;
@@ -456,16 +554,14 @@ const SubmitButtion = () => {
 		}
 
 		const userId = user.user_id;
-		const { message, history } = await addUserHistory(userId, text);
+		await fetch(`/api/users/${userId}/history`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ artists: text }),
+		});
 
-		const newHistory = history.map(
-			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
-				text,
-				lastUsed: new Date(lastUsed),
-				generatedPlaylists,
-			}),
-		);
-		if (message === 'success') setHistory(newHistory);
+		await refreshHistory();
+		return { message: 'success', history: [] };
 	};
 
 	return (

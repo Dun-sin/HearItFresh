@@ -7,11 +7,16 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useHistory } from '@/app/context/HistoryContext';
+import { useLoading } from '@/app/context/loadingContext';
+import { addToUrl } from '@/app/lib/clientUtils';
+import { useGeneralState } from '@/app/context/generalStateContext';
 
 const History = () => {
 	const { user } = useAuth();
 	const { history, setHistory } = useHistory();
 	const [isRetrying, setIsRetrying] = useState(false);
+	const { setLoading, setLoadingMessage } = useLoading();
+	const { setPlayListData } = useGeneralState();
 
 	useEffect(() => {
 		getHistory();
@@ -44,30 +49,65 @@ const History = () => {
 
 	const handleRetry = async (generatedPlaylistId: string) => {
 		setIsRetrying(true);
-		const toastId = toast.loading('Re-queuing playlist generation...');
+		setLoading(true);
+		setLoadingMessage('Retrying playlist generation...');
+
 		try {
 			const response = await axios.post('/api/playlist/retry', {
 				generatedPlaylistId,
 			});
-			const { generatedPlaylistId: responseDbId } = response.data;
-			console.log('Retry initiated, generatedPlaylistId:', responseDbId);
-			toast.update(toastId, {
-				render: 'Retry started! The history will refresh automatically.',
-				type: 'success',
-				isLoading: false,
-				autoClose: 4000,
-			});
-			setTimeout(() => getHistory(), 2000);
+			const retryId = response.data.generatedPlaylistId;
+
+			await pollPendingGeneration(retryId);
+
 		} catch (error) {
 			console.error('Failed to retry playlist:', error);
-			toast.update(toastId, {
-				render: 'Failed to retry playlist generation. Please try again.',
-				type: 'error',
-				isLoading: false,
-				autoClose: 4000,
-			});
+			toast.error('Failed to retry playlist generation. Please try again.');
 		} finally {
 			setIsRetrying(false);
+			setLoading(false);
+			setLoadingMessage(null);
+		}
+	};
+
+	const pollPendingGeneration = async (retryId: string) => {
+		const userId = user?.user_id;
+		if (!userId) return;
+
+		while (true) {
+			const response = await fetch('/api/playlist/reconcile', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ userId, generatedPlaylistId: retryId }),
+			});
+
+			const data = await response.json();
+			const currentStatus = data.status ?? data.active?.status;
+			const waitCondition = !currentStatus && !data.updated?.length || currentStatus === 'Running' || currentStatus === 'Scheduled' || currentStatus === 'Pending';
+
+			if (waitCondition) {
+				await new Promise((resolve) => setTimeout(resolve, 10000));
+				continue;
+			}
+
+			const completed = data.updated?.find(
+				(item: any) =>
+					item.status === 'Completed' &&
+					item.output?.link &&
+					item.output?.name,
+			);
+
+			if (completed) {
+				addToUrl('link', completed.output.link.split('/').at(-1) as string);
+				setPlayListData({
+					link: completed.output.link,
+					name: completed.output.name,
+				});
+				await getHistory();
+				toast.success('Playlist generated successfully!');
+			}
+
+			break;
 		}
 	};
 
@@ -100,3 +140,5 @@ const History = () => {
 };
 
 export default History;
+// TODO: use axios instead of fetch for consistency and error handling.
+// TODO: keep the loading message consistent with all other loading messages in the app.

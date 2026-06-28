@@ -110,12 +110,9 @@ export async function processSong(
 	const song = await addSong(spotifyTrack, lyrics);
 
 	if (signal?.aborted) throw new Error('Aborted');
-	console.log('NODE_ENV:', process.env.NODE_ENV)
-console.log('calling getEmbedding for:', spotifyTrack.title)
 
 	const embeddingData = await getEmbedding(lyrics, signal);
 	if (signal?.aborted) throw new Error('Aborted');
-console.log('embedding length:', embeddingData?.length)
 	await addEmbeddingToSong(song.id, embeddingData);
 
 	return { ...song, embeddingData };

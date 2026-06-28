@@ -40,16 +40,16 @@ export async function POST(req: Request) {
 		}
 	}
 
-	const event = record.event as { name: string; id: string; data: any } | null;
+	const event = record.event as { name?: string; id?: string; data?: any } | null;
 
-	if (!event) {
+	if (!event?.name || !event?.data) {
 		return Response.json(
 			{ error: 'No event data found for retry' },
 			{ status: 400 },
 		);
 	}
 
-	await inngest.send({
+	const { ids } = await inngest.send({
 		name: event.name,
 		data: event.data,
 	});
@@ -59,6 +59,10 @@ export async function POST(req: Request) {
 		data: {
 			status: 'pending',
 			inngestRunId: null,
+			event: {
+				...event,
+				id: ids[0],
+			},
 			retryCount: { increment: 1 },
 		},
 	});
