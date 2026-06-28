@@ -32,14 +32,17 @@ const History = () => {
 			({
 				text,
 				lastUsed,
+				sourcePlaylist,
 				generatedPlaylists,
 			}: {
 				text: string;
 				lastUsed: string;
+				sourcePlaylist?: { id: string; name: string };
 				generatedPlaylists?: any[];
 			}) => ({
 				text,
 				lastUsed: new Date(lastUsed),
+				sourcePlaylist,
 				generatedPlaylists,
 			}),
 		);
@@ -59,7 +62,6 @@ const History = () => {
 			const retryId = response.data.generatedPlaylistId;
 
 			await pollPendingGeneration(retryId);
-
 		} catch (error) {
 			console.error('Failed to retry playlist:', error);
 			toast.error('Failed to retry playlist generation. Please try again.');
@@ -83,7 +85,11 @@ const History = () => {
 
 			const data = await response.json();
 			const currentStatus = data.status ?? data.active?.status;
-			const waitCondition = !currentStatus && !data.updated?.length || currentStatus === 'Running' || currentStatus === 'Scheduled' || currentStatus === 'Pending';
+			const waitCondition =
+				(!currentStatus && !data.updated?.length) ||
+				currentStatus === 'Running' ||
+				currentStatus === 'Scheduled' ||
+				currentStatus === 'Pending';
 
 			if (waitCondition) {
 				await new Promise((resolve) => setTimeout(resolve, 10000));
@@ -92,9 +98,7 @@ const History = () => {
 
 			const completed = data.updated?.find(
 				(item: any) =>
-					item.status === 'Completed' &&
-					item.output?.link &&
-					item.output?.name,
+					item.status === 'Completed' && item.output?.link && item.output?.name,
 			);
 
 			if (completed) {
@@ -113,20 +117,26 @@ const History = () => {
 
 	return (
 		user && (
-			<div className={`text-fbase w-full`}>
-				<p className='font-bold text-fmd'>Your History</p>
-				<div className='flex flex-wrap justify-between items-center gap-5 w-full mt-2'>
+			<div className='text-fbase w-full max-w-6xl mx-auto'>
+				<p className='font-bold text-fmd flex items-center gap-2'>
+					<span className='icon-[weui--music-outlined] text-fmd' />
+					Generation History
+				</p>
+				<div className='flex flex-col gap-5 w-full mt-5'>
 					{history && history.length > 0 ? (
-						history.map(({ text, lastUsed, generatedPlaylists }) => (
-							<HistoryCard
-								text={text}
-								lastUsed={lastUsed}
-								generatedPlaylists={generatedPlaylists}
-								onRetry={handleRetry}
-								isRetrying={isRetrying}
-								key={text}
-							/>
-						))
+						history.map(
+							({ text, lastUsed, sourcePlaylist, generatedPlaylists }) => (
+								<HistoryCard
+									text={text}
+									lastUsed={lastUsed}
+									sourcePlaylist={sourcePlaylist}
+									generatedPlaylists={generatedPlaylists}
+									onRetry={handleRetry}
+									isRetrying={isRetrying}
+									key={sourcePlaylist?.id ?? text}
+								/>
+							),
+						)
 					) : (
 						<p className='flex items-center font-light text-fsm'>
 							You haven't used HearitFresh yet{' '}

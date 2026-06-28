@@ -7,7 +7,7 @@ export async function PUT(
 	{ params }: { params: { userId: string } }
 ) {
 	const res = await req.json();
-	const { artists } = res;
+	const { artists, sourcePlaylist } = res;
 
 	const { userId } = params;
 
@@ -16,7 +16,7 @@ export async function PUT(
 	}
 
 	try {
-		const response = await addUserHistory(userId, artists);
+		const response = await addUserHistory(userId, artists, sourcePlaylist);
 
 		if (response.message === "success") {
 			return NextResponse.json({ status: 200 });

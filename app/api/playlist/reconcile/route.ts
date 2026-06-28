@@ -134,8 +134,8 @@ async function applyTerminalState(
 		errorMessage?: string | null;
 	},
 ) {
-	const data =
-		status === 'Completed'
+		const data =
+			status === 'Completed'
 			? {
 					playlistName: payload.output?.name,
 					playlistLink: payload.output?.link,
@@ -143,6 +143,7 @@ async function applyTerminalState(
 						? payload.output.link.split('/').at(-1)
 						: null,
 					status: 'completed',
+					errorMessage: null,
 					completedAt: new Date(),
 				}
 			: {

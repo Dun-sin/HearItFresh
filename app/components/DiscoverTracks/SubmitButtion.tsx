@@ -88,9 +88,20 @@ const SubmitButtion = () => {
 		const response = await fetch(`/api/users/${user?.user_id}/history`);
 		const data = await response.json();
 		const history = data.message?.map(
-			({ text, lastUsed, generatedPlaylists }: { text: string; lastUsed: string; generatedPlaylists?: any[] }) => ({
+			({
+				text,
+				lastUsed,
+				sourcePlaylist,
+				generatedPlaylists,
+			}: {
+				text: string;
+				lastUsed: string;
+				sourcePlaylist?: { id: string; name: string };
+				generatedPlaylists?: any[];
+			}) => ({
 				text,
 				lastUsed: new Date(lastUsed),
+				sourcePlaylist,
 				generatedPlaylists,
 			}),
 		) ?? [];
@@ -163,31 +174,31 @@ const SubmitButtion = () => {
 			);
 
 			if (process.env.NODE_ENV === 'production') {
-				// Inngest path
-				inngestStartedRef.current = true;
-				const payload = {
-					seeds: selectedSongsData,
-					artistNames: extractedArtists,
-					options: {
-						isNotPopular: isNotPopularArtists,
-						isDifferent: isDifferentTypesOfArtists,
-					},
-					userId: user?.user_id,
-					sourcePlaylistId: spotifyPlaylist.current?.value
-						? extractPlaylistId(spotifyPlaylist.current.value)
-						: undefined,
-				};
-				const result = await fetch('/api/playlist/generate', {
-					method: 'POST',
-					body: JSON.stringify(payload),
-				});
-				console.log('[handleSeedPlaylistGeneration] Starting polling...');
-				const { generatedPlaylistId } = await result.json();
-				console.log(
-					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-				);
-				activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
-				await pollForCompletion(payload, 0);
+			// Inngest path
+			inngestStartedRef.current = true;
+			const payload = {
+				seeds: selectedSongsData,
+				artistNames: extractedArtists,
+				options: {
+					isNotPopular: isNotPopularArtists,
+					isDifferent: isDifferentTypesOfArtists,
+				},
+				userId: user?.user_id,
+				sourcePlaylistId: spotifyPlaylist.current?.value
+					? extractPlaylistId(spotifyPlaylist.current.value)
+					: undefined,
+			};
+			const result = await fetch('/api/playlist/generate', {
+				method: 'POST',
+				body: JSON.stringify(payload),
+			});
+			console.log('[handleSeedPlaylistGeneration] Starting polling...');
+			const { generatedPlaylistId } = await result.json();
+			console.log(
+				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+			);
+			activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
+			await pollForCompletion(payload, 0);
 			} else {
 				inngestStartedRef.current = false;
 				abortControllerRef.current = new AbortController();
@@ -476,11 +487,16 @@ const SubmitButtion = () => {
       setLoadingMessage('Connecting to Spotify to extract your playlist details...');
 			const playlistId = extractPlaylistId(link);
 
-			await addHistoryToDB(playlistId);
-      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
-
       setLoadingMessage('Retrieving all tracks from the provided playlist...');
-			const playlistTracks = await getPlaylistTracks(playlistId);
+			const playlistData = await getPlaylistTracks(playlistId, true);
+      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
+			const playlistTracks = playlistData.tracks;
+			const sourcePlaylist = playlistData.playlist ?? {
+				id: playlistId,
+				name: playlistId,
+			};
+
+			await addHistoryToDB(playlistId, sourcePlaylist);
       if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
 
 			const trackArtists = playlistTracks
@@ -547,7 +563,10 @@ const SubmitButtion = () => {
 		}
 	};
 
-	const addHistoryToDB = async (text: string) => {
+	const addHistoryToDB = async (
+		text: string,
+		sourcePlaylist?: { id: string; name: string },
+	) => {
 		if (!user) {
 			logOut();
 			return { message: 'error', history: [] };
@@ -557,7 +576,7 @@ const SubmitButtion = () => {
 		await fetch(`/api/users/${userId}/history`, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ artists: text }),
+			body: JSON.stringify({ artists: text, sourcePlaylist }),
 		});
 
 		await refreshHistory();

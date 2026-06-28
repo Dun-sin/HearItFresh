@@ -7,6 +7,10 @@ import prisma from '../prisma';
 export interface HistoryEntry {
 	text: string;
 	lastUsed: string;
+	sourcePlaylist?: {
+		id: string;
+		name: string;
+	};
 	generatedPlaylists?: GeneratedPlaylistHistory[];
 	[key: string]: any;
 }
@@ -19,29 +23,38 @@ export type GeneratedPlaylistHistory = {
 	createdAt: Date;
 	status?: string;
 	errorMessage?: string | null;
+	retryCount?: number;
 	id?: string;
 };
 
 export async function addUserHistory(
 	userId: string,
 	artists: string,
+	sourcePlaylist?: { id: string; name: string },
 ): Promise<{ message: string; history: HistoryEntry[] }> {
 	try {
 		const lastUsed = new Date();
 		const lastUsedString = lastUsed.toISOString();
-		const newObject: HistoryEntry = { text: artists, lastUsed: lastUsedString };
+		const entryText = sourcePlaylist?.id ?? artists;
+		const newObject: HistoryEntry = {
+			text: entryText,
+			lastUsed: lastUsedString,
+			...(sourcePlaylist ? { sourcePlaylist } : {}),
+		};
 
 		const result = await getUserHistory(userId);
 
 		let currentHistory: HistoryEntry[] = result ? result : [];
 
 		const artistExists = currentHistory.find(
-			(entry: HistoryEntry) => entry.text === artists,
+			(entry: HistoryEntry) => entry.text === entryText,
 		);
 
 		if (artistExists) {
 			const updatedHistory = currentHistory.map((entry: HistoryEntry) =>
-				entry.text === artists ? { ...entry, lastUsed: lastUsedString } : entry,
+				entry.text === entryText
+					? { ...entry, ...newObject, lastUsed: lastUsedString }
+					: entry,
 			);
 
 			await prisma.user.update({
@@ -102,9 +115,12 @@ export async function getUserHistory(
 			?.history;
 
 		const userHistory = (history as unknown as HistoryEntry[]) ?? [];
+		const getSourcePlaylistId = (entry: HistoryEntry) =>
+			entry.sourcePlaylist?.id ?? (!entry.text.includes(',') ? entry.text : null);
+
 		const sourcePlaylistIds = userHistory
-			.filter((entry) => !entry.text.includes(','))
-			.map((entry) => entry.text);
+			.map(getSourcePlaylistId)
+			.filter((id): id is string => Boolean(id));
 
 		if (sourcePlaylistIds.length === 0) return userHistory;
 
@@ -125,6 +141,7 @@ export async function getUserHistory(
 				createdAt: true,
 				status: true,
 				errorMessage: true,
+				retryCount: true,
 			},
 		});
 
@@ -141,6 +158,7 @@ export async function getUserHistory(
 					createdAt: playlist.createdAt,
 					status: playlist.status,
 					errorMessage: playlist.errorMessage,
+					retryCount: playlist.retryCount,
 				});
 				acc.set(playlist.sourcePlaylistId, playlists);
 				return acc;
@@ -150,7 +168,8 @@ export async function getUserHistory(
 
 		return userHistory.map((entry) => ({
 			...entry,
-			generatedPlaylists: playlistsBySource.get(entry.text) ?? [],
+			generatedPlaylists:
+				playlistsBySource.get(getSourcePlaylistId(entry) ?? '') ?? [],
 		}));
 	} catch (error) {
 		console.error('Error fetching user history:', error);
