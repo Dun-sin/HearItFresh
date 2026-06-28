@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/Dun-sin/HearItFresh/compare/v1.25.0...v1.26.0) (2026-06-28)
+
+
+### Features
+
+* change lyrics provider ([#45](https://github.com/Dun-sin/HearItFresh/issues/45)) ([3c042b0](https://github.com/Dun-sin/HearItFresh/commit/3c042b06c3db3de6160657655b6b44b2a08a2a82))
+
 # [1.25.0](https://github.com/Dun-sin/HearItFresh/compare/v1.24.0...v1.25.0) (2026-06-28)
 
 
