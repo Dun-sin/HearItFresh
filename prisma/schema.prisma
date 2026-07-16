@@ -31,6 +31,7 @@ model Song {
   lyrics    String?
   summary   String?
   embedding Unsupported("vector")?
+  isComplete Boolean               @default(false)
   createdAt DateTime               @default(now())
   spotifyId String?                @unique
   youtubeId String?                @unique

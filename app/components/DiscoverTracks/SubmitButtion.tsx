@@ -239,9 +239,9 @@ const SubmitButtion = () => {
 				}
 
 				const playlistName =
-					seedCount > 0
+					(seedCount > 0
 						? 'HearItFresh - Lyrics Inspired'
-						: 'HearItFresh - Similar to Playlist';
+						: 'HearItFresh - Similar to Playlist') + ' @hearitfresh.favour.dev';
 
 				setLoadingMessage('Creating your new playlist on Spotify...');
 				const playlistInfo = await createPlayList(

@@ -194,8 +194,20 @@ export async function addSong(
 			spotifyId: spotifyTrack.id,
 			lyrics,
 			summary,
+			isComplete: true,
 		},
 	});
+}
+
+export async function updateSong(songId: string, lyrics: string) {
+	const updated = await prisma.song.update({
+		where: { id: songId },
+		data: {
+			lyrics,
+			isComplete: true,
+		},
+	});
+	return updated;
 }
 
 export async function addEmbeddingToSong(songId: string, embedding: number[]) {
