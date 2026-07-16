@@ -426,16 +426,6 @@ export function isLRCLibResult(value: unknown): value is LRCLibResult {
 	);
 }
 
-export function cleanLyrics(raw: string): string | null {
-	if (!raw) return null;
-
-	const cleanedLyrics = raw
-		.replace(/\[.*?\]/g, '')
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
-
-	return cleanedLyrics;
-}
 
 export function cleanMusicMetadata(text: string): string {
 	return (
@@ -456,56 +446,4 @@ export function cleanMusicMetadata(text: string): string {
 			.replace(/\s+/g, ' ')
 			.trim()
 	);
-}
-
-
-export function filterBestPlainTrack(
-	results: LRCLibResult[] | null,
-	targetArtist: string,
-	targetTrack: string,
-): LRCLibResult | null {
-	if (!Array.isArray(results) || results.length === 0) return null;
-
-	const clean = (str: string | undefined) =>
-		String(str || '')
-			.toLowerCase()
-			.replace(/[^a-z0-9]/g, '');
-	const cleanArtist = clean(targetArtist);
-	const cleanTrack = clean(targetTrack);
-
-	let candidates = results.filter((item) => {
-		const itemArtist = clean(item.artistName || '');
-		const itemTrack = clean(item.trackName || '');
-		return (
-			(itemArtist.includes(cleanArtist) || cleanArtist.includes(itemArtist)) &&
-			(itemTrack.includes(cleanTrack) || cleanTrack.includes(itemTrack))
-		);
-	});
-
-	candidates = candidates.filter(
-		(item) =>
-			item.instrumental !== true &&
-			typeof item.plainLyrics === 'string' &&
-			item.plainLyrics.trim().length > 0,
-	);
-
-	if (candidates.length === 0) return null;
-
-	const score = (item: LRCLibResult) => {
-		const itemArtist = clean(item.artistName);
-		const itemTrack = clean(item.trackName);
-
-		const exactArtist = itemArtist === cleanArtist ? 2 : 0;
-		const exactTrack = itemTrack === cleanTrack ? 2 : 0;
-		const artistIncludes =
-			itemArtist.includes(cleanArtist) || cleanArtist.includes(itemArtist)
-				? 1
-				: 0;
-		const trackIncludes =
-			itemTrack.includes(cleanTrack) || cleanTrack.includes(itemTrack) ? 1 : 0;
-
-		return exactArtist + exactTrack + artistIncludes + trackIncludes;
-	};
-
-	return [...candidates].sort((a, b) => score(b) - score(a))[0] ?? null;
 }
