@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/Dun-sin/HearItFresh/compare/v1.26.0...v1.27.0) (2026-07-16)
+
+
+### Features
+
+* improve recommendation system by processing the full lyrics to get the whole context of a song ([#50](https://github.com/Dun-sin/HearItFresh/issues/50)) ([39d298b](https://github.com/Dun-sin/HearItFresh/commit/39d298b2511adb1590124135b5a97920a6859020))
+
 # [1.26.0](https://github.com/Dun-sin/HearItFresh/compare/v1.25.0...v1.26.0) (2026-06-28)
 
 
