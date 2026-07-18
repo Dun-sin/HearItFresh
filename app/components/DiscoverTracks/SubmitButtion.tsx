@@ -45,13 +45,20 @@ const SubmitButtion = () => {
 	const { setHistory } = useHistory();
 	const { isNotPopularArtists, isDifferentTypesOfArtists } = useOptions();
 
-  const { extractedSongs, setExtractedSongs, selectedSeedIds, extractedArtists, setExtractedArtists, clearSeeds } = useSeedSongs();
+	const {
+		extractedSongs,
+		setExtractedSongs,
+		selectedSeedIds,
+		extractedArtists,
+		setExtractedArtists,
+		clearSeeds,
+	} = useSeedSongs();
 
-  // Refs for in-flight Inngest job management
-  const abortedRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const activeRunIdRef = useRef<string | null>(null);
-  const activeGeneratedPlaylistIdRef = useRef<string | null>(null);
+	// Refs for in-flight Inngest job management
+	const abortedRef = useRef(false);
+	const abortControllerRef = useRef<AbortController | null>(null);
+	const activeRunIdRef = useRef<string | null>(null);
+	const activeGeneratedPlaylistIdRef = useRef<string | null>(null);
 	const inngestStartedRef = useRef(false);
 
 	// Terminal state flags
@@ -87,53 +94,67 @@ const SubmitButtion = () => {
 	const refreshHistory = async () => {
 		const response = await fetch(`/api/users/${user?.user_id}/history`);
 		const data = await response.json();
-		const history = data.message?.map(
-			({
-				text,
-				lastUsed,
-				sourcePlaylist,
-				generatedPlaylists,
-			}: {
-				text: string;
-				lastUsed: string;
-				sourcePlaylist?: { id: string; name: string };
-				generatedPlaylists?: any[];
-			}) => ({
-				text,
-				lastUsed: new Date(lastUsed),
-				sourcePlaylist,
-				generatedPlaylists,
-			}),
-		) ?? [];
+		const history =
+			data.message?.map(
+				({
+					text,
+					lastUsed,
+					sourcePlaylist,
+					generatedPlaylists,
+				}: {
+					text: string;
+					lastUsed: string;
+					sourcePlaylist?: { id: string; name: string };
+					generatedPlaylists?: any[];
+				}) => ({
+					text,
+					lastUsed: new Date(lastUsed),
+					sourcePlaylist,
+					generatedPlaylists,
+				}),
+			) ?? [];
 		setHistory(history);
 	};
 
 	const pollPendingGeneration = async (generatedPlaylistId: string) => {
 		setLoading(true);
-		setLoadingMessage('Generating your playlist. Please do not leave the page...');
+		setLoadingMessage(
+			'Generating your playlist....',
+		);
 
 		const response = await fetch('/api/playlist/reconcile', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ userId: user?.user_id ?? '', generatedPlaylistId }),
+			body: JSON.stringify({
+				userId: user?.user_id ?? '',
+				generatedPlaylistId,
+			}),
 		});
 
 		const data = await response.json();
 
 		const currentStatus = data.status ?? data.active?.status;
 
-		if (currentStatus === 'Running' || currentStatus === 'Scheduled' || currentStatus === 'Pending') {
+		if (
+			currentStatus === 'Running' ||
+			currentStatus === 'Scheduled' ||
+			currentStatus === 'Pending'
+		) {
 			setTimeout(() => pollPendingGeneration(generatedPlaylistId), 10000);
 			return;
 		}
 
 		const completed = data.updated?.find(
-			(item: any) => item.status === 'Completed' && item.output?.link && item.output?.name,
+			(item: any) =>
+				item.status === 'Completed' && item.output?.link && item.output?.name,
 		);
 
 		if (completed) {
 			addToUrl('link', completed.output.link.split('/').at(-1) as string);
-			setPlayListData({ link: completed.output.link, name: completed.output.name });
+			setPlayListData({
+				link: completed.output.link,
+				name: completed.output.name,
+			});
 			await refreshHistory();
 		}
 
@@ -145,12 +166,18 @@ const SubmitButtion = () => {
 		if (buttonClick === true) return;
 
 		const seedCount = selectedSeedIds.size;
-		if (seedCount > 0 && (seedCount < 5 || seedCount > 15)) {
+		// Allow proceeding with 0 seeds (skip lyrics matching) or 5-15 seeds.
+		if (seedCount > 0 && seedCount < 5) {
 			toast.error(
-				'Please select either 0 seeds (skip lyrics) or between 5 to 15 seeds.',
+				'Please select either 0 songs (skip lyrics) or at least 5 songs.',
 			);
 			return;
 		}
+
+		// When the user chooses to proceed without lyrics matching (fewer than
+		// 5 seeds selected), treat the selection as 0 seeds so the backend
+		// skips lyrics matching entirely.
+		const effectiveSeedCount = seedCount >= 5 ? seedCount : 0;
 
 		// Abort any stale dev-mode controller, then reset state for a fresh run
 		if (abortControllerRef.current) {
@@ -169,36 +196,37 @@ const SubmitButtion = () => {
 				'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
 			);
 			console.log('[handleSeedPlaylistGeneration] Starting...');
-			const selectedSongsData = extractedSongs.filter((s: any) =>
-				selectedSeedIds.has(s.id),
-			);
+			const selectedSongsData =
+				effectiveSeedCount > 0
+					? extractedSongs.filter((s: any) => selectedSeedIds.has(s.id))
+					: [];
 
 			if (process.env.NODE_ENV === 'production') {
-			// Inngest path
-			inngestStartedRef.current = true;
-			const payload = {
-				seeds: selectedSongsData,
-				artistNames: extractedArtists,
-				options: {
-					isNotPopular: isNotPopularArtists,
-					isDifferent: isDifferentTypesOfArtists,
-				},
-				userId: user?.user_id,
-				sourcePlaylistId: spotifyPlaylist.current?.value
-					? extractPlaylistId(spotifyPlaylist.current.value)
-					: undefined,
-			};
-			const result = await fetch('/api/playlist/generate', {
-				method: 'POST',
-				body: JSON.stringify(payload),
-			});
-			console.log('[handleSeedPlaylistGeneration] Starting polling...');
-			const { generatedPlaylistId } = await result.json();
-			console.log(
-				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-			);
-			activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
-			await pollForCompletion(payload, 0);
+				// Inngest path
+				inngestStartedRef.current = true;
+				const payload = {
+					seeds: selectedSongsData,
+					artistNames: extractedArtists,
+					options: {
+						isNotPopular: isNotPopularArtists,
+						isDifferent: isDifferentTypesOfArtists,
+					},
+					userId: user?.user_id,
+					sourcePlaylistId: spotifyPlaylist.current?.value
+						? extractPlaylistId(spotifyPlaylist.current.value)
+						: undefined,
+				};
+				const result = await fetch('/api/playlist/generate', {
+					method: 'POST',
+					body: JSON.stringify(payload),
+				});
+				console.log('[handleSeedPlaylistGeneration] Starting polling...');
+				const { generatedPlaylistId } = await result.json();
+				console.log(
+					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+				);
+				activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
+				await pollForCompletion(payload, 0);
 			} else {
 				inngestStartedRef.current = false;
 				abortControllerRef.current = new AbortController();
@@ -239,7 +267,7 @@ const SubmitButtion = () => {
 				}
 
 				const playlistName =
-					(seedCount > 0
+					(effectiveSeedCount > 0
 						? 'HearItFresh - Lyrics Inspired'
 						: 'HearItFresh - Similar to Playlist') + ' @hearitfresh.favour.dev';
 
@@ -275,7 +303,7 @@ const SubmitButtion = () => {
 			setErrorMessages({
 				...errorMessages,
 				error:
-					'Error occurred while generating playlist: A playlist might have still been created, refresh the page, before trying again',
+					'Error occurred while generating playlist: feel free to retry. A playlist might have been generated, please refresh and check the history section.',
 			});
 			console.log(err);
 		} finally {
@@ -396,42 +424,43 @@ const SubmitButtion = () => {
 		toast.info('Generation cancelled.');
 	};
 
-  const createSpotifyPlaylist = async (link: string, name: string) => {
-    addToUrl('link', link.split('/').at(-1) as string);
-    setPlayListData({ link, name });
-    setArtistArray([]);
-    clearSeeds();
-    toast.success('Playlist Created');
-  };
+	const createSpotifyPlaylist = async (link: string, name: string) => {
+		addToUrl('link', link.split('/').at(-1) as string);
+		setPlayListData({ link, name });
+		setArtistArray([]);
+		clearSeeds();
+		toast.success('Playlist Created');
+	};
 
-  const getSimilarArtists = async (artists: string[]) => {
-    if (buttonClick === true) {
-      setLoading(false);
-      return;
-    }
-    setButtonClicked(true);
+	const getSimilarArtists = async (artists: string[]) => {
+		if (buttonClick === true) {
+			setLoading(false);
+			return;
+		}
+		setButtonClicked(true);
 
-    try {
-      setLoadingMessage('Discovering new artists similar to your selection...');
+		try {
+			setLoadingMessage('Discovering new artists similar to your selection...');
 
-      const finalList = await fetchSimilarArtistsFromAI(artists, {
-        isNotPopular: isNotPopularArtists,
-        isDifferent: isDifferentTypesOfArtists
-      });
+			const finalList = await fetchSimilarArtistsFromAI(artists, {
+				isNotPopular: isNotPopularArtists,
+				isDifferent: isDifferentTypesOfArtists,
+			});
 
-      setLoadingMessage('Fetching latest albums from the discovered artists...');
+			setLoadingMessage(
+				'Fetching latest albums from the discovered artists...',
+			);
 			const albums = await getEveryAlbum(finalList);
 
-      setLoadingMessage('Gathering the best tracks from their albums...');
-      const tracks = await getAllTracks(albums as string[], 1) as string[];
+			setLoadingMessage('Gathering the best tracks from their albums...');
+			const tracks = (await getAllTracks(albums as string[], 1)) as string[];
 
-      setLoadingMessage('Creating your new Similar Artists playlist on Spotify...');
+			setLoadingMessage(
+				'Creating your new Similar Artists playlist on Spotify...',
+			);
 			const playlistName = `Similar to ${artists.join(', ')}`;
 			const playlistInfo = await Promise.resolve(
-				createPlayList(
-					playlistName,
-					'Created by HearItFresh',
-				),
+				createPlayList(playlistName, 'Created by HearItFresh'),
 			);
 
 			if ('isError' in playlistInfo) {
@@ -440,7 +469,9 @@ const SubmitButtion = () => {
 			const { id, link, name } = playlistInfo;
 			const playListID = id.substring('spotify:playlist:'.length);
 
-      setLoadingMessage('Adding the selected tracks to your Spotify playlist...');
+			setLoadingMessage(
+				'Adding the selected tracks to your Spotify playlist...',
+			);
 
 			if (tracks === null) throw new Error('Track is empty');
 			addTracksToPlayList(tracks, playListID)
@@ -452,13 +483,14 @@ const SubmitButtion = () => {
 					return err;
 				});
 
-      setLoadingMessage('Playlist successfully generated!');
+			setLoadingMessage('Playlist successfully generated!');
 			setArtistArray([]);
 			toast.success('Playlist Created');
 		} catch (err) {
 			setErrorMessages({
 				...errorMessages,
-        error: 'Error occured while generating a playlist: a playlist might have still been generated, please check your Spotify before trying again.',
+				error:
+					'Error occured while generating a playlist: a playlist might have still been generated, please check your Spotify before trying again.',
 			});
 			console.log(err);
 		} finally {
@@ -471,9 +503,11 @@ const SubmitButtion = () => {
 	async function handleIfItsAPlaylistLink(link: string) {
 		// Reset abort flag — this is a fresh user-initiated operation
 		abortedRef.current = false;
-        inngestStartedRef.current = false;
-        activeGeneratedPlaylistIdRef.current = Math.random().toString(36).substring(2, 15);
-        const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
+		inngestStartedRef.current = false;
+		activeGeneratedPlaylistIdRef.current = Math.random()
+			.toString(36)
+			.substring(2, 15);
+		const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
 
 		if (!isValidPlaylistLink(link)) {
 			setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: true });
@@ -484,12 +518,18 @@ const SubmitButtion = () => {
 		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
 
 		try {
-      setLoadingMessage('Connecting to Spotify to extract your playlist details...');
+			setLoadingMessage(
+				'Connecting to Spotify to extract your playlist details...',
+			);
 			const playlistId = extractPlaylistId(link);
 
-      setLoadingMessage('Retrieving all tracks from the provided playlist...');
+			setLoadingMessage('Retrieving all tracks from the provided playlist...');
 			const playlistData = await getPlaylistTracks(playlistId, true);
-      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
+			if (
+				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+				abortedRef.current
+			)
+				return;
 			const playlistTracks = playlistData.tracks;
 			const sourcePlaylist = playlistData.playlist ?? {
 				id: playlistId,
@@ -497,7 +537,11 @@ const SubmitButtion = () => {
 			};
 
 			await addHistoryToDB(playlistId, sourcePlaylist);
-      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
+			if (
+				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+				abortedRef.current
+			)
+				return;
 
 			const trackArtists = playlistTracks
 				.flat()
@@ -507,28 +551,31 @@ const SubmitButtion = () => {
 				.map((item: any) => item.name);
 			const uniqueArtistNames = [...new Set(artistNames)];
 
-      // Phase 1: Set extracted songs into context for the UI picker
-      const formattedTracks = playlistTracks.flat().map((item: any) => ({
-        id: item.track.id,
-        name: item.track.name,
-        artist: item.track.artists.map((a: any) => a.name),
-        image: item.track.album.images[0]?.url,
-      }));
+			// Phase 1: Set extracted songs into context for the UI picker
+			const formattedTracks = playlistTracks.flat().map((item: any) => ({
+				id: item.track.id,
+				name: item.track.name,
+				artist: item.track.artists.map((a: any) => a.name),
+				image: item.track.album.images[0]?.url,
+			}));
 
-      setExtractedSongs(formattedTracks);
-      setExtractedArtists(uniqueArtistNames);
-
-    } catch (err) {
-      if (activeGeneratedPlaylistIdRef.current !== currentPlaylistId || abortedRef.current) return;
+			setExtractedSongs(formattedTracks);
+			setExtractedArtists(uniqueArtistNames);
+		} catch (err) {
+			if (
+				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+				abortedRef.current
+			)
+				return;
 			setErrorMessages({
 				...errorMessages,
-        error: isSpotifyPlaylistPermissionError(err)
-          ? SPOTIFY_PUBLIC_PLAYLIST_ERROR
-          : 'Error occured while extracting playlist. Please try again later.',
+				error: isSpotifyPlaylistPermissionError(err)
+					? SPOTIFY_PUBLIC_PLAYLIST_ERROR
+					: 'Error occured while extracting playlist. Please try again later.',
 			});
 			console.log(err);
-    } finally {
-      setLoading(false);
+		} finally {
+			setLoading(false);
 		}
 	}
 
@@ -549,17 +596,17 @@ const SubmitButtion = () => {
 
 			array && array.length > 1 && getSimilarArtists(array);
 		} else if (type === 'playlist') {
-      if (extractedSongs.length > 0) {
-        handleSeedPlaylistGeneration();
-      } else {
-        setLoading(true);
-        if (!spotifyPlaylist.current) {
-          setLoading(false);
-          return;
-        }
-        const link = spotifyPlaylist.current.value;
-        handleIfItsAPlaylistLink(link);
-      }
+			if (extractedSongs.length > 0) {
+				handleSeedPlaylistGeneration();
+			} else {
+				setLoading(true);
+				if (!spotifyPlaylist.current) {
+					setLoading(false);
+					return;
+				}
+				const link = spotifyPlaylist.current.value;
+				handleIfItsAPlaylistLink(link);
+			}
 		}
 	};
 
@@ -583,14 +630,29 @@ const SubmitButtion = () => {
 		return { message: 'success', history: [] };
 	};
 
+	// when a playlist has been uploaded and fewer than 5 songs
+	// are selected (0-4), show the red "Proceed Generation without lyrics
+	// matching" button. 5+ seeds reverts to the normal green generate button.
+	const isLowSeedCount =
+		type === 'playlist' &&
+		extractedSongs.length > 0 &&
+		selectedSeedIds.size < 5;
+
+	const btnText = isLowSeedCount
+		? 'Proceed Generation without lyrics matching'
+		: undefined;
+	const btnClass = isLowSeedCount ? 'bg-red-500 text-lightest' : undefined;
+
 	return (
-    <SubmitButtionContainer
-      handleSubmit={handleSubmit}
-      onCancel={handleCancel}
-      failed={failed}
-      errorMessage={errorMessage}
-    />
-  );
-};
+		<SubmitButtionContainer
+			handleSubmit={handleSubmit}
+			onCancel={handleCancel}
+			failed={failed}
+			errorMessage={errorMessage}
+			btnText={btnText}
+			btnClass={btnClass}
+		/>
+	);
+};;
 
 export default SubmitButtion;

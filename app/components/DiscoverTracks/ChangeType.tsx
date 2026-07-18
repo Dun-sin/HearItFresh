@@ -20,8 +20,9 @@ const ChangeType = () => {
 				onClick={() => setType('playlist')}
 				className={`${
 					type === 'playlist' ? 'bg-brand text-lightest' : 'text-darkest'
-				} w-1/2 text-center text-fsm py-1 rounded-r cursor-pointer`}>
-				Playlist
+				} w-1/2 text-center text-fsm py-1 rounded-r cursor-pointer flex flex-col items-center leading-tight`}>
+				<span>Playlist</span>
+				<span className='text-fxs opacity-80'>(Lyrics matching)</span>
 			</button>
 		</div>
 	);
