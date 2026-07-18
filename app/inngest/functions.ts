@@ -47,10 +47,10 @@ export const generatePlaylist = inngest.createFunction(
 		const playlistInfo = await step.run('create-spotify-playlist', async () => {
 			const token = await getDummyAccessToken();
 			setAccessToken(token);
-			const playlistName =
-				seeds.length > 0
+      const playlistName =
+				(seeds.length > 0
 					? 'HearItFresh - Lyrics Inspired'
-					: 'HearItFresh - Similar to Playlist';
+					: 'HearItFresh - Similar to Playlist') + '@hearitfresh.favour.dev';
 
 			return await createPlayList(playlistName, 'Created by HearItFresh');
 		});

@@ -10,11 +10,15 @@ const SubmitButtionContainer = ({
 	onCancel,
 	failed,
 	errorMessage,
+	btnText,
+	btnClass,
 }: {
 	handleSubmit: () => void;
 	onCancel?: () => void;
 	failed?: boolean;
 	errorMessage?: string | null;
+	btnText?: string;
+	btnClass?: string;
 }) => {
 	const { loading, loadingMessage } = useLoading();
 	const { buttonClick } = useGeneralState();
@@ -52,9 +56,9 @@ const SubmitButtionContainer = ({
 	return (
 		!buttonClick && (
 			<button
-				className={`bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all`}
+				className={`${btnClass ?? 'bg-brand text-lightest'} rounded p-3 w-full hover:bg-opacity-85 transition-all`}
 				onClick={handleSubmit}>
-				Generate Playlist
+				{btnText ?? 'Generate Playlist'}
 			</button>
 		)
 	);

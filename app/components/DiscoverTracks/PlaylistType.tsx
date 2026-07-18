@@ -26,9 +26,29 @@ const PlaylistType = () => {
       <div className="flex flex-col w-full gap-4">
 				<label htmlFor='spotifyPlaylist' className={`flex flex-col w-full`}>
 					<span className={`w-full`}>
-						<h2 className={`text-fmd md:text-fsm`}>
-							Enter a Spotify Playlist Link
-						</h2>
+						<span className={`w-full flex items-center gap-2`}>
+							<h2 className={`text-fmd md:text-fsm`}>
+								Enter a Spotify Playlist Link
+							</h2>
+							<span
+								className='relative flex items-center group cursor-help'
+								aria-label='Upload a playlist to select songs for lyrics matching'>
+								<svg
+									xmlns='http://www.w3.org/2000/svg'
+									viewBox='0 0 20 20'
+									fill='currentColor'
+									className='w-4 h-4 text-gray dark:text-gray hover:text-brand transition-colors'>
+									<path
+										fillRule='evenodd'
+										d='M18 10A8 8 0 1 1 2 10a8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2v-3a1 1 0 0 0-1-1H9Z'
+										clipRule='evenodd'
+									/>
+								</svg>
+								<span className='pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-[220px] rounded bg-darkest text-lightest text-fxs px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity z-10'>
+									Upload a playlist to select songs for lyrics matching
+								</span>
+							</span>
+						</span>
 						<h3 className='dark:text-gray text-dark text-fsm md:text-fxs'>
 							e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk
 						</h3>
