@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/Dun-sin/HearItFresh/compare/v1.27.0...v1.28.0) (2026-07-18)
+
+
+### Features
+
+* enhance playlist discovery UX with lyrics matching clarification ([#51](https://github.com/Dun-sin/HearItFresh/issues/51)) ([d2e88d0](https://github.com/Dun-sin/HearItFresh/commit/d2e88d051192d36bef75275c89ac09d85c1fac43))
+
 # [1.27.0](https://github.com/Dun-sin/HearItFresh/compare/v1.26.0...v1.27.0) (2026-07-16)
 
 
