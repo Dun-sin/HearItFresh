@@ -199,7 +199,7 @@ export async function generateSeedPlaylist(
 
 			const aiTracks = (await getAllTracks(
 				albums as string[],
-				5,
+				2,
 				true,
 				signal,
 			)) as any[];
@@ -214,7 +214,7 @@ export async function generateSeedPlaylist(
 					newTracks,
 					seedEmbeddings,
 					accumulatedUris,
-						pLimitInstance,
+					pLimitInstance,
 					signal,
 				);
 				throwIfAborted();
