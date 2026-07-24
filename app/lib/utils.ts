@@ -266,6 +266,7 @@ export async function relatedArists(
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	signal?: AbortSignal,
+	extraExcludedArtists?: string[],
 ) {
 	const relatedArtistsPerSeed = [];
 	const batches = [];
@@ -287,16 +288,19 @@ export async function relatedArists(
 		await new Promise((r) => setTimeout(r, 300));
 	}
 
-	// Round robin — take one from each artist at a time until we have 20
+	// Round robin — take one from each artist at a time until we have 65
 	const finalList: string[] = [];
-	const excluded = new Set(artistNames.map((n) => n.toLowerCase()));
+	const excluded = new Set([
+		...artistNames.map((n) => n.toLowerCase()),
+		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
+	]);
 	let round = 0;
 
-	while (finalList.length < 20) {
+	while (finalList.length < 65) {
 		let addedThisRound = 0;
 
 		for (const artistRelated of relatedArtistsPerSeed) {
-			if (finalList.length >= 40) break;
+			if (finalList.length >= 65) break;
 
 			// find next unused artist from this seed's related list
 			const candidate = artistRelated.find(

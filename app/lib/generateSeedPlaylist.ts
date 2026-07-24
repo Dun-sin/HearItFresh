@@ -18,6 +18,91 @@ import { processSong } from './processSong';
 import { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
+async function getAndParseSeedEmbeddings(
+	seedSpotifyIds: string[],
+): Promise<number[][]> {
+	const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
+
+	return rawEmbeddings
+		.map((row: any) => {
+			if (typeof row.embedding === 'string') {
+				try {
+					return JSON.parse(row.embedding);
+				} catch (e) {
+					return null;
+				}
+			}
+			if (Array.isArray(row.embedding)) return row.embedding;
+			return null;
+		})
+		.filter(Boolean) as number[][];
+}
+
+async function scoreAndFilterTracks(
+	newTracks: any[],
+	seedEmbeddings: number[][],
+	accumulatedUris: string[],
+	pLimitInstance: ReturnType<typeof pLimit>,
+	signal?: AbortSignal,
+): Promise<string[]> {
+	const THRESHOLD = 0.8;
+	const CUTOFF = THRESHOLD - 0.25;
+	const needed = 100 - accumulatedUris.length + 20;
+
+	const scoredTracks = await Promise.all(
+		newTracks.map((track) =>
+			pLimitInstance(async () => {
+				if (signal?.aborted) return null;
+				try {
+					const processed = await processSong(
+						{
+							id: track.id,
+							title: track.name,
+							artist: track.artistName,
+							album: track.albumName,
+						},
+						signal,
+					);
+					if (signal?.aborted) return null;
+					const emb = processed?.embeddingData;
+					if (!emb) return null;
+
+					const scores = seedEmbeddings.map((seedEmb) =>
+						calculateCosineSimilarity(emb, seedEmb),
+					);
+
+					const maxScore = Math.max(...scores);
+					if (maxScore < CUTOFF) {
+						return null;
+					}
+
+					const thresholdHits = scores.filter((s) => s >= THRESHOLD).length;
+					return { uri: track.uri, thresholdHits, maxScore };
+				} catch (e) {
+					console.error(`✗ Error processing "${track.name}":`, e);
+					return null;
+				}
+			}),
+		),
+	);
+
+	const validScored = scoredTracks.filter(
+		(t): t is { uri: string; thresholdHits: number; maxScore: number } =>
+			t !== null,
+	);
+
+	console.log(
+		`[Scoring Summary] ${validScored.length}/${newTracks.length} tracks passed cutoff`,
+	);
+
+	const sortedScored = validScored.sort(
+		(a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore,
+	);
+	const newUris = sortedScored.map((t) => t.uri).slice(0, needed);
+
+	return newUris;
+}
+
 export async function generateSeedPlaylist(
 	seeds: { id: string; name: string; artist: string[]; album?: string }[],
 	artistNames: string[],
@@ -37,13 +122,11 @@ export async function generateSeedPlaylist(
 		setAccessToken(token);
 		console.log('Generating seed playlist...');
 
-		// Fetch previously generated songs for this user
 		let previouslyGeneratedIds: string[] = [];
 		if (userId) {
 			previouslyGeneratedIds = await getUserGeneratedSongIds(userId);
 		}
 
-		// 1. Process seeds to ensure they are in DB & have embeddings
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
 		await Promise.all(
@@ -62,27 +145,11 @@ export async function generateSeedPlaylist(
 		);
 
 		throwIfAborted();
-		// 2. Fetch seed embeddings from DB
-    const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
-    
-		// PgVector from Prisma raw queries usually returns strings like "[0.1, 0.2, ...]"
-		const seedEmbeddings: number[][] = rawEmbeddings
-			.map((row: any) => {
-				if (typeof row.embedding === 'string') {
-					try {
-						return JSON.parse(row.embedding);
-					} catch (e) {
-						return null;
-					}
-				}
-				if (Array.isArray(row.embedding)) return row.embedding;
-				return null;
-			})
-			.filter(Boolean) as number[][];
+		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
+
 		let dbMatchesUris: string[] = [];
 		let remainingNeeded = 100;
 
-		// 3. Find similar songs in DB if we have embeddings
 		if (seedEmbeddings.length > 0) {
 			const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
 			const dbSimilar = await findSimilarSongs(seedEmbeddings, excludeIds, 24);
@@ -94,7 +161,6 @@ export async function generateSeedPlaylist(
 		}
 
 		if (remainingNeeded <= 10) {
-			// Store generated songs before returning
 			if (userId) {
 				const generatedSpotifyIds = dbMatchesUris.map((uri) =>
 					uri.replace('spotify:track:', ''),
@@ -104,101 +170,71 @@ export async function generateSeedPlaylist(
 			return { tracks: dbMatchesUris };
 		}
 
-		// 4. AI Fallback for remaining songs
-		console.log(`AI Fallback check: remainingNeeded=${remainingNeeded}`);
-		throwIfAborted();
-		const finalList = await relatedArists(artistNames, options, signal);
-		throwIfAborted();
+		const accumulatedUris = [...dbMatchesUris];
+		const checkedTrackIds = new Set<string>(
+			dbMatchesUris.map((uri) => uri.replace('spotify:track:', '')),
+		);
+		const usedArtistNames: string[] = [];
 
-		const albums = await getEveryAlbum(finalList, signal);
-		throwIfAborted();
+		for (let attempt = 0; attempt < 2; attempt++) {
+			if (accumulatedUris.length >= 80) break;
 
-		const aiTracks = (await getAllTracks(albums as string[], 5, true, signal)) as any[]; // Need more tracks to filter down
+			console.log(
+				`AI Fallback attempt ${attempt + 1}: accumulated=${accumulatedUris.length}, remainingNeeded=${100 - accumulatedUris.length}`,
+			);
+			throwIfAborted();
 
-		let fallbackTracksUris: string[] = [];
+			const finalList = await relatedArists(
+				artistNames,
+				options,
+				signal,
+				usedArtistNames,
+			);
+			throwIfAborted();
 
-		if (aiTracks && aiTracks.length > 0) {
+			usedArtistNames.push(...finalList);
+
+			const albums = await getEveryAlbum(finalList, signal);
+			throwIfAborted();
+
+			const aiTracks = (await getAllTracks(
+				albums as string[],
+				5,
+				true,
+				signal,
+			)) as any[];
+
+			if (!aiTracks || aiTracks.length === 0) continue;
+
+			const newTracks = aiTracks.filter((t) => !checkedTrackIds.has(t.id));
+
 			if (seedEmbeddings.length > 0) {
-				// p-limit concurrency of 15
-				const limit = pLimit(15);
-
-				// 0.8 is a good starting point, but you can tune this
-				const THRESHOLD = 0.8;
-
-				// we want to avoid low quality recommendations so we check each song against all seeds(selected songs) put that into an array and sort by the number of seeds that match the treshold then return the top 100
-				// we also want to avoid songs that are too far in similarity to the seeds so we set a cutoff of 0.2 below the threshold to give extra grace
-				const CUTOFF = THRESHOLD - 0.25;
-
-				const scoredTracks = await Promise.all(
-					aiTracks.map((track) =>
-						limit(async () => {
-							if (signal?.aborted) return null;
-							try {
-								const processed = await processSong(
-									{
-										id: track.id,
-										title: track.name,
-										artist: track.artistName,
-										album: track.albumName,
-									},
-									signal,
-								);
-								if (signal?.aborted) return null;
-								const emb = processed?.embeddingData;
-								if (!emb) return null;
-
-								const scores = seedEmbeddings.map((seedEmb) =>
-									calculateCosineSimilarity(emb, seedEmb),
-								);
-
-								const maxScore = Math.max(...scores);
-								// cut off songs that don't even come close
-								if (maxScore < CUTOFF) {
-									return null;
-								}
-
-								const thresholdHits = scores.filter(
-									(s) => s >= THRESHOLD,
-								).length;
-								return { uri: track.uri, thresholdHits, maxScore };
-							} catch (e) {
-								console.error(`✗ Error processing "${track.name}":`, e);
-								return null;
-							}
-						}),
-					),
-				);
-
-				const validScored = scoredTracks.filter(
-					(t): t is { uri: string; thresholdHits: number; maxScore: number } =>
-						t !== null,
+				const pLimitInstance = pLimit(15);
+				const newUris = await scoreAndFilterTracks(
+					newTracks,
+					seedEmbeddings,
+					accumulatedUris,
+						pLimitInstance,
+					signal,
 				);
 				throwIfAborted();
-				console.log(
-					`[Scoring Summary] ${validScored.length}/${aiTracks.length} tracks passed cutoff`,
+				accumulatedUris.push(...newUris);
+				newUris.forEach((uri) =>
+					checkedTrackIds.add(uri.replace('spotify:track:', '')),
 				);
-
-				const sortedScored = validScored.sort(
-					(a, b) =>
-						b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore,
-				);
-				fallbackTracksUris = sortedScored
-					.map((t) => t.uri)
-					.slice(0, remainingNeeded);
 			} else {
-				// If no seeds, just use the random tracks, filtering out previous ones
-				fallbackTracksUris = aiTracks
+				const newUris = newTracks
 					.filter((t) => !userId || !previouslyGeneratedIds.includes(t.id))
 					.map((t) => t.uri);
+				accumulatedUris.push(...newUris);
+				newUris.forEach((uri) =>
+					checkedTrackIds.add(uri.replace('spotify:track:', '')),
+				);
 			}
 		}
 
-		// Fill remaining, ensuring exact 100 limit
-		const finalTracks = [
-			...new Set([...dbMatchesUris, ...fallbackTracksUris]),
-		].slice(0, 100);
+		const finalTracks = [...accumulatedUris].slice(0, 100);
 
-		// Store generated songs for this user
 		if (userId) {
 			const generatedSpotifyIds = finalTracks.map((uri) =>
 				uri.replace('spotify:track:', ''),
