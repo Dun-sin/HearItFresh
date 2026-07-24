@@ -33,15 +33,13 @@ export const getEveryAlbum = async (
 	signal?: AbortSignal,
 ) => {
 	if (signal?.aborted) throw new Error('Aborted');
-	const shuffled = [...artists].sort(() => Math.random() - 0.5);
+	const shuffled = shuffle(artists);
 	const artistAlbums = shuffled.map((item) =>
 		getArtistsAlbums(item, shuffled.length),
 	);
 	const albumArray = await Promise.all(artistAlbums);
 	if (signal?.aborted) throw new Error('Aborted');
-	const albums = [...new Set(albumArray.flat())].sort(
-		() => Math.random() - 0.5,
-	);
+	const albums = shuffle([...new Set(albumArray.flat())]);
 	const stringAlbums = albums.filter((item) => typeof item === 'string');
 
 	return stringAlbums;
@@ -279,7 +277,7 @@ export async function relatedArists(
 		const results = await Promise.all(
 			batch.map(async (name) => {
 				const related = await getRelatedArtists(name, options, signal);
-				return related.sort(() => Math.random() - 0.5);
+				return shuffle(related);
 			}),
 		);
 		relatedArtistsPerSeed.push(...results);
@@ -288,6 +286,7 @@ export async function relatedArists(
 	}
 
 	// Round robin — take one from each artist at a time until we have 20
+	shuffle(relatedArtistsPerSeed);
 	const finalList: string[] = [];
 	const excluded = new Set(artistNames.map((n) => n.toLowerCase()));
 	let round = 0;
@@ -446,4 +445,13 @@ export function cleanMusicMetadata(text: string): string {
 			.replace(/\s+/g, ' ')
 			.trim()
 	);
+}
+
+export function shuffle<T>(array: T[]): T[] {
+	const arr = [...array];
+	for (let i = arr.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[arr[i], arr[j]] = [arr[j], arr[i]];
+	}
+	return arr;
 }
