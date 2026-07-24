@@ -113,7 +113,7 @@ export async function generateSeedPlaylist(
 		const albums = await getEveryAlbum(finalList, signal);
 		throwIfAborted();
 
-		const aiTracks = (await getAllTracks(albums as string[], 5, true, signal)) as any[]; // Need more tracks to filter down
+		const aiTracks = (await getAllTracks(albums as string[], 3, true, signal)) as any[];
 
 		let fallbackTracksUris: string[] = [];
 

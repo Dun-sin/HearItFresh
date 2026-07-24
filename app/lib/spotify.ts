@@ -2,7 +2,7 @@ import { playlistDetails, singleTrack, trackTypes } from "../types";
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
-import { convertToSubArray } from './utils';
+import { convertToSubArray, shuffle } from './utils';
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -143,7 +143,7 @@ export async function getArtistsAlbums(artist: string, artistsLength: number) {
 		if (maxAlbums >= result.length) {
 			return result.map((item: { id: any }) => item.id);
 		} else {
-			const sortedAlbum = result.sort(() => Math.random() - 0.5);
+			const sortedAlbum = shuffle(result);
 			const randomlySelectedAlbum = sortedAlbum
 				.slice(0, maxAlbums)
 				.map((item: { id: any }) => item.id);
@@ -274,7 +274,7 @@ export async function getRelatedArtists(
 	signal?: AbortSignal,
 ): Promise<string[]> {
 	try {
-		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=20`;
+		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
 
 		const res = await fetch(url, { signal });
 		const data = await res.json();
@@ -287,13 +287,13 @@ export async function getRelatedArtists(
 		}[];
 
 		if (options.isNotPopular) {
-			artists = artists.filter((a) => parseInt(a.listeners) < 500000)
+			artists = artists.filter((a) => parseInt(a.listeners) < 500000);
 		}
 
 		// Last.fm doesn't have a "different genre" concept easily
-    // so just return all for isDifferent and let lyrical similarity handle it
-    const finalArtist = artists.map((a) => a.name);
-		return finalArtist.sort(() => Math.random() - 0.5)
+		// so just return all for isDifferent and let lyrical similarity handle it
+		const finalArtist = artists.map((a) => a.name);
+		return shuffle(finalArtist);
 	} catch (err: any) {
 		if (signal?.aborted) throw new Error('Aborted');
 		console.error(`Error getting related artists for ${artistName}:`, err);
