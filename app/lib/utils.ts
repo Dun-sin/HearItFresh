@@ -1,6 +1,8 @@
 import { getArtistsAlbums, getRelatedArtists, getTracks } from './spotify';
 import { LRCLibResult, singleTrack, trackTypes } from '../types';
 
+import pLimit from 'p-limit';
+
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto-js';
 
@@ -24,25 +26,91 @@ export const decrypt = (encryptedText: string): string => {
 };
 
 /**
+ * Waits for `ms` milliseconds, rejecting early with an `Aborted` error if the
+ * provided signal aborts. Shared by every retry/backoff path so the delay logic
+ * (and its abort handling) lives in exactly one place.
+ */
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		if (signal?.aborted) {
+			reject(new Error('Aborted'));
+			return;
+		}
+
+		const timer = setTimeout(resolve, ms);
+		signal?.addEventListener(
+			'abort',
+			() => {
+				clearTimeout(timer);
+				reject(new Error('Aborted'));
+			},
+			{ once: true },
+		);
+	});
+}
+
+/** Maximum number of concurrent Spotify album lookups. */
+const ALBUM_LOOKUP_CONCURRENCY = 50;
+/** Below this many albums the batch is considered too sparse to be useful. */
+const MIN_USEFUL_ALBUMS = 30;
+/** Cool-off before retrying a batch that came back too sparse. */
+const BATCH_RETRY_DELAY_MS = 5000;
+
+/**
  * Fetches all albums for a list of artists, shuffles them, and returns unique album IDs.
+ *
+ * Lookups are capped at {@link ALBUM_LOOKUP_CONCURRENCY} concurrent requests and
+ * settled individually, so a handful of rate-limited artists can no longer blank
+ * out the albums returned by the artists that did succeed. If the batch still
+ * comes back too sparse to be useful, it is retried once after a short cool-off.
+ *
  * @param artists - Array of artist names
+ * @param signal - Optional abort signal
+ * @param attempt - Internal batch retry counter; callers should not pass this
  * @returns Array of unique album IDs
  */
 export const getEveryAlbum = async (
 	artists: string[],
 	signal?: AbortSignal,
-) => {
+	attempt = 0,
+): Promise<string[]> => {
 	if (signal?.aborted) throw new Error('Aborted');
-	const shuffled = shuffle(artists);
-	const artistAlbums = shuffled.map((item) =>
-		getArtistsAlbums(item, shuffled.length),
-	);
-	const albumArray = await Promise.all(artistAlbums);
-	if (signal?.aborted) throw new Error('Aborted');
-	const albums = shuffle([...new Set(albumArray.flat())]);
-	const stringAlbums = albums.filter((item) => typeof item === 'string');
 
-	return stringAlbums;
+	const limit = pLimit(ALBUM_LOOKUP_CONCURRENCY);
+	const shuffled = shuffle(artists);
+
+	const results = await Promise.allSettled(
+		shuffled.map((artist) =>
+			limit(() => getArtistsAlbums(artist, shuffled.length, signal)),
+		),
+	);
+
+	if (signal?.aborted) throw new Error('Aborted');
+
+	const failed = results.filter((result) => result.status === 'rejected');
+	if (failed.length > 0) {
+		console.warn(
+			`getEveryAlbum: ${failed.length}/${results.length} artist lookups failed, keeping the rest`,
+		);
+	}
+
+	const albums = shuffle([
+		...new Set(
+			results.flatMap((result) =>
+				result.status === 'fulfilled' ? result.value : [],
+			),
+		),
+	]).filter((item): item is string => typeof item === 'string');
+
+	if (albums.length < MIN_USEFUL_ALBUMS && artists.length > 0 && attempt === 0) {
+		console.log(
+			`getEveryAlbum: only ${albums.length} album(s) from ${artists.length} artist(s), retrying batch in ${BATCH_RETRY_DELAY_MS}ms`,
+		);
+		await sleep(BATCH_RETRY_DELAY_MS, signal);
+		return getEveryAlbum(artists, signal, attempt + 1);
+	}
+
+	return albums;
 };
 
 export const getAllTracks = async (

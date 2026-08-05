@@ -1,7 +1,6 @@
 import { addEmbeddingToSong, addSong, getSong, updateSong } from './db';
 import { Song } from '../generated/prisma';
 import { SpotifyTrack } from '../types';
-import prisma from './prisma';
 import { getCentroid } from './utils';
 import { embedSong } from './lyrics';
 
@@ -95,12 +94,16 @@ export async function processSong(
 	const existing = await getSong(spotifyTrack.id);
 
 	if (existing) {
-		const hasEmbedding = await prisma.$queryRaw<{ has_embedding: boolean }[]>`
-      SELECT embedding IS NOT NULL as has_embedding 
-      FROM "Song" WHERE id = ${existing.id}
-    `;
+		const embeddingData =
+			typeof existing.embedding === 'string'
+				? JSON.parse(existing.embedding)
+				: Array.isArray(existing.embedding)
+					? existing.embedding
+					: null;
 
-		if (!hasEmbedding[0]?.has_embedding && existing.lyrics) {
+		const hasEmbedding = embeddingData !== null;
+
+		if (!hasEmbedding && existing.lyrics) {
 			if (signal?.aborted) throw new Error('Aborted');
 			console.log(`Backfilling embedding for ${existing.title}`);
 			const embedding = await getEmbedding(existing.lyrics, signal);
@@ -120,7 +123,7 @@ export async function processSong(
 				);
 			}
 		}
-		return existing;
+		return { ...existing, embeddingData };
 	}
 
 	const song = await embedSong(spotifyTrack, undefined, signal);

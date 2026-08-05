@@ -3,6 +3,7 @@
 import { SpotifyTrack } from '@/app/types';
 import { getCentroid } from '../utils';
 import prisma from '../prisma';
+import { Song } from '../../generated/prisma';
 
 export interface HistoryEntry {
 	text: string;
@@ -177,8 +178,19 @@ export async function getUserHistory(
 	}
 }
 
-export async function getSong(spotifyId: string) {
-	return await prisma.song.findUnique({ where: { spotifyId } });
+export async function getSong(
+	spotifyId: string,
+): Promise<(Song & { embedding: string | number[] | null }) | null> {
+	const row = await prisma.$queryRawUnsafe<
+		Array<Song & { embedding: string | number[] | null }>
+	>(
+		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId"
+     FROM "Song"
+     WHERE "spotifyId" = $1
+     LIMIT 1`,
+		spotifyId,
+	);
+	return row[0] ?? null;
 }
 
 export async function addSong(
@@ -263,7 +275,7 @@ export async function getSongEmbeddings(
 
 	const list = safeIds.map((id) => `'${id}'`).join(',');
 	return await prisma.$queryRawUnsafe(`
-    SELECT embedding::text FROM "Song"
+    SELECT embedding::text AS embedding FROM "Song"
     WHERE "spotifyId" IN (${list}) AND embedding IS NOT NULL
   `);
 }

@@ -2,7 +2,7 @@ import { playlistDetails, singleTrack, trackTypes } from "../types";
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
-import { convertToSubArray, shuffle } from './utils';
+import { convertToSubArray, shuffle, sleep } from './utils';
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -92,72 +92,107 @@ export async function addTracksToPlayList(
   This asynchronous function takes an artist name as its input, searches for the artist using the Spotify Web API's searchArtists method,
   retrieves their top 10 albums using the getArtistAlbums method, removes any remixes or duplicate tracks, and returns up to five randomly
   selected album IDs. If the artist has fewer than five albums, it returns all of the available album IDs.
+
+  Handles one artist only: 429 responses are retried in place (honouring `retry-after`) up to
+  MAX_ARTIST_ATTEMPTS times, and the function always resolves to a stable `string[]` so callers
+  never have to special-case error objects.
 **/
-export async function getArtistsAlbums(artist: string, artistsLength: number) {
-	let maxAlbums: number;
-	if (artistsLength === 20) {
-		maxAlbums = 5;
-	} else {
-		maxAlbums = Math.floor(100 / (artistsLength * 2));
-	}
+const MAX_ARTIST_ATTEMPTS = 3;
 
-	try {
-		const _data = await spotifyApi.searchArtists(artist, {
-			limit: 1,
-			offset: 0,
-		});
-		if (!_data.body.artists?.items[0]) {
-			console.log(`Artist not found: ${artist}`);
-			return [];
-		}
-		const artistId = _data.body.artists?.items[0].id as string;
-		const options = { limit: 10, album_type: 'album', include_groups: 'album' };
-		const data = await spotifyApi.getArtistAlbums(artistId, options);
+export async function getArtistsAlbums(
+	artist: string,
+	artistsLength: number,
+	signal?: AbortSignal,
+): Promise<string[]> {
+	const maxAlbums =
+		artistsLength >= 20
+			? 5
+			: Math.max(1, Math.floor(100 / (artistsLength * 2)));
 
-		let result = data.body.items.filter((album: { name: string }) => {
-			const trackName = album.name.toLowerCase();
+	for (let attempt = 0; attempt < MAX_ARTIST_ATTEMPTS; attempt++) {
+		try {
+			const _data = await spotifyApi.searchArtists(artist, {
+				limit: 1,
+				offset: 0,
+			});
+			if (!_data.body.artists?.items[0]) {
+				console.log(`Artist not found: ${artist}`);
+				return [];
+			}
+			const artistId = _data.body.artists?.items[0].id as string;
+			const options = {
+				limit: 10,
+				album_type: 'album',
+				include_groups: 'album',
+			};
+			const data = await spotifyApi.getArtistAlbums(artistId, options);
 
-			// Check if the track is a remix or a mix or an edit or a radio mix
-			const blacklistedWords = [
-				'remix',
-				'mix',
-				'edit',
-				'radio',
-				'- live',
-				' ver.',
-				'live-',
-				'version',
-				'tour',
-				'live',
-				'event',
-				'concert',
-				'tour',
-			];
-			if (blacklistedWords.some((word) => trackName.includes(word))) {
-				return false;
+			const result = data.body.items.filter((album: { name: string }) => {
+				const trackName = album.name.toLowerCase();
+
+				// Check if the track is a remix or a mix or an edit or a radio mix
+				const blacklistedWords = [
+					'remix',
+					'mix',
+					'edit',
+					'radio',
+					'- live',
+					' ver.',
+					'live-',
+					'version',
+					'tour',
+					'live',
+					'event',
+					'concert',
+					'tour',
+				];
+				if (blacklistedWords.some((word) => trackName.includes(word))) {
+					return false;
+				}
+
+				return true;
+			});
+
+			if (maxAlbums >= result.length) {
+				return result.map((item: { id: any }) => item.id);
+			} else {
+				const sortedAlbum = shuffle(result);
+				const randomlySelectedAlbum = sortedAlbum
+					.slice(0, maxAlbums)
+					.map((item: { id: any }) => item.id);
+				return randomlySelectedAlbum;
+			}
+		} catch (err: any) {
+			const status =
+				err?.statusCode ?? err?.status ?? err?.response?.status;
+			const retryAfter = Number(
+				err?.headers?.['retry-after'] ??
+					err?.response?.headers?.['retry-after'],
+			);
+
+			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+				console.log(
+					`Rate limited (429) for ${artist}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_ARTIST_ATTEMPTS})`,
+				);
+				// Let an abort propagate so the caller can stop the whole batch.
+				await sleep(retryAfter * 1000, signal);
+				continue;
 			}
 
-			return true;
-		});
-
-		if (maxAlbums >= result.length) {
-			return result.map((item: { id: any }) => item.id);
-		} else {
-			const sortedAlbum = shuffle(result);
-			const randomlySelectedAlbum = sortedAlbum
-				.slice(0, maxAlbums)
-				.map((item: { id: any }) => item.id);
-			return randomlySelectedAlbum;
+			console.error(
+				`Error in getArtistsAlbums for ${artist}:`,
+				err?.message || err,
+			);
+			if (err?.response?.body)
+				console.error('Spotify API Error Body:', err.response.body);
+			return [];
 		}
-	} catch (err: any) {
-		console.error(
-			`Error in getArtistsAlbums for ${artist}:`,
-			err?.message || err,
-		);
-		if (err?.response?.body)
-			console.error('Spotify API Error Body:', err.response.body);
-		return err;
 	}
+
+	console.error(
+		`getArtistsAlbums exhausted ${MAX_ARTIST_ATTEMPTS} retries for ${artist}`,
+	);
+	return [];
 }
 
 export async function getTracks(
