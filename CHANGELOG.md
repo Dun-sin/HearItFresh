@@ -1,3 +1,10 @@
+## [1.28.1](https://github.com/Dun-sin/HearItFresh/compare/v1.28.0...v1.28.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* optimize song embedding retrieval and add Spotify API retry logic ([753e5df](https://github.com/Dun-sin/HearItFresh/commit/753e5dfc740496c57e2e68bd9e56052e473312a5))
+
 # [1.28.0](https://github.com/Dun-sin/HearItFresh/compare/v1.27.0...v1.28.0) (2026-07-18)
 
 
