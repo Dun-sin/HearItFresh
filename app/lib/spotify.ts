@@ -99,6 +99,38 @@ export async function addTracksToPlayList(
 **/
 const MAX_ARTIST_ATTEMPTS = 3;
 
+const EDITION_KEYWORDS = [
+	'deluxe',
+	'edition',
+	'bonus',
+	'expanded',
+	'anniversary',
+	'remastered',
+	'special',
+];
+
+/**
+ * Strips a parenthetical/bracketed edition suffix from an album title and
+ * lowercases/trims the result, so variants like "Love Is Like" and
+ * "Love Is Like (Deluxe)" collapse to the same base title.
+ */
+function normalizeAlbumTitle(name: string): string {
+	const trimmed = name.trim();
+	const withoutSuffix = trimmed.replace(/[([{][^()[\]{}]*[)\]}]?$/i, (suffix) => {
+		const inner = suffix.replace(/^[([{]+|[)\]}]+$/g, '').trim().toLowerCase();
+		if (
+			EDITION_KEYWORDS.some((kw) => {
+				const words = inner.split(/[\s/&-]+/);
+				return words.includes(kw) || inner.includes(kw);
+			})
+		) {
+			return '';
+		}
+		return suffix;
+	});
+	return withoutSuffix.trim().toLowerCase();
+}
+
 export async function getArtistsAlbums(
 	artist: string,
 	artistsLength: number,
@@ -153,10 +185,32 @@ export async function getArtistsAlbums(
 				return true;
 			});
 
-			if (maxAlbums >= result.length) {
-				return result.map((item: { id: any }) => item.id);
+			const seenBaseTitles = new Map<string, (typeof result)[number]>();
+			const deduplicated: (typeof result)[number][] = [];
+			for (const album of result) {
+				const baseTitle = normalizeAlbumTitle(album.name);
+				const existing = seenBaseTitles.get(baseTitle);
+				if (!existing) {
+					seenBaseTitles.set(baseTitle, album);
+					deduplicated.push(album);
+					continue;
+				}
+				const existingIsStandard =
+					normalizeAlbumTitle(existing.name) ===
+					existing.name.trim().toLowerCase();
+				const currentIsStandard =
+					normalizeAlbumTitle(album.name) ===
+					album.name.trim().toLowerCase();
+				if (!existingIsStandard && currentIsStandard) {
+					seenBaseTitles.set(baseTitle, album);
+					deduplicated[deduplicated.indexOf(existing)] = album;
+				}
+			}
+
+			if (maxAlbums >= deduplicated.length) {
+				return deduplicated.map((item: { id: any }) => item.id);
 			} else {
-				const sortedAlbum = shuffle(result);
+				const sortedAlbum = shuffle(deduplicated);
 				const randomlySelectedAlbum = sortedAlbum
 					.slice(0, maxAlbums)
 					.map((item: { id: any }) => item.id);

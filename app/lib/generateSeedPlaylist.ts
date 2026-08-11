@@ -44,7 +44,7 @@ async function scoreAndFilterTracks(
 	accumulatedUris: string[],
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
-): Promise<string[]> {
+): Promise<{ uri: string; name: string; artist: string }[]> {
 	const THRESHOLD = 0.8;
 	const CUTOFF = THRESHOLD - 0.25;
 	const needed = 100 - accumulatedUris.length + 20;
@@ -77,7 +77,13 @@ async function scoreAndFilterTracks(
 					}
 
 					const thresholdHits = scores.filter((s) => s >= THRESHOLD).length;
-					return { uri: track.uri, thresholdHits, maxScore };
+					return {
+						uri: track.uri,
+						name: track.name,
+						artist: track.artistName,
+						thresholdHits,
+						maxScore,
+					};
 				} catch (e) {
 					console.error(`✗ Error processing "${track.name}":`, e);
 					return null;
@@ -87,8 +93,15 @@ async function scoreAndFilterTracks(
 	);
 
 	const validScored = scoredTracks.filter(
-		(t): t is { uri: string; thresholdHits: number; maxScore: number } =>
-			t !== null,
+		(
+			t,
+		): t is {
+			uri: string;
+			name: string;
+			artist: string;
+			thresholdHits: number;
+			maxScore: number;
+		} => t !== null,
 	);
 
 	console.log(
@@ -98,9 +111,9 @@ async function scoreAndFilterTracks(
 	const sortedScored = validScored.sort(
 		(a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore,
 	);
-	const newUris = sortedScored.map((t) => t.uri).slice(0, needed);
+	const newTracksAccepted = sortedScored.slice(0, needed);
 
-	return newUris;
+	return newTracksAccepted;
 }
 
 export async function generateSeedPlaylist(
@@ -174,6 +187,9 @@ export async function generateSeedPlaylist(
 		const checkedTrackIds = new Set<string>(
 			dbMatchesUris.map((uri) => uri.replace('spotify:track:', '')),
 		);
+		const checkedTrackTitles = new Set<string>();
+		const titleKey = (title: string, artist: string) =>
+			title.toLowerCase().trim() + '|' + artist.toLowerCase().trim();
 		const usedArtistNames: string[] = [];
 
 		for (let attempt = 0; attempt < 2; attempt++) {
@@ -206,11 +222,15 @@ export async function generateSeedPlaylist(
 
 			if (!aiTracks || aiTracks.length === 0) continue;
 
-			const newTracks = aiTracks.filter((t) => !checkedTrackIds.has(t.id));
+			const newTracks = aiTracks.filter(
+				(t) =>
+					!checkedTrackIds.has(t.id) &&
+					!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
+			);
 
 			if (seedEmbeddings.length > 0) {
 				const pLimitInstance = pLimit(15);
-				const newUris = await scoreAndFilterTracks(
+				const acceptedTracks = await scoreAndFilterTracks(
 					newTracks,
 					seedEmbeddings,
 					accumulatedUris,
@@ -218,17 +238,25 @@ export async function generateSeedPlaylist(
 					signal,
 				);
 				throwIfAborted();
+				const newUris = acceptedTracks.map((t) => t.uri);
 				accumulatedUris.push(...newUris);
 				newUris.forEach((uri) =>
 					checkedTrackIds.add(uri.replace('spotify:track:', '')),
 				);
+				acceptedTracks.forEach((t) =>
+					checkedTrackTitles.add(titleKey(t.name, t.artist)),
+				);
 			} else {
-				const newUris = newTracks
-					.filter((t) => !userId || !previouslyGeneratedIds.includes(t.id))
-					.map((t) => t.uri);
+				const acceptedTracks = newTracks.filter(
+					(t) => !userId || !previouslyGeneratedIds.includes(t.id),
+				);
+				const newUris = acceptedTracks.map((t) => t.uri);
 				accumulatedUris.push(...newUris);
 				newUris.forEach((uri) =>
 					checkedTrackIds.add(uri.replace('spotify:track:', '')),
+				);
+				acceptedTracks.forEach((t) =>
+					checkedTrackTitles.add(titleKey(t.name, t.artistName)),
 				);
 			}
 		}
