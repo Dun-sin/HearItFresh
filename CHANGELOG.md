@@ -1,3 +1,11 @@
+# [1.29.0](https://github.com/Dun-sin/HearItFresh/compare/v1.28.1...v1.29.0) (2026-08-11)
+
+
+### Features
+
+* allow more artist diversity ([f57798a](https://github.com/Dun-sin/HearItFresh/commit/f57798a10a2251c233febb147fd474396daaf022))
+* improve duplicate detection for tracks and albums ([715eb45](https://github.com/Dun-sin/HearItFresh/commit/715eb458e8df376ad661f254695865c5abdcb2c0))
+
 ## [1.28.1](https://github.com/Dun-sin/HearItFresh/compare/v1.28.0...v1.28.1) (2026-08-05)
 
 
