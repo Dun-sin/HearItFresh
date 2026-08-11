@@ -354,37 +354,45 @@ export async function relatedArists(
 		await new Promise((r) => setTimeout(r, 300));
 	}
 
-	// Round robin — take one from each artist at a time until we have 20
+	// Round robin — take one from each artist at a time until we have 65
 	shuffle(relatedArtistsPerSeed);
+	// Mutable working copies — we splice from these
+	const workingLists: string[][] = relatedArtistsPerSeed.map((arr) => [...arr]);
+
 	const finalList: string[] = [];
+	// Use a Set for O(1) duplicate checks instead of .map().includes() (O(n) per lookup)
+	const finalSet = new Set<string>();
 	const excluded = new Set([
 		...artistNames.map((n) => n.toLowerCase()),
 		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
 	]);
-	let round = 0;
 
-	while (finalList.length < 65) {
-		let addedThisRound = 0;
-
-		for (const artistRelated of relatedArtistsPerSeed) {
+	while (finalList.length < 65 && workingLists.length > 0) {
+		// Iterate in reverse so we can safely splice exhausted lists out
+		for (let i = workingLists.length - 1; i >= 0; i--) {
 			if (finalList.length >= 65) break;
 
-			// find next unused artist from this seed's related list
-			const candidate = artistRelated.find(
-				(name) =>
-					!excluded.has(name.toLowerCase()) &&
-					!finalList.map((n) => n.toLowerCase()).includes(name.toLowerCase()),
-			);
-
-			if (candidate) {
-				finalList.push(candidate);
-				addedThisRound++;
+			const pool = workingLists[i];
+			// Find a valid candidate at a random position within this seed's remaining list
+			// Shuffle the pool indices so we don't always start from index 0
+			let picked = false;
+			const startIdx = Math.floor(Math.random() * pool.length);
+			for (let offset = 0; offset < pool.length; offset++) {
+				const idx = (startIdx + offset) % pool.length;
+				const name = pool[idx];
+				if (!excluded.has(name.toLowerCase()) && !finalSet.has(name.toLowerCase())) {
+					finalList.push(name);
+					finalSet.add(name.toLowerCase());
+					pool.splice(idx, 1); // remove so it can't be re-picked
+					picked = true;
+					break;
+				}
+			}
+			// Prune this seed's list from the rotation if it's now empty
+			if (pool.length === 0) {
+				workingLists.splice(i, 1);
 			}
 		}
-
-		// if no new artists were added this round, we've exhausted all options
-		if (addedThisRound === 0) break;
-		round++;
 	}
 
 	return finalList;
