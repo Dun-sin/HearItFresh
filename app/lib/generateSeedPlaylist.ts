@@ -200,12 +200,17 @@ export async function generateSeedPlaylist(
 			);
 			throwIfAborted();
 
-			const finalList = await relatedArists(
-				artistNames,
-				options,
-				signal,
-				usedArtistNames,
-			);
+		const targetArtists =
+			seeds.length > 0
+				? Array.from(new Set(seeds.flatMap((s) => s.artist)))
+				: artistNames;
+
+		const finalList = await relatedArists(
+			targetArtists,
+			options,
+			signal,
+			usedArtistNames,
+		);
 			throwIfAborted();
 
 			usedArtistNames.push(...finalList);
