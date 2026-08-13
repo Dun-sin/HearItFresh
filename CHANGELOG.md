@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/Dun-sin/HearItFresh/compare/v1.29.0...v1.30.0) (2026-08-13)
+
+
+### Features
+
+* **generateSeedPlaylist:** prioritize seed artists for related artist lookup ([1ee0a9b](https://github.com/Dun-sin/HearItFresh/commit/1ee0a9b0e2493c57b2188bcf07ea11dfd4b00cfa))
+
 # [1.29.0](https://github.com/Dun-sin/HearItFresh/compare/v1.28.1...v1.29.0) (2026-08-11)
 
 
