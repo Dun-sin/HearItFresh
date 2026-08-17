@@ -12,6 +12,7 @@ const SubmitButtionContainer = ({
 	errorMessage,
 	btnText,
 	btnClass,
+	disabled,
 }: {
 	handleSubmit: () => void;
 	onCancel?: () => void;
@@ -19,6 +20,7 @@ const SubmitButtionContainer = ({
 	errorMessage?: string | null;
 	btnText?: string;
 	btnClass?: string;
+	disabled?: boolean;
 }) => {
 	const { loading, loadingMessage } = useLoading();
 	const { buttonClick } = useGeneralState();
@@ -53,11 +55,12 @@ const SubmitButtionContainer = ({
 		);
 	}
 
-	return (
+		return (
 		!buttonClick && (
 			<button
-				className={`${btnClass ?? 'bg-brand text-lightest'} rounded p-3 w-full hover:bg-opacity-85 transition-all`}
-				onClick={handleSubmit}>
+				className={`${btnClass ?? 'bg-brand text-lightest'} rounded p-3 w-full hover:bg-opacity-85 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+				onClick={handleSubmit}
+				disabled={disabled}>
 				{btnText ?? 'Generate Playlist'}
 			</button>
 		)

@@ -160,6 +160,14 @@ export async function generateSeedPlaylist(
 		throwIfAborted();
 		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
 
+		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
+			return {
+				tracks: [],
+				error:
+					'At least 5 seed songs with valid lyrics embeddings are required to generate a playlist.',
+			};
+		}
+
 		let dbMatchesUris: string[] = [];
 		let remainingNeeded = 100;
 
@@ -233,37 +241,23 @@ export async function generateSeedPlaylist(
 					!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
 			);
 
-			if (seedEmbeddings.length > 0) {
-				const pLimitInstance = pLimit(15);
-				const acceptedTracks = await scoreAndFilterTracks(
-					newTracks,
-					seedEmbeddings,
-					accumulatedUris,
-					pLimitInstance,
-					signal,
-				);
-				throwIfAborted();
-				const newUris = acceptedTracks.map((t) => t.uri);
-				accumulatedUris.push(...newUris);
-				newUris.forEach((uri) =>
-					checkedTrackIds.add(uri.replace('spotify:track:', '')),
-				);
-				acceptedTracks.forEach((t) =>
-					checkedTrackTitles.add(titleKey(t.name, t.artist)),
-				);
-			} else {
-				const acceptedTracks = newTracks.filter(
-					(t) => !userId || !previouslyGeneratedIds.includes(t.id),
-				);
-				const newUris = acceptedTracks.map((t) => t.uri);
-				accumulatedUris.push(...newUris);
-				newUris.forEach((uri) =>
-					checkedTrackIds.add(uri.replace('spotify:track:', '')),
-				);
-				acceptedTracks.forEach((t) =>
-					checkedTrackTitles.add(titleKey(t.name, t.artistName)),
-				);
-			}
+			const pLimitInstance = pLimit(15);
+			const acceptedTracks = await scoreAndFilterTracks(
+				newTracks,
+				seedEmbeddings,
+				accumulatedUris,
+				pLimitInstance,
+				signal,
+			);
+			throwIfAborted();
+			const newUris = acceptedTracks.map((t) => t.uri);
+			accumulatedUris.push(...newUris);
+			newUris.forEach((uri) =>
+				checkedTrackIds.add(uri.replace('spotify:track:', '')),
+			);
+			acceptedTracks.forEach((t) =>
+				checkedTrackTitles.add(titleKey(t.name, t.artist)),
+			);
 		}
 
 		const finalTracks = [...accumulatedUris].slice(0, 100);

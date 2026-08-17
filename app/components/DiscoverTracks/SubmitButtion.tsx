@@ -166,18 +166,11 @@ const SubmitButtion = () => {
 		if (buttonClick === true) return;
 
 		const seedCount = selectedSeedIds.size;
-		// Allow proceeding with 0 seeds (skip lyrics matching) or 5-15 seeds.
-		if (seedCount > 0 && seedCount < 5) {
-			toast.error(
-				'Please select either 0 songs (skip lyrics) or at least 5 songs.',
-			);
+		// Strictly enforce selecting between 5 and 10 seed songs.
+		if (seedCount < 5 || seedCount > 10) {
+			toast.error('Please select between 5 and 10 seed songs.');
 			return;
 		}
-
-		// When the user chooses to proceed without lyrics matching (fewer than
-		// 5 seeds selected), treat the selection as 0 seeds so the backend
-		// skips lyrics matching entirely.
-		const effectiveSeedCount = seedCount >= 5 ? seedCount : 0;
 
 		// Abort any stale dev-mode controller, then reset state for a fresh run
 		if (abortControllerRef.current) {
@@ -196,10 +189,9 @@ const SubmitButtion = () => {
 				'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
 			);
 			console.log('[handleSeedPlaylistGeneration] Starting...');
-			const selectedSongsData =
-				effectiveSeedCount > 0
-					? extractedSongs.filter((s: any) => selectedSeedIds.has(s.id))
-					: [];
+			const selectedSongsData = extractedSongs.filter((s: any) =>
+				selectedSeedIds.has(s.id),
+			);
 
 			if (process.env.NODE_ENV === 'production') {
 				// Inngest path
@@ -267,9 +259,7 @@ const SubmitButtion = () => {
 				}
 
 				const playlistName =
-					(effectiveSeedCount > 0
-						? 'HearItFresh - Lyrics Inspired'
-						: 'HearItFresh - Similar to Playlist') + ' @hearitfresh.favour.dev';
+					'HearItFresh - Lyrics Inspired @hearitfresh.favour.dev';
 
 				setLoadingMessage('Creating your new playlist on Spotify...');
 				const playlistInfo = await createPlayList(
@@ -281,6 +271,7 @@ const SubmitButtion = () => {
 					abortedRef.current
 				)
 					return;
+
 				if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
 
 				const { id, link, name } = playlistInfo;

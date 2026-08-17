@@ -43,7 +43,7 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 			if (next.has(id)) {
 				next.delete(id);
 			} else {
-				if (next.size >= 15) return prev; // max 15 seeds
+				if (next.size >= 10) return prev; // max 10 seeds
 				next.add(id);
 			}
 			return next;
@@ -57,7 +57,7 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 	}, []);
 
 	const selectAllSeeds = useCallback(() => {
-		const ids = extractedSongs.slice(0, 15).map((s) => s.id);
+		const ids = extractedSongs.slice(0, 10).map((s) => s.id);
 		setSelectedSeedIds(new Set(ids));
 	}, [extractedSongs]);
 
