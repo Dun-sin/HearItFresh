@@ -1,13 +1,7 @@
 'use client';
 
 import {
-	addTracksToPlayList,
-	createPlayList,
-} from '@/app/lib/spotify';
-import {
 	extractPlaylistId,
-	getAllTracks,
-	getEveryAlbum,
 	getPlaylistTracks,
 	isSpotifyPlaylistPermissionError,
 	isValidPlaylistLink,
@@ -17,7 +11,6 @@ import {
 import React, { useRef, useState, useEffect } from 'react';
 import SubmitButtionContainer from '../SubmitButtonContainer';
 import { addToUrl } from '@/app/lib/clientUtils';
-import { fetchSimilarArtistsFromAI } from '@/app/lib/utils';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
@@ -26,11 +19,9 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useSeedSongs } from '@/app/context/DiscoverTracks/seedSongsContext';
-import { useType } from '@/app/context/DiscoverTracks/typeContext';
 
 const SubmitButtion = () => {
 	const { setLoading } = useLoading();
-	const { type } = useType();
 	const {
 		setErrorMessages,
 		errorMessages,
@@ -40,8 +31,7 @@ const SubmitButtion = () => {
 	} = useGeneralState();
 	const { user, logOut } = useAuth();
 	const { setLoadingMessage } = useLoading();
-	const { artistName, artistArray, spotifyPlaylist, setArtistArray } =
-		useInput();
+	const { spotifyPlaylist } = useInput();
 	const { setHistory } = useHistory();
 	const { isNotPopularArtists, isDifferentTypesOfArtists } = useOptions();
 
@@ -418,77 +408,8 @@ const SubmitButtion = () => {
 	const createSpotifyPlaylist = async (link: string, name: string) => {
 		addToUrl('link', link.split('/').at(-1) as string);
 		setPlayListData({ link, name });
-		setArtistArray([]);
 		clearSeeds();
 		toast.success('Playlist Created');
-	};
-
-	const getSimilarArtists = async (artists: string[]) => {
-		if (buttonClick === true) {
-			setLoading(false);
-			return;
-		}
-		setButtonClicked(true);
-
-		try {
-			setLoadingMessage('Discovering new artists similar to your selection...');
-
-			const finalList = await fetchSimilarArtistsFromAI(artists, {
-				isNotPopular: isNotPopularArtists,
-				isDifferent: isDifferentTypesOfArtists,
-			});
-
-			setLoadingMessage(
-				'Fetching latest albums from the discovered artists...',
-			);
-			const albums = await getEveryAlbum(finalList);
-
-			setLoadingMessage('Gathering the best tracks from their albums...');
-			const tracks = (await getAllTracks(albums as string[], 1)) as string[];
-
-			setLoadingMessage(
-				'Creating your new Similar Artists playlist on Spotify...',
-			);
-			const playlistName = `Similar to ${artists.join(', ')}`;
-			const playlistInfo = await Promise.resolve(
-				createPlayList(playlistName, 'Created by HearItFresh'),
-			);
-
-			if ('isError' in playlistInfo) {
-				throw new Error(playlistInfo.err);
-			}
-			const { id, link, name } = playlistInfo;
-			const playListID = id.substring('spotify:playlist:'.length);
-
-			setLoadingMessage(
-				'Adding the selected tracks to your Spotify playlist...',
-			);
-
-			if (tracks === null) throw new Error('Track is empty');
-			addTracksToPlayList(tracks, playListID)
-				.then(() => {
-					addToUrl('link', link.split('/').at(-1) as string);
-					setPlayListData({ link, name });
-				})
-				.catch((err) => {
-					return err;
-				});
-
-			setLoadingMessage('Playlist successfully generated!');
-			setArtistArray([]);
-			toast.success('Playlist Created');
-		} catch (err) {
-			setErrorMessages({
-				...errorMessages,
-				error:
-					'Error occured while generating a playlist: a playlist might have still been generated, please check your Spotify before trying again.',
-			});
-			console.log(err);
-		} finally {
-			setLoading(false);
-			setButtonClicked(false);
-			setLoadingMessage(null);
-		}
 	};
 
 	async function handleIfItsAPlaylistLink(link: string) {
@@ -571,33 +492,16 @@ const SubmitButtion = () => {
 	}
 
 	const handleSubmit = async () => {
-		if (type === 'artist') {
+		if (extractedSongs.length > 0) {
+			handleSeedPlaylistGeneration();
+		} else {
 			setLoading(true);
-			const artist = artistName.current;
-			if (!artist) return;
-
-			const extratext = artist?.value.trim();
-			const array = [...artistArray];
-
-			if (extratext || extratext !== '') {
-				array.push(extratext);
+			if (!spotifyPlaylist.current) {
+				setLoading(false);
+				return;
 			}
-
-			await addHistoryToDB(array.join(', '));
-
-			array && array.length > 1 && getSimilarArtists(array);
-		} else if (type === 'playlist') {
-			if (extractedSongs.length > 0) {
-				handleSeedPlaylistGeneration();
-			} else {
-				setLoading(true);
-				if (!spotifyPlaylist.current) {
-					setLoading(false);
-					return;
-				}
-				const link = spotifyPlaylist.current.value;
-				handleIfItsAPlaylistLink(link);
-			}
+			const link = spotifyPlaylist.current.value;
+			handleIfItsAPlaylistLink(link);
 		}
 	};
 
@@ -625,9 +529,7 @@ const SubmitButtion = () => {
 	// are selected (0-4), show the red "Proceed Generation without lyrics
 	// matching" button. 5+ seeds reverts to the normal green generate button.
 	const isLowSeedCount =
-		type === 'playlist' &&
-		extractedSongs.length > 0 &&
-		selectedSeedIds.size < 5;
+		extractedSongs.length > 0 && selectedSeedIds.size < 5;
 
 	const btnText = isLowSeedCount
 		? 'Proceed Generation without lyrics matching'

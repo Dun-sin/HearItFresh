@@ -4,7 +4,6 @@ import DeleteButton from './DeleteButton';
 import { useAuth } from '@/app/context/authContext';
 import { useEffect, useState } from 'react';
 import { useInput } from '@/app/context/inputContext';
-import { useType } from '@/app/context/DiscoverTracks/typeContext';
 import { GeneratedPlaylistHistory, SourcePlaylist } from '@/app/types';
 
 type HistoryCardType = {
@@ -24,8 +23,7 @@ const HistoryCard = ({
 	onRetry,
 	isRetrying,
 }: HistoryCardType) => {
-	const { setArtistArray, spotifyPlaylist } = useInput();
-	const { setType, type } = useType();
+	const { spotifyPlaylist } = useInput();
 	const { user } = useAuth();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const artistArray = text.split(', ');
@@ -35,25 +33,16 @@ const HistoryCard = ({
 	const isArtists = text.includes(',');
 
 	const handleClick = () => {
-		console.log({ type });
-		if (isArtists) {
-			type === 'playlist' && setType('artist');
-		} else {
-			type === 'artist' && setType('playlist');
+		if (!isArtists && spotifyPlaylist.current) {
+			spotifyPlaylist.current.value = addPlaylistFullLinkFromID(playlistId);
 		}
 	};
 
 	useEffect(() => {
-		if (type === 'playlist') {
-			if (spotifyPlaylist.current) {
-				spotifyPlaylist.current.value = addPlaylistFullLinkFromID(playlistId);
-			}
+		if (!isArtists && spotifyPlaylist.current) {
+			spotifyPlaylist.current.value = addPlaylistFullLinkFromID(playlistId);
 		}
-
-		if (type === 'artist') {
-			setArtistArray(artistArray);
-		}
-	}, [type, playlistId]);
+	}, [playlistId, spotifyPlaylist, isArtists]);
 
 	const hasGeneratedPlaylists = generatedPlaylists && generatedPlaylists.length > 0;
 	const getStatusLabel = (status?: string) => {
