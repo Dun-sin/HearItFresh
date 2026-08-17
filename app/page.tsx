@@ -1,15 +1,15 @@
-import AllDiscoverTracksContext from './components/AllContext';
+import AllContext from './components/AllContext';
 import History from './components/History';
-import Options from './components/DiscoverTracks/Options';
-import PlaylistInput from './components/DiscoverTracks/PlaylistInput';
+import Options from './components/Options';
+import PlaylistInput from './components/PlaylistInput';
 import ResultLink from './components/ResultLink';
-import SubmitButtion from './components/DiscoverTracks/SubmitButtion';
+import SubmitButton from './components/SubmitButton';
 
 
 
 const Page = () => {
 	return (
-		<AllDiscoverTracksContext>
+		<AllContext>
 			<section className='flex flex-col gap-5 max-w-[800px] w-full min-w-[300px] items-center justify-center px-5'>
 				<div
 					className={`sm:border-2 sm:border-brand rounded flex flex-col justify-center gap-6 sm:py-14 sm:px-10 items-center w-full relative`}>
@@ -20,14 +20,14 @@ const Page = () => {
 							</div>
 							<Options />
 
-							<SubmitButtion />
+							<SubmitButton />
 						</span>
 					</section>
 					<ResultLink />
 				</div>
 				<History />
 			</section>
-		</AllDiscoverTracksContext>
+		</AllContext>
 	);
 };
 

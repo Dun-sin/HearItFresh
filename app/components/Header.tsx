@@ -1,8 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { usePathname } from 'next/navigation';
-
 import { Icon } from '@iconify/react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -20,10 +17,6 @@ const Header = () => {
 
 		logOut,
 	} = useAuth();
-
-	const [openTools, setOpenTools] = useState(false);
-
-	const currentPath = usePathname();
 
 	return (
 		<section className={`flex items-center justify-between px-6 w-full`}>
@@ -44,32 +37,6 @@ const Header = () => {
 				</p>
 			</section>
 
-			<button
-				onClick={() => setOpenTools(!openTools)}
-				className='opacity-55 text-fsm sm:text-fbase'>
-				Change Tools
-			</button>
-
-			{openTools && (
-				<section className='absolute top-14 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-4'>
-					{currentPath !== '/' && (
-						<Link
-							className={`underline decoration-4 underline-offset-4 cursor-pointer decoration-brand`}
-							href='/'
-							onClick={() => setOpenTools(false)}>
-							Discover Tracks
-						</Link>
-					)}
-					{currentPath !== '/toptracks' && (
-						<Link
-							className={`underline decoration-4 underline-offset-4 cursor-pointer decoration-brand`}
-							href='/toptracks'
-							onClick={() => setOpenTools(false)}>
-							Top Tracks
-						</Link>
-					)}
-				</section>
-			)}
 			<section className='flex items-center gap-2 sm:gap-5 '>
 				{isLoggedIn && (
 					<button

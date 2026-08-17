@@ -3,7 +3,7 @@ import { HistoryProvider } from '../context/HistoryContext';
 import { InputProvider } from '@/app/context/inputContext';
 import { LoadingProvider } from '@/app/context/loadingContext';
 import { ReactNode } from 'react';
-import { SeedSongsProvider } from '@/app/context/DiscoverTracks/seedSongsContext';
+import { SeedSongsProvider } from '@/app/context/seedSongsContext';
 
 const AllContext: React.FC<{ children: ReactNode }> = ({ children }) => {
 	return (

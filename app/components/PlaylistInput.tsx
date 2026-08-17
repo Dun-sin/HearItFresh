@@ -5,7 +5,7 @@ import React, { useEffect } from 'react';
 import { useGeneralState } from '@/app/context/generalStateContext';
 import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
-import { useSeedSongs } from '@/app/context/DiscoverTracks/seedSongsContext';
+import { useSeedSongs } from '@/app/context/seedSongsContext';
 
 const PlaylistInput = () => {
 	const { loading } = useLoading();

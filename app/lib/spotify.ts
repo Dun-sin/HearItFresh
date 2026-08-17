@@ -1,4 +1,4 @@
-import { playlistDetails, singleTrack, trackTypes } from "../types";
+﻿import { playlistDetails, singleTrack, trackTypes } from "../types";
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
@@ -389,62 +389,3 @@ export async function getRelatedArtists(
 		return [];
 	}
 }
-
-
-// /**
-//   Searches for an artist on Spotify and returns an array of their top tracks in the US.
-//   @async
-//   @function getArtistTopTracks
-//   @param {string} artist - The name of the artist to search for.
-//   @returns {Promise<Array<string>>} An array of track URIs from the artist's top tracks in the US.
-//   @throws {Error} If there was an error searching for the artist or retrieving their top tracks.
-// */
-// export async function getArtistTopTracks(artist) {
-//   try {
-//     const result = [];
-//     const data = await spotifyApi.searchArtists(artist, { limit: 1, offset: 0 });
-//     const _data = await spotifyApi.getArtistTopTracks(data.body.artists.items[0].id, 'US');
-//     _data.body.tracks.forEach(song => result.push(song.uri))
-//     return result
-//   } catch (err) {
-
-//     return err
-//   }
-
-// }
-
-// export async function getOneAlbumTrack(album) {
-//   try {
-//     const data = await spotifyApi.getAlbumTracks(album, { limit: 6, offset: 0 })
-//     const result = data.body.items.filter((track, index, self) => {
-//       const trackName = track.name.toLowerCase()
-
-//       // Check if the track is a remix or a mix or an edit or a radio mix
-//       const blacklistedWords = ['remix', 'mix', 'edit', 'radio', '- live', ' ver.', 'live-'];
-//       if (blacklistedWords.some(word => trackName.includes(word))) {
-//         return false;
-//       }
-
-//       // Check if the track is a repetition
-//       for (let i = 0; i < index; i++) {
-//         if (self[i].name === track.name) {
-//           return false;
-//         }
-//       }
-
-//       return true;
-//     })
-
-//     if (result.length === 0) return ''
-
-//     if (result.length > 1) {
-//       const sortedTracks = result.sort(() => Math.random() - 0.5)
-//       const randomlySelectedTrack = sortedTracks[0].uri
-//       return randomlySelectedTrack
-//     } else {
-//       return result[0].uri
-//     }
-//   } catch (err) {
-//     return err
-//   }
-// }
