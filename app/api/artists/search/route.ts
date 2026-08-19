@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDummyAccessToken } from '@/app/lib/spotify-dummy-auth';
 import spotifyApi, { setAccessToken } from '@/app/lib/spotifyApi';
 
 const getSpotifyStatusCode = (err: any) =>
 	err?.statusCode ?? err?.status ?? err?.response?.status ?? 500;
 
-export async function GET(req: Request) {
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
 	try {
-		const { searchParams } = new URL(req.url);
+		const { searchParams } = req.nextUrl;
 		const query = searchParams.get('q')?.trim();
 
 		if (!query) {
