@@ -1,10 +1,14 @@
 import { addTracksToPlayList, createPlayList } from '../lib/spotify';
 
-import { generateSeedPlaylist } from '../lib/generateSeedPlaylist';
+import {
+	generateArtistPlaylist,
+	generateSeedPlaylist,
+} from '../lib/generateSeedPlaylist';
 import { inngest } from './client';
 import { setAccessToken } from '../lib/spotifyApi';
 import { getDummyAccessToken } from '../lib/spotify-dummy-auth';
 import prisma from '../lib/prisma';
+import { buildArtistPlaylistName } from '../lib/utils';
 
 export const generatePlaylist = inngest.createFunction(
 	{
@@ -19,8 +23,17 @@ export const generatePlaylist = inngest.createFunction(
 	},
 	{ event: 'playlist/generate' },
 	async ({ event, step, runId }) => {
-		const { seeds, artistNames, options, userId, generatedPlaylistId } =
-			event.data;
+		const {
+			seeds,
+			artistNames,
+			options,
+			userId,
+			generatedPlaylistId,
+			artistId,
+			artistName,
+		} = event.data;
+
+		const isArtistMode = Boolean(artistId);
 
 		await step.run('save-run-id', async () => {
 			const existingRecord = await prisma.generatedPlaylist.findUnique({
@@ -32,12 +45,27 @@ export const generatePlaylist = inngest.createFunction(
 				data: {
 					inngestRunId: runId,
 					status: 'pending',
-					...(existingRecord?.event ? {} : { event: { name: 'playlist/generate', id: event.id, data: event.data } }),
+					...(existingRecord?.event
+						? {}
+						: {
+								event: {
+									name: 'playlist/generate',
+									id: event.id,
+									data: event.data,
+								},
+							}),
 				},
 			});
 		});
 
-		const result = await step.run('generate-seed-playlist', async () => {
+		const result = await step.run('generate-playlist-tracks', async () => {
+			if (isArtistMode) {
+				return await generateArtistPlaylist(
+					{ id: artistId, name: artistName },
+					seeds,
+					userId,
+				);
+			}
 			return await generateSeedPlaylist(seeds, artistNames, options, userId);
 		});
 
@@ -47,12 +75,16 @@ export const generatePlaylist = inngest.createFunction(
 		const playlistInfo = await step.run('create-spotify-playlist', async () => {
 			const token = await getDummyAccessToken();
 			setAccessToken(token);
-      const playlistName =
-				(seeds.length > 0
-					? 'HearItFresh - Lyrics Inspired'
-					: 'HearItFresh - Similar to Playlist') + '@hearitfresh.favour.dev';
+			const playlistName = isArtistMode
+				? buildArtistPlaylistName(artistName)
+				: (seeds.length > 0
+						? 'HearItFresh - Lyrics Inspired'
+						: 'HearItFresh - Similar to Playlist') + '@hearitfresh.favour.dev';
 
-			return await createPlayList(playlistName, 'Created by HearItFresh');
+			return await createPlayList(
+				playlistName,
+				isArtistMode ? artistName : 'Created by HearItFresh',
+			);
 		});
 
 		if ('isError' in playlistInfo) throw new Error(playlistInfo.err);

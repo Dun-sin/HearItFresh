@@ -2,7 +2,7 @@
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
-import { convertToSubArray, shuffle, sleep } from './utils';
+import { convertToSubArray, deduplicateAlbums, shuffle, sleep } from './utils';
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -99,37 +99,6 @@ export async function addTracksToPlayList(
 **/
 const MAX_ARTIST_ATTEMPTS = 3;
 
-const EDITION_KEYWORDS = [
-	'deluxe',
-	'edition',
-	'bonus',
-	'expanded',
-	'anniversary',
-	'remastered',
-	'special',
-];
-
-/**
- * Strips a parenthetical/bracketed edition suffix from an album title and
- * lowercases/trims the result, so variants like "Love Is Like" and
- * "Love Is Like (Deluxe)" collapse to the same base title.
- */
-function normalizeAlbumTitle(name: string): string {
-	const trimmed = name.trim();
-	const withoutSuffix = trimmed.replace(/[([{][^()[\]{}]*[)\]}]?$/i, (suffix) => {
-		const inner = suffix.replace(/^[([{]+|[)\]}]+$/g, '').trim().toLowerCase();
-		if (
-			EDITION_KEYWORDS.some((kw) => {
-				const words = inner.split(/[\s/&-]+/);
-				return words.includes(kw) || inner.includes(kw);
-			})
-		) {
-			return '';
-		}
-		return suffix;
-	});
-	return withoutSuffix.trim().toLowerCase();
-}
 
 export async function getArtistsAlbums(
 	artist: string,
@@ -159,53 +128,7 @@ export async function getArtistsAlbums(
 			};
 			const data = await spotifyApi.getArtistAlbums(artistId, options);
 
-			const result = data.body.items.filter((album: { name: string }) => {
-				const trackName = album.name.toLowerCase();
-
-				// Check if the track is a remix or a mix or an edit or a radio mix
-				const blacklistedWords = [
-					'remix',
-					'mix',
-					'edit',
-					'radio',
-					'- live',
-					' ver.',
-					'live-',
-					'version',
-					'tour',
-					'live',
-					'event',
-					'concert',
-					'tour',
-				];
-				if (blacklistedWords.some((word) => trackName.includes(word))) {
-					return false;
-				}
-
-				return true;
-			});
-
-			const seenBaseTitles = new Map<string, (typeof result)[number]>();
-			const deduplicated: (typeof result)[number][] = [];
-			for (const album of result) {
-				const baseTitle = normalizeAlbumTitle(album.name);
-				const existing = seenBaseTitles.get(baseTitle);
-				if (!existing) {
-					seenBaseTitles.set(baseTitle, album);
-					deduplicated.push(album);
-					continue;
-				}
-				const existingIsStandard =
-					normalizeAlbumTitle(existing.name) ===
-					existing.name.trim().toLowerCase();
-				const currentIsStandard =
-					normalizeAlbumTitle(album.name) ===
-					album.name.trim().toLowerCase();
-				if (!existingIsStandard && currentIsStandard) {
-					seenBaseTitles.set(baseTitle, album);
-					deduplicated[deduplicated.indexOf(existing)] = album;
-				}
-			}
+			const deduplicated = deduplicateAlbums(data.body.items);
 
 			if (maxAlbums >= deduplicated.length) {
 				return deduplicated.map((item: { id: any }) => item.id);
@@ -245,6 +168,66 @@ export async function getArtistsAlbums(
 
 	console.error(
 		`getArtistsAlbums exhausted ${MAX_ARTIST_ATTEMPTS} retries for ${artist}`,
+	);
+	return [];
+}
+
+/**
+ * Fetches the full discography (albums + singles) for a given Spotify artist
+ * id and returns a stable `singleTrack[]` suitable for the scoring pipeline.
+ *
+ * Unlike `getArtistsAlbums`, this path already has the canonical `artistId`
+ * from search, so it does not re-search by name (avoiding ambiguity and
+ * duplicate artist matches). 429s are retried in place honouring `retry-after`.
+ */
+const MAX_DISCOGRAPHY_ATTEMPTS = 3;
+
+export async function getArtistDiscographyTracks(
+	artistId: string,
+	signal?: AbortSignal,
+): Promise<singleTrack[]> {
+	for (let attempt = 0; attempt < MAX_DISCOGRAPHY_ATTEMPTS; attempt++) {
+		try {
+			const albums = await spotifyApi.getArtistAlbums(artistId, {
+				limit: 50,
+				include_groups: 'album,single',
+			});
+
+			const deduplicatedAlbums = deduplicateAlbums(albums.body.items);
+
+			const albumIds = [
+				...new Set(deduplicatedAlbums.map((item) => item.id)),
+			];
+			const tracks = await getTracks(albumIds as string[]);
+			return Array.isArray(tracks) ? tracks : [];
+		} catch (err: any) {
+			const status =
+				err?.statusCode ?? err?.status ?? err?.response?.status;
+			const retryAfter = Number(
+				err?.headers?.['retry-after'] ??
+					err?.response?.headers?.['retry-after'],
+			);
+
+			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+				console.log(
+					`Rate limited (429) fetching discography for ${artistId}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_DISCOGRAPHY_ATTEMPTS})`,
+				);
+				await sleep(retryAfter * 1000, signal);
+				continue;
+			}
+
+			console.error(
+				`Error fetching discography for artist ${artistId}:`,
+				err?.message || err,
+			);
+			if (err?.response?.body)
+				console.error('Spotify API Error Body:', err.response.body);
+			return [];
+		}
+	}
+
+	console.error(
+		`getArtistDiscographyTracks exhausted ${MAX_DISCOGRAPHY_ATTEMPTS} retries for ${artistId}`,
 	);
 	return [];
 }

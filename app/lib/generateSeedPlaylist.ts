@@ -12,6 +12,7 @@ import {
 	getEveryAlbum,
 	relatedArists,
 } from './utils';
+import { getArtistDiscographyTracks } from './spotify';
 
 import pLimit from 'p-limit';
 import { processSong } from './processSong';
@@ -272,6 +273,110 @@ export async function generateSeedPlaylist(
 		return { tracks: finalTracks };
 	} catch (error: any) {
 		console.error('Error generating seed playlist:', error);
+		return { tracks: [], error: error?.message || 'Unknown error' };
+	}
+}
+
+/**
+ * Artist-only generation path. Instead of expanding through related artists,
+ * this pulls the selected artist's full discography, scores those tracks
+ * against the provided lyric/embedding seeds, keeps the tracks that pass the
+ * similarity cutoff, ranks by strongest match, and returns up to 100 URIs.
+ */
+export async function generateArtistPlaylist(
+	artist: { id: string; name: string },
+	seeds: { id: string; name: string; artist: string[]; album?: string }[],
+	userId?: string,
+	signal?: AbortSignal,
+): Promise<{ tracks: string[]; error?: string }> {
+	const throwIfAborted = () => {
+		if (signal?.aborted) {
+			throw new Error('Aborted');
+		}
+	};
+
+	try {
+		throwIfAborted();
+		const token = await getDummyAccessToken();
+		setAccessToken(token);
+		console.log(`Generating artist playlist for ${artist.name}...`);
+
+		let previouslyGeneratedIds: string[] = [];
+		if (userId) {
+			previouslyGeneratedIds = await getUserGeneratedSongIds(userId);
+		}
+
+		const seedSpotifyIds = seeds.map((s) => s.id);
+
+		await Promise.all(
+			seeds.map(async (seed) => {
+				throwIfAborted();
+				return await processSong(
+					{
+						id: seed.id,
+						title: seed.name,
+						artist: seed.artist[0] || 'Unknown Artist',
+						album: seed.album || 'Unknown Album',
+					},
+					signal,
+				);
+			}),
+		);
+
+		throwIfAborted();
+		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
+
+		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
+			return {
+				tracks: [],
+				error:
+					'At least 5 seed songs with valid lyrics embeddings are required to generate a playlist.',
+			};
+		}
+
+		throwIfAborted();
+		const discography = await getArtistDiscographyTracks(artist.id, signal);
+		if (!discography || discography.length === 0) {
+			return {
+				tracks: [],
+				error: `No tracks could be fetched for ${artist.name}.`,
+			};
+		}
+
+		const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
+		const checkedTrackIds = new Set<string>(excludeIds);
+		const checkedTrackTitles = new Set<string>();
+		const titleKey = (title: string, artistName: string) =>
+			title.toLowerCase().trim() + '|' + artistName.toLowerCase().trim();
+
+		const newTracks = discography.filter(
+			(t) =>
+				!checkedTrackIds.has(t.id) &&
+				!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
+		);
+
+		const pLimitInstance = pLimit(15);
+		const acceptedTracks = await scoreAndFilterTracks(
+			newTracks,
+			seedEmbeddings,
+			[],
+			pLimitInstance,
+			signal,
+		);
+		throwIfAborted();
+
+		const finalTracks = acceptedTracks.map((t) => t.uri).slice(0, 100);
+
+		if (userId) {
+			const generatedSpotifyIds = finalTracks.map((uri) =>
+				uri.replace('spotify:track:', ''),
+			);
+			await addGeneratedSongsForUser(userId, generatedSpotifyIds);
+		}
+
+		return { tracks: finalTracks };
+	} catch (error: any) {
+		console.error('Error generating artist playlist:', error);
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }

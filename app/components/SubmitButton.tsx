@@ -177,12 +177,14 @@ const SubmitButton = () => {
 		setLoading(true);
 
 		try {
-			setLoadingMessage(
-				'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
-			);
-			console.log('[handleSeedPlaylistGeneration] Starting...');
 			const selectedSongsData = extractedSongs.filter((s: any) =>
 				selectedSeedIds.has(s.id),
+			);
+
+			setLoadingMessage(
+				selectedArtist
+					? `Analyzing your selected songs & building a playlist from ${selectedArtist.name}'s catalog! Please do not leave the page, this might take a minute...`
+					: 'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
 			);
 
 			if (process.env.NODE_ENV === 'production') {
@@ -195,7 +197,8 @@ const SubmitButton = () => {
 						isNotPopular: isNotPopularArtists,
 						isDifferent: isDifferentTypesOfArtists,
 					},
-					specificArtist: selectedArtist,
+					artistId: selectedArtist?.id,
+					artistName: selectedArtist?.name,
 					userId: user?.user_id,
 					sourcePlaylistId: spotifyPlaylist.current?.value
 						? extractPlaylistId(spotifyPlaylist.current.value)
@@ -229,8 +232,9 @@ const SubmitButton = () => {
 						options: {
 							isNotPopular: isNotPopularArtists,
 							isDifferent: isDifferentTypesOfArtists,
-							specificArtist: selectedArtist,
 						},
+						artistId: selectedArtist?.id,
+						artistName: selectedArtist?.name,
 						userId: user?.user_id,
 					}),
 					signal: abortControllerRef.current.signal,
@@ -252,8 +256,9 @@ const SubmitButton = () => {
 					throw new Error(resultData.error || 'Failed to generate tracks');
 				}
 
-				const playlistName =
-					'HearItFresh - Lyrics Inspired @hearitfresh.favour.dev';
+				const playlistName = selectedArtist
+					? `Songs from ${selectedArtist.name} you might like from @hearitfresh.favour.dev`
+					: 'HearItFresh - Lyrics Inspired @hearitfresh.favour.dev';
 
 				setLoadingMessage('Creating your new playlist on Spotify...');
 				const playlistInfo = await createPlayList(

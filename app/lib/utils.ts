@@ -14,6 +14,34 @@ const key = process.env.SECRET_KEY as string;
 export const SPOTIFY_PUBLIC_PLAYLIST_ERROR =
 	'Spotify could not access this playlist. Please make the playlist public, then try again.';
 
+const ALBUM_BLACKLIST_WORDS = [
+	'remix',
+	'mix',
+	'edit',
+	'radio',
+	'- live',
+	' ver.',
+	'live-',
+	'version',
+	'tour',
+	'live',
+	'event',
+	'concert',
+	'tour',
+	'extended',
+	'special edition',
+	'bonus track',
+];
+const EDITION_KEYWORDS = [
+	'deluxe',
+	'edition',
+	'bonus',
+	'expanded',
+	'anniversary',
+	'remastered',
+	'special',
+];
+
 export const encrypt = (text: string): string => {
 	return crypto.AES.encrypt(text, key).toString();
 };
@@ -102,7 +130,11 @@ export const getEveryAlbum = async (
 		),
 	]).filter((item): item is string => typeof item === 'string');
 
-	if (albums.length < MIN_USEFUL_ALBUMS && artists.length > 0 && attempt === 0) {
+	if (
+		albums.length < MIN_USEFUL_ALBUMS &&
+		artists.length > 0 &&
+		attempt === 0
+	) {
 		console.log(
 			`getEveryAlbum: only ${albums.length} album(s) from ${artists.length} artist(s), retrying batch in ${BATCH_RETRY_DELAY_MS}ms`,
 		);
@@ -380,7 +412,10 @@ export async function relatedArists(
 			for (let offset = 0; offset < pool.length; offset++) {
 				const idx = (startIdx + offset) % pool.length;
 				const name = pool[idx];
-				if (!excluded.has(name.toLowerCase()) && !finalSet.has(name.toLowerCase())) {
+				if (
+					!excluded.has(name.toLowerCase()) &&
+					!finalSet.has(name.toLowerCase())
+				) {
 					finalList.push(name);
 					finalSet.add(name.toLowerCase());
 					pool.splice(idx, 1); // remove so it can't be re-picked
@@ -533,4 +568,90 @@ export function shuffle<T>(array: T[]): T[] {
 		[arr[i], arr[j]] = [arr[j], arr[i]];
 	}
 	return arr;
+}
+
+/**
+ * Builds the artist-only playlist title, e.g.
+ * `Songs from {artist} we thought you might like from @hearitfresh.fav...`.
+ * If the full name exceeds Spotify's 100-character playlist-name limit, the
+ * artist portion is trimmed so the source and intent stay clear.
+ */
+export function buildArtistPlaylistName(artistName: string): string {
+	const SUFFIX = ' you might like from @hearitfresh.favour.dev';
+	const PREFIX = 'Songs from ';
+	const MAX_NAME_LENGTH = 100;
+
+	const full = `${PREFIX}${artistName}${SUFFIX}`;
+	if (full.length <= MAX_NAME_LENGTH) return full;
+
+	const available = MAX_NAME_LENGTH - PREFIX.length - SUFFIX.length - 1;
+	const trimmedArtist =
+		artistName.length > available
+			? artistName.slice(0, Math.max(available, 0)).trimEnd() + '…'
+			: artistName;
+
+	return `${PREFIX}${trimmedArtist}${SUFFIX}`;
+}
+
+/**
+ * Strips a parenthetical/bracketed edition suffix from an album title and
+ * lowercases/trims the result, so variants like "Love Is Like" and
+ * "Love Is Like (Deluxe)" collapse to the same base title.
+ */
+function normalizeAlbumTitle(name: string): string {
+	const trimmed = name.trim();
+	const withoutSuffix = trimmed.replace(
+		/[([{][^()[\]{}]*[)\]}]?$/i,
+		(suffix) => {
+			const inner = suffix
+				.replace(/^[([{]+|[)\]}]+$/g, '')
+				.trim()
+				.toLowerCase();
+			if (
+				EDITION_KEYWORDS.some((kw) => {
+					const words = inner.split(/[\s/&-]+/);
+					return words.includes(kw) || inner.includes(kw);
+				})
+			) {
+				return '';
+			}
+			return suffix;
+		},
+	);
+	return withoutSuffix.trim().toLowerCase();
+}
+
+/**
+ * Drops blacklisted albums (remix/live/etc.) and collapses edition variants
+ * (Deluxe/Remastered) so "Album" and "Album (Deluxe)" map to one base title.
+ * Shared by both the seed-artist path and the single-artist discography path.
+ */
+export function deduplicateAlbums<T extends { name: string; id: string }>(
+	albums: T[],
+): T[] {
+	const filtered = albums.filter((album) => {
+		const name = album.name.toLowerCase();
+		return !ALBUM_BLACKLIST_WORDS.some((word) => name.includes(word));
+	});
+
+	const seenBaseTitles = new Map<string, T>();
+	const deduplicated: T[] = [];
+	for (const album of filtered) {
+		const baseTitle = normalizeAlbumTitle(album.name);
+		const existing = seenBaseTitles.get(baseTitle);
+		if (!existing) {
+			seenBaseTitles.set(baseTitle, album);
+			deduplicated.push(album);
+			continue;
+		}
+		const existingIsStandard =
+			normalizeAlbumTitle(existing.name) === existing.name.trim().toLowerCase();
+		const currentIsStandard =
+			normalizeAlbumTitle(album.name) === album.name.trim().toLowerCase();
+		if (!existingIsStandard && currentIsStandard) {
+			seenBaseTitles.set(baseTitle, album);
+			deduplicated[deduplicated.indexOf(existing)] = album;
+		}
+	}
+	return deduplicated;
 }

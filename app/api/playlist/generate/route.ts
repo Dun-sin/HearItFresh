@@ -2,8 +2,15 @@ import { inngest } from '@/app/inngest/client';
 import prisma from '@/app/lib/prisma';
 
 export async function POST(req: Request) {
-	const { seeds, artistNames, options, userId, sourcePlaylistId } =
-		await req.json();
+	const {
+		seeds,
+		artistNames,
+		options,
+		userId,
+		sourcePlaylistId,
+		artistId,
+		artistName,
+	} = await req.json();
 
 	let dbRecord: { id: string } | null = null;
 
@@ -31,6 +38,8 @@ export async function POST(req: Request) {
 			options,
 			userId,
 			sourcePlaylistId,
+			artistId,
+			artistName,
 			generatedPlaylistId: dbRecord.id,
 		};
 		const { ids } = await inngest.send({

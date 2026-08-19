@@ -1,16 +1,27 @@
 import { NextResponse } from 'next/server';
-import { generateSeedPlaylist } from '@/app/lib/generateSeedPlaylist';
+import {
+	generateArtistPlaylist,
+	generateSeedPlaylist,
+} from '@/app/lib/generateSeedPlaylist';
 
 export async function POST(req: Request) {
-  const { seeds, artistNames, options, userId } = await req.json();
+  const { seeds, artistNames, options, userId, artistId, artistName } =
+    await req.json();
 
-  const result = await generateSeedPlaylist(
-    seeds,
-    artistNames,
-    options,
-    userId,
-    req.signal,
-  );
+  const result = artistId
+    ? await generateArtistPlaylist(
+        { id: artistId, name: artistName },
+        seeds,
+        userId,
+        req.signal,
+      )
+    : await generateSeedPlaylist(
+        seeds,
+        artistNames,
+        options,
+        userId,
+        req.signal,
+      );
 
   return NextResponse.json(result);
 }
