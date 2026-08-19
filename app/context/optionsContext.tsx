@@ -2,13 +2,21 @@
 
 import React, { ReactNode, createContext, useContext, useState } from 'react';
 
+export interface SelectedArtist {
+	id: string;
+	name: string;
+	image?: string;
+	followers?: number;
+	genres?: string[];
+}
+
 interface OptionsContextProps {
 	isDifferentTypesOfArtists: boolean;
 	setIsDifferentTypesOfArtists: (value: boolean) => void;
 	isNotPopularArtists: boolean;
 	setIsNotPopularArtists: (value: boolean) => void;
-	isSpecificArtist: boolean;
-	setIsSpecificArtist: (value: boolean) => void;
+	selectedArtist: SelectedArtist | null;
+	setSelectedArtist: (artist: SelectedArtist | null) => void;
 }
 
 const OptionsContext = createContext<OptionsContextProps | undefined>(
@@ -20,7 +28,9 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 		useState<boolean>(false);
 	const [isNotPopularArtists, setIsNotPopularArtists] =
 		useState<boolean>(false);
-	const [isSpecificArtist, setIsSpecificArtist] = useState<boolean>(false);
+	const [selectedArtist, setSelectedArtist] = useState<SelectedArtist | null>(
+		null,
+	);
 
 	return (
 		<OptionsContext.Provider
@@ -29,8 +39,8 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 				setIsDifferentTypesOfArtists,
 				isNotPopularArtists,
 				setIsNotPopularArtists,
-				isSpecificArtist,
-				setIsSpecificArtist,
+				selectedArtist,
+				setSelectedArtist,
 			}}>
 			{children}
 		</OptionsContext.Provider>
