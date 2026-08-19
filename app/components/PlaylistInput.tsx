@@ -69,22 +69,26 @@ const PlaylistInput = () => {
 					<h3 className='text-fmd font-bold'>Select Seed Songs (5-10)</h3>
 					<p className='text-fsm text-gray dark:text-gray'>
 						{selectedSeedIds.size} selected. We use these to find lyrically
-						similar songs. Select between 5 and 10 songs to generate a
-						playlist.
+						similar songs.
 					</p>
-					<div className='flex gap-4 mb-2'>
-						<button
-							onClick={selectAllSeeds}
-							className='text-brand text-fsm hover:underline'
-							type='button'>
-							Select 10
-						</button>
-						<button
-							onClick={clearSeeds}
-							className='text-brand text-fsm hover:underline'
-							type='button'>
-							Clear selection
-						</button>
+					<div className='flex justify-between items-center mb-2 mt-2'>
+						<div className='flex gap-4'>
+							<button
+								onClick={selectAllSeeds}
+								className='text-brand text-fsm hover:underline font-bold'
+								type='button'>
+								Select 10
+							</button>
+							<button
+								onClick={clearSeeds}
+								className='text-brand text-fsm hover:underline font-bold'
+								type='button'>
+								Clear selection
+							</button>
+						</div>
+						<div className='text-brand text-fsm font-bold'>
+							Selected: {selectedSeedIds.size}/10
+						</div>
 					</div>
 					<div className='grid grid-cols-2 gap-2 overflow-y-auto max-h-80 p-1 custom-scrollbar'>
 						{extractedSongs.map((song) => (

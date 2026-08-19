@@ -4,7 +4,7 @@ import React from 'react';
 import { useOptions } from '@/app/context/optionsContext';
 
 const Options = () => {
-	const { setIsDifferentTypesOfArtists, setIsNotPopularArtists } = useOptions();
+	const { setIsDifferentTypesOfArtists, setIsNotPopularArtists, setIsSpecificArtist } = useOptions();
 	return (
 		<div className={`flex flex-col gap-2`}>
 			<h3 className={`text-fmd md:text-fsm text-gray`}>Options</h3>
@@ -17,7 +17,7 @@ const Options = () => {
 						<input
 							type='checkbox'
 							name='nonPopular'
-							onChange={(e) => setIsNotPopularArtists(!!e.target.value)}
+							onChange={(e) => setIsNotPopularArtists(e.target.checked)}
 							className='form-checkbox w-4 h-4 text-brand rounded'
 						/>
 
@@ -31,10 +31,23 @@ const Options = () => {
 						<input
 							type='checkbox'
 							name='differentGenre'
-							onChange={(e) => setIsDifferentTypesOfArtists(!!e.target.value)}
+							onChange={(e) => setIsDifferentTypesOfArtists(e.target.checked)}
 							className='form-checkbox w-4 h-4 text-brand rounded'
 						/>
 						<span>Get a different genre</span>
+					</label>
+				</div>
+				<div className='flex items-center pl-4'>
+					<label
+						htmlFor='specificArtist'
+						className='cursor-pointer select-none text-sm flex items-center gap-2'>
+						<input
+							type='checkbox'
+							name='specificArtist'
+							onChange={(e) => setIsSpecificArtist(!!e.target.checked)}
+							className='form-checkbox w-4 h-4 text-brand rounded'
+						/>
+						<span>Find songs from a specific artist</span>
 					</label>
 				</div>
 			</div>

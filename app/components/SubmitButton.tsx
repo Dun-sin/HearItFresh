@@ -526,15 +526,12 @@ const SubmitButton = () => {
 	};
 
 	// when a playlist has been uploaded and fewer than 5 songs
-	// are selected (0-4), show the red "Proceed Generation without lyrics
-	// matching" button. 5+ seeds reverts to the normal green generate button.
+	// are selected (0-4), the button should be disabled and greyed out.
+	// 5+ seeds reverts to the normal green generate button.
 	const isLowSeedCount =
 		extractedSongs.length > 0 && selectedSeedIds.size < 5;
 
-	const btnText = isLowSeedCount
-		? 'Proceed Generation without lyrics matching'
-		: undefined;
-	const btnClass = isLowSeedCount ? 'bg-red-500 text-lightest' : undefined;
+	const btnClass = isLowSeedCount ? 'bg-gray-400 text-lightest' : undefined;
 
 	return (
 		<SubmitButtionContainer
@@ -542,8 +539,8 @@ const SubmitButton = () => {
 			onCancel={handleCancel}
 			failed={failed}
 			errorMessage={errorMessage}
-			btnText={btnText}
 			btnClass={btnClass}
+			disabled={isLowSeedCount}
 		/>
 	);
 };

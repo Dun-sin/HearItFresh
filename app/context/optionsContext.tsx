@@ -7,6 +7,8 @@ interface OptionsContextProps {
 	setIsDifferentTypesOfArtists: (value: boolean) => void;
 	isNotPopularArtists: boolean;
 	setIsNotPopularArtists: (value: boolean) => void;
+	isSpecificArtist: boolean;
+	setIsSpecificArtist: (value: boolean) => void;
 }
 
 const OptionsContext = createContext<OptionsContextProps | undefined>(
@@ -18,6 +20,7 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 		useState<boolean>(false);
 	const [isNotPopularArtists, setIsNotPopularArtists] =
 		useState<boolean>(false);
+	const [isSpecificArtist, setIsSpecificArtist] = useState<boolean>(false);
 
 	return (
 		<OptionsContext.Provider
@@ -26,6 +29,8 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 				setIsDifferentTypesOfArtists,
 				isNotPopularArtists,
 				setIsNotPopularArtists,
+				isSpecificArtist,
+				setIsSpecificArtist,
 			}}>
 			{children}
 		</OptionsContext.Provider>
