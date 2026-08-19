@@ -24,12 +24,14 @@ export async function getAllTracksInAPlaylist(link: string): Promise<any> {
 export async function getPlaylistDetails(playlistId: string) {
 	try {
 		const data = await spotifyApi.getPlaylist(playlistId, {
-			fields: 'id,name',
+			fields: 'id,name,images,tracks.total',
 		});
 
 		return {
 			id: data.body.id,
 			name: data.body.name,
+			imageUrl: data.body.images?.[0]?.url ?? null,
+			totalTracks: data.body.tracks?.total ?? null,
 		};
 	} catch (err) {
 		return err;

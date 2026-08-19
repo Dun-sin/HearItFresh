@@ -37,7 +37,12 @@ const History = () => {
 			}: {
 				text: string;
 				lastUsed: string;
-				sourcePlaylist?: { id: string; name: string };
+				sourcePlaylist?: {
+					id: string;
+					name: string;
+					imageUrl?: string | null;
+					totalTracks?: number | null;
+				};
 				generatedPlaylists?: any[];
 			}) => ({
 				text,
@@ -45,6 +50,9 @@ const History = () => {
 				sourcePlaylist,
 				generatedPlaylists,
 			}),
+		)?.sort(
+			(a: { lastUsed: Date }, b: { lastUsed: Date }) =>
+				b.lastUsed.getTime() - a.lastUsed.getTime(),
 		);
 
 		setHistory(data);

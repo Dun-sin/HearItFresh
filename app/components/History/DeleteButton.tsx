@@ -29,7 +29,7 @@ const DeleteButton = ({ id, text }: DeleteButtonType) => {
 
 	return (
 		<button
-			className='absolute -top-2 -right-2 rounded-full bg-red-500 p-1 text-white group-hover:block hidden transition-all'
+			className='absolute right-4 top-4 rounded-full bg-red-500 p-1 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100'
 			onClick={handleClick}
 			disabled={isPending}>
 			<Icon

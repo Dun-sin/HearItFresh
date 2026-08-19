@@ -38,6 +38,8 @@ export interface HistoryEntry {
 export type SourcePlaylist = {
 	id: string;
 	name: string;
+	imageUrl?: string | null;
+	totalTracks?: number | null;
 };
 
 export type GeneratedPlaylistHistory = {
@@ -50,6 +52,15 @@ export type GeneratedPlaylistHistory = {
 	errorMessage?: string | null;
 	retryCount?: number;
 	id?: string;
+	seeds?: SeedTrackHistory[] | null;
+};
+
+export type SeedTrackHistory = {
+	id?: string;
+	name?: string;
+	artist?: string[] | string;
+	album?: string;
+	image?: string;
 };
 
 export type SpotifyTrack = Pick<Song, 'id' | 'title' | 'artist' | 'album'>;

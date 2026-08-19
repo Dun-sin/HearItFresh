@@ -4,6 +4,9 @@ import { SpotifyTrack } from '@/app/types';
 import { getCentroid } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
+import { getDummyAccessToken } from '../spotify-dummy-auth';
+import { getPlaylistDetails } from '../spotify';
+import { setAccessToken } from '../spotifyApi';
 
 export interface HistoryEntry {
 	text: string;
@@ -26,6 +29,15 @@ export type GeneratedPlaylistHistory = {
 	errorMessage?: string | null;
 	retryCount?: number;
 	id?: string;
+	seeds?: SeedTrackHistory[] | null;
+};
+
+export type SeedTrackHistory = {
+	id?: string;
+	name?: string;
+	artist?: string[] | string;
+	album?: string;
+	image?: string;
 };
 
 export async function addUserHistory(
@@ -125,11 +137,24 @@ export async function getUserHistory(
 
 		if (sourcePlaylistIds.length === 0) return userHistory;
 
+		const token = await getDummyAccessToken();
+		setAccessToken(token);
+		const sourcePlaylistDetails = await Promise.all(
+			sourcePlaylistIds.map(async (id) => {
+				const details = await getPlaylistDetails(id);
+				if (!details || typeof details !== 'object' || 'message' in details) {
+					return [id, null] as const;
+				}
+				return [id, details] as const;
+			}),
+		);
+		const sourcePlaylistById = new Map(sourcePlaylistDetails);
+
 		const generatedPlaylists = await prisma.generatedPlaylist.findMany({
 			where: {
 				userId,
 				sourcePlaylistId: { in: sourcePlaylistIds },
-				status: { in: ['completed', 'failed', 'cancelled'] },
+				status: { in: ['pending', 'completed', 'failed', 'cancelled'] },
 			},
 			orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
 			select: {
@@ -141,6 +166,7 @@ export async function getUserHistory(
 				completedAt: true,
 				createdAt: true,
 				status: true,
+				seeds: true,
 				errorMessage: true,
 				retryCount: true,
 			},
@@ -158,6 +184,7 @@ export async function getUserHistory(
 					completedAt: playlist.completedAt,
 					createdAt: playlist.createdAt,
 					status: playlist.status,
+					seeds: playlist.seeds as SeedTrackHistory[] | null,
 					errorMessage: playlist.errorMessage,
 					retryCount: playlist.retryCount,
 				});
@@ -167,11 +194,53 @@ export async function getUserHistory(
 			new Map<string, GeneratedPlaylistHistory[]>(),
 		);
 
-		return userHistory.map((entry) => ({
-			...entry,
-			generatedPlaylists:
-				playlistsBySource.get(getSourcePlaylistId(entry) ?? '') ?? [],
-		}));
+		return userHistory
+			.map((entry) => {
+				const sourcePlaylistId = getSourcePlaylistId(entry) ?? '';
+				const sourcePlaylistDetails = sourcePlaylistById.get(sourcePlaylistId);
+				const generated = playlistsBySource.get(sourcePlaylistId) ?? [];
+
+				const sortedGenerated = [...generated].sort((a, b) => {
+					const statusRank = (status?: string) => {
+						const normalized = status?.toLowerCase();
+						if (normalized === 'completed') return 0;
+						if (normalized === 'pending' || normalized === 'running')
+							return 1;
+						if (normalized === 'failed' || normalized === 'cancelled')
+							return 2;
+						return 3;
+					};
+
+					const statusDelta =
+						statusRank(a.status) - statusRank(b.status);
+					if (statusDelta !== 0) return statusDelta;
+
+					const aTime =
+						(a.completedAt ?? a.createdAt)?.getTime?.() ?? 0;
+					const bTime =
+						(b.completedAt ?? b.createdAt)?.getTime?.() ?? 0;
+					return bTime - aTime;
+				});
+
+				return {
+					...entry,
+					sourcePlaylist: {
+						...(entry.sourcePlaylist ?? { id: sourcePlaylistId, name: entry.text }),
+						...(sourcePlaylistDetails?.imageUrl
+							? { imageUrl: sourcePlaylistDetails.imageUrl }
+							: {}),
+						...(sourcePlaylistDetails?.totalTracks != null
+							? { totalTracks: sourcePlaylistDetails.totalTracks }
+							: {}),
+					},
+					generatedPlaylists: sortedGenerated,
+				};
+			})
+			.sort((a, b) => {
+				const aDate = new Date(a.lastUsed).getTime();
+				const bDate = new Date(b.lastUsed).getTime();
+				return bDate - aDate;
+			});
 	} catch (error) {
 		console.error('Error fetching user history:', error);
 		throw error;
