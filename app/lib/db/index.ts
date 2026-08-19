@@ -1,6 +1,6 @@
 "use server";
 
-import { SpotifyTrack } from '@/app/types';
+import { SpotifyTrack, HistoryKind } from '@/app/types';
 import { getCentroid } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
@@ -11,9 +11,11 @@ import { setAccessToken } from '../spotifyApi';
 export interface HistoryEntry {
 	text: string;
 	lastUsed: string;
+	kind?: HistoryKind;
 	sourcePlaylist?: {
 		id: string;
 		name: string;
+		imageUrl?: string | null;
 	};
 	generatedPlaylists?: GeneratedPlaylistHistory[];
 	[key: string]: any;
@@ -30,6 +32,7 @@ export type GeneratedPlaylistHistory = {
 	retryCount?: number;
 	id?: string;
 	seeds?: SeedTrackHistory[] | null;
+	event?: any;
 };
 
 export type SeedTrackHistory = {
@@ -145,7 +148,10 @@ export async function getUserHistory(
 				if (!details || typeof details !== 'object' || 'message' in details) {
 					return [id, null] as const;
 				}
-				return [id, details] as const;
+				return [
+					id,
+					details as { imageUrl?: string | null; totalTracks?: number | null },
+				] as const;
 			}),
 		);
 		const sourcePlaylistById = new Map(sourcePlaylistDetails);
@@ -169,6 +175,7 @@ export async function getUserHistory(
 				seeds: true,
 				errorMessage: true,
 				retryCount: true,
+				event: true,
 			},
 		});
 
@@ -187,6 +194,7 @@ export async function getUserHistory(
 					seeds: playlist.seeds as SeedTrackHistory[] | null,
 					errorMessage: playlist.errorMessage,
 					retryCount: playlist.retryCount,
+					event: playlist.event as any,
 				});
 				acc.set(playlist.sourcePlaylistId, playlists);
 				return acc;
@@ -222,19 +230,37 @@ export async function getUserHistory(
 					return bTime - aTime;
 				});
 
-				return {
-					...entry,
-					sourcePlaylist: {
-						...(entry.sourcePlaylist ?? { id: sourcePlaylistId, name: entry.text }),
-						...(sourcePlaylistDetails?.imageUrl
-							? { imageUrl: sourcePlaylistDetails.imageUrl }
-							: {}),
-						...(sourcePlaylistDetails?.totalTracks != null
-							? { totalTracks: sourcePlaylistDetails.totalTracks }
-							: {}),
-					},
-					generatedPlaylists: sortedGenerated,
-				};
+			const isArtistEntry = sortedGenerated.some((playlist: any) =>
+				Boolean(
+					playlist?.event?.data?.options?.artistName ??
+						playlist?.event?.data?.artistName,
+				),
+			);
+
+			const artistEvent = sortedGenerated.find((playlist: any) =>
+				Boolean(
+					playlist?.event?.data?.options?.artistName ??
+						playlist?.event?.data?.artistName,
+				),
+			)?.event?.data;
+
+			const artistImage = artistEvent?.artistImage;
+			const artistName = artistEvent?.artistName;
+
+			return {
+				...entry,
+				kind: (isArtistEntry ? 'artist' : 'playlist') as HistoryKind,
+				sourcePlaylist: {
+					...(entry.sourcePlaylist ?? { id: sourcePlaylistId, name: entry.text }),
+					...(sourcePlaylistDetails?.imageUrl
+						? { imageUrl: sourcePlaylistDetails.imageUrl }
+						: {}),
+					...(sourcePlaylistDetails?.totalTracks != null
+						? { totalTracks: sourcePlaylistDetails.totalTracks }
+						: {}),
+				},
+				generatedPlaylists: sortedGenerated,
+			};
 			})
 			.sort((a, b) => {
 				const aDate = new Date(a.lastUsed).getTime();

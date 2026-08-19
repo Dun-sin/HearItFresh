@@ -32,11 +32,13 @@ const History = () => {
 			({
 				text,
 				lastUsed,
+				kind,
 				sourcePlaylist,
 				generatedPlaylists,
 			}: {
 				text: string;
 				lastUsed: string;
+				kind?: 'artist' | 'playlist';
 				sourcePlaylist?: {
 					id: string;
 					name: string;
@@ -47,6 +49,7 @@ const History = () => {
 			}) => ({
 				text,
 				lastUsed: new Date(lastUsed),
+				kind,
 				sourcePlaylist,
 				generatedPlaylists,
 			}),
@@ -131,16 +134,16 @@ const History = () => {
 					Generation History
 				</p>
 				<div className='flex flex-col gap-5 w-full mt-5'>
-					{history && history.length > 0 ? (
-						history.map(
-							({ text, lastUsed, sourcePlaylist, generatedPlaylists }) => (
-								<HistoryCard
-									text={text}
-									lastUsed={lastUsed}
-									sourcePlaylist={sourcePlaylist}
-									generatedPlaylists={generatedPlaylists}
-									onRetry={handleRetry}
-									isRetrying={isRetrying}
+			{history && history.length > 0 ? (
+					history.map(
+						({ text, lastUsed, sourcePlaylist, generatedPlaylists }) => (
+							<HistoryCard
+								text={text}
+								lastUsed={lastUsed}
+								sourcePlaylist={sourcePlaylist}
+								generatedPlaylists={generatedPlaylists}
+								onRetry={handleRetry}
+								isRetrying={isRetrying}
 									key={sourcePlaylist?.id ?? text}
 								/>
 							),

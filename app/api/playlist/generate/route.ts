@@ -10,6 +10,7 @@ export async function POST(req: Request) {
 		sourcePlaylistId,
 		artistId,
 		artistName,
+		artistImage,
 	} = await req.json();
 
 	let dbRecord: { id: string } | null = null;
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
 			sourcePlaylistId,
 			artistId,
 			artistName,
+			artistImage,
 			generatedPlaylistId: dbRecord.id,
 		};
 		const { ids } = await inngest.send({

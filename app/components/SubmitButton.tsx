@@ -91,16 +91,19 @@ const SubmitButton = () => {
 				({
 					text,
 					lastUsed,
+					kind,
 					sourcePlaylist,
 					generatedPlaylists,
 				}: {
 					text: string;
 					lastUsed: string;
+					kind?: 'artist' | 'playlist';
 					sourcePlaylist?: { id: string; name: string };
 					generatedPlaylists?: any[];
 				}) => ({
 					text,
 					lastUsed: new Date(lastUsed),
+					kind,
 					sourcePlaylist,
 					generatedPlaylists,
 				}),
@@ -197,9 +200,10 @@ const SubmitButton = () => {
 						isNotPopular: isNotPopularArtists,
 						isDifferent: isDifferentTypesOfArtists,
 					},
-					artistId: selectedArtist?.id,
-					artistName: selectedArtist?.name,
-					userId: user?.user_id,
+				artistId: selectedArtist?.id,
+				artistName: selectedArtist?.name,
+				artistImage: selectedArtist?.image,
+				userId: user?.user_id,
 					sourcePlaylistId: spotifyPlaylist.current?.value
 						? extractPlaylistId(spotifyPlaylist.current.value)
 						: undefined,

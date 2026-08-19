@@ -10,6 +10,11 @@ import {
 	SourcePlaylist,
 } from '@/app/types';
 
+const fallbackPlaylistArtwork = (name: string) =>
+	`https://placehold.co/224x224/f4f4f5/64748b?text=${encodeURIComponent(
+		name.slice(0, 18),
+	)}`;
+
 type HistoryCardType = {
 	text: string;
 	lastUsed: Date;
@@ -32,11 +37,7 @@ const HistoryCard = ({
 	const [isExpanded, setIsExpanded] = useState(false);
 	const playlistId = sourcePlaylist?.id ?? text;
 	const playlistName = sourcePlaylist?.name ?? text;
-	const playlistArt =
-		sourcePlaylist?.imageUrl ??
-		`https://placehold.co/224x224/f4f4f5/64748b?text=${encodeURIComponent(
-			playlistName.slice(0, 18),
-		)}`;
+	const playlistArt = sourcePlaylist?.imageUrl ?? fallbackPlaylistArtwork(playlistName);
 	const playlistTrackCount = sourcePlaylist?.totalTracks;
 	useEffect(() => {
 		if (spotifyPlaylist.current) {
@@ -117,9 +118,6 @@ const HistoryCard = ({
 								<path d='m6 9 6 6 6-6' />
 							</svg>
 						</button>
-						<span className='rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600'>
-							Playlist
-						</span>
 					</div>
 				</div>
 
@@ -151,6 +149,8 @@ const GeneratedPlaylistBlock = ({
 }: {
 	playlist: GeneratedPlaylistHistory;
 }) => {
+	const artistInfo = getArtistInfo(playlist.event);
+	const hasArtistDirection = Boolean(artistInfo?.name);
 	const status = playlist.status?.toLowerCase();
 	const isCompleted = status === 'completed';
 	const seedItems = (playlist.seeds ?? []).slice(0, 4);
@@ -161,17 +161,34 @@ const GeneratedPlaylistBlock = ({
 	const dateLabel = formatRelativeTime(playlist.completedAt ?? playlist.createdAt);
 
 	return (
-			<div className='bg-lightest px-4 py-4'>
-			<div className='flex items-center gap-3'>
+		<div className='bg-lightest px-4 py-4'>
+			<div className='flex items-center justify-between gap-4'>
 				<h4 className='text-lg font-semibold text-fbase'>Seed Tracks</h4>
 				<span
 					className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${statusStyles.wrapper}`}>
 					<span className={`${statusStyles.icon} text-sm`} />
 					{statusLabel}
 				</span>
+				{hasArtistDirection && (
+					<div className='ml-auto flex min-w-0 items-center gap-2'>
+						<div className='h-8 w-8 shrink-0 overflow-hidden rounded-full border border-gray/15 bg-white'>
+							<img
+								src={
+									artistInfo?.image ??
+									'https://placehold.co/160x160/f4f4f5/64748b?text=Artist'
+								}
+								alt={artistInfo?.name ?? 'Artist'}
+								className='h-full w-full object-cover'
+							/>
+						</div>
+						<p className='truncate text-sm font-medium text-dark'>
+							{artistInfo?.name}
+						</p>
+					</div>
+				)}
 			</div>
 
-			<div className='mt-4 flex gap-4 overflow-x-auto pb-2'>
+			<div className='mt-4 flex items-start gap-4 overflow-x-auto pb-2'>
 				{seedItems.map((seed, index) => {
 					const { title, artist } = getSeedLabel(seed);
 					const isFaded = !isCompleted && index > 0;
@@ -197,7 +214,7 @@ const GeneratedPlaylistBlock = ({
 							</p>
 							<p className='truncate text-xs text-gray-500'>{artist}</p>
 						</div>
-					);
+						);
 				})}
 
 				{extraSeedCount > 0 && (
@@ -283,6 +300,16 @@ const getSeedLabel = (seed: SeedTrackHistory) => {
 	};
 };
 
+
+const getArtistInfo = (event: any) => {
+	const artistName = event?.data?.options?.artistName ?? event?.data?.artistName;
+	if (!artistName) return null;
+
+	return {
+		name: artistName,
+		image: event?.data?.options?.artistImage ?? event?.data?.artistImage,
+	};
+};
 
 const Tag = ({ text }: { text: string }) => {
 	return (

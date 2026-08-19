@@ -28,9 +28,12 @@ export type loadingType = {
 	message: null | string;
 };
 
+export type HistoryKind = 'artist' | 'playlist';
+
 export interface HistoryEntry {
 	text: string;
 	lastUsed: Date;
+	kind?: HistoryKind;
 	sourcePlaylist?: SourcePlaylist;
 	generatedPlaylists?: GeneratedPlaylistHistory[];
 }
@@ -53,6 +56,7 @@ export type GeneratedPlaylistHistory = {
 	retryCount?: number;
 	id?: string;
 	seeds?: SeedTrackHistory[] | null;
+	event?: any;
 };
 
 export type SeedTrackHistory = {
