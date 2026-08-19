@@ -1,3 +1,15 @@
+# [1.31.0](https://github.com/Dun-sin/HearItFresh/compare/v1.30.0...v1.31.0) (2026-08-19)
+
+
+### Features
+
+* add artist search functionality with autocomplete input ([a1fecc6](https://github.com/Dun-sin/HearItFresh/commit/a1fecc6a9c0195d6b78300c5e126b5c1faa33c89))
+* add artist to playlist generation and history display ([6e622b5](https://github.com/Dun-sin/HearItFresh/commit/6e622b5d5e08316e8cc70f843d62ad4741ac4bcf))
+* add artist-based playlist generation support ([35b8cae](https://github.com/Dun-sin/HearItFresh/commit/35b8cae44a71e205fde92a8ebb48bec7180729a8))
+* add specific artist option and improve seed selection UX ([f16e649](https://github.com/Dun-sin/HearItFresh/commit/f16e64959bf526101b03a529634dea17b5f66bb4))
+* **DiscoverTracks:** adjust seed song selection range and improve UI formatting ([f41e8b0](https://github.com/Dun-sin/HearItFresh/commit/f41e8b0a1eb87ba3207ba7a012436687b21dbed2))
+* **history:** redesign HistoryCard with improved playlist display and sorting ([5d2555a](https://github.com/Dun-sin/HearItFresh/commit/5d2555a2160c404a60029098766d5975ba70e7c5))
+
 # [1.30.0](https://github.com/Dun-sin/HearItFresh/compare/v1.29.0...v1.30.0) (2026-08-13)
 
 
