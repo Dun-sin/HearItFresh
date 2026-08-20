@@ -1,3 +1,10 @@
+## [1.31.1](https://github.com/Dun-sin/HearItFresh/compare/v1.31.0...v1.31.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **api:** use NextRequest and force dynamic rendering for artist search ([9b88345](https://github.com/Dun-sin/HearItFresh/commit/9b883456e9f72a488e6dc7ae8f6e5630df8f8a47))
+
 # [1.31.0](https://github.com/Dun-sin/HearItFresh/compare/v1.30.0...v1.31.0) (2026-08-19)
 
 
