@@ -4,7 +4,7 @@ import {
 	addGeneratedSongsForUser,
 	findSimilarSongs,
 	getSongEmbeddings,
-	getUserGeneratedSongIds,
+  getUserGeneratedSongIds,
 } from './db';
 import {
 	calculateCosineSimilarity,
@@ -48,6 +48,7 @@ async function scoreAndFilterTracks(
 ): Promise<{ uri: string; name: string; artist: string }[]> {
 	const THRESHOLD = 0.8;
 	const CUTOFF = THRESHOLD - 0.25;
+	const CUTOFF_EPSILON = 0.02;
 	const needed = 100 - accumulatedUris.length + 20;
 
 	const scoredTracks = await Promise.all(
@@ -66,17 +67,18 @@ async function scoreAndFilterTracks(
 					);
 					if (signal?.aborted) return null;
 					const emb = processed?.embeddingData;
-					if (!emb) return null;
+					if (!emb) {
+						return null;
+					}
 
 					const scores = seedEmbeddings.map((seedEmb) =>
 						calculateCosineSimilarity(emb, seedEmb),
 					);
 
 					const maxScore = Math.max(...scores);
-					if (maxScore < CUTOFF) {
+					if (maxScore < CUTOFF - CUTOFF_EPSILON) {
 						return null;
 					}
-
 					const thresholdHits = scores.filter((s) => s >= THRESHOLD).length;
 					return {
 						uri: track.uri,
@@ -203,23 +205,19 @@ export async function generateSeedPlaylist(
 
 		for (let attempt = 0; attempt < 2; attempt++) {
 			if (accumulatedUris.length >= 80) break;
-
-			console.log(
-				`AI Fallback attempt ${attempt + 1}: accumulated=${accumulatedUris.length}, remainingNeeded=${100 - accumulatedUris.length}`,
-			);
 			throwIfAborted();
 
-		const targetArtists =
-			seeds.length > 0
-				? Array.from(new Set(seeds.flatMap((s) => s.artist)))
-				: artistNames;
+			const targetArtists =
+				seeds.length > 0
+					? Array.from(new Set(seeds.flatMap((s) => s.artist)))
+					: artistNames;
 
-		const finalList = await relatedArists(
-			targetArtists,
-			options,
-			signal,
-			usedArtistNames,
-		);
+			const finalList = await relatedArists(
+				targetArtists,
+				options,
+				signal,
+				usedArtistNames,
+			);
 			throwIfAborted();
 
 			usedArtistNames.push(...finalList);
@@ -301,11 +299,6 @@ export async function generateArtistPlaylist(
 		setAccessToken(token);
 		console.log(`Generating artist playlist for ${artist.name}...`);
 
-		let previouslyGeneratedIds: string[] = [];
-		if (userId) {
-			previouslyGeneratedIds = await getUserGeneratedSongIds(userId);
-		}
-
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
 		await Promise.all(
@@ -342,19 +335,17 @@ export async function generateArtistPlaylist(
 				error: `No tracks could be fetched for ${artist.name}.`,
 			};
 		}
-
-		const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
+		const excludeIds = [...seedSpotifyIds];
 		const checkedTrackIds = new Set<string>(excludeIds);
 		const checkedTrackTitles = new Set<string>();
 		const titleKey = (title: string, artistName: string) =>
 			title.toLowerCase().trim() + '|' + artistName.toLowerCase().trim();
-
-		const newTracks = discography.filter(
-			(t) =>
-				!checkedTrackIds.has(t.id) &&
-				!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
-		);
-
+		const newTracks = discography.filter((t) => {
+			const excluded =
+				checkedTrackIds.has(t.id) ||
+				checkedTrackTitles.has(titleKey(t.name, t.artistName));
+			return !excluded;
+		});
 		const pLimitInstance = pLimit(15);
 		const acceptedTracks = await scoreAndFilterTracks(
 			newTracks,
