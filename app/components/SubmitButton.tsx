@@ -73,6 +73,16 @@ const SubmitButton = () => {
 
 			if (data.active?.generatedPlaylistId) {
 				await pollPendingGeneration(data.active.generatedPlaylistId);
+				return;
+			}
+
+			const completed = data.updated?.find(
+				(item: any) =>
+					item.status === 'Completed' && item.output?.link && item.output?.name,
+			);
+
+			if (completed) {
+				createSpotifyPlaylist(completed.output.link, completed.output.name);
 			}
 
 			if (data.updated?.length) {
@@ -139,16 +149,22 @@ const SubmitButton = () => {
 			return;
 		}
 
-		const completed = data.updated?.find(
-			(item: any) =>
-				item.status === 'Completed' && item.output?.link && item.output?.name,
-		);
+		const completedPlaylist =
+			data.updated?.find(
+				(item: any) =>
+					item.status === 'Completed' && item.output?.link && item.output?.name,
+			) ??
+			(data.status === 'Completed' && (data.output ?? data.lastPlaylist)?.link
+				? {
+						output: data.output ?? data.lastPlaylist,
+					}
+				: null);
 
-		if (completed) {
-			addToUrl('link', completed.output.link.split('/').at(-1) as string);
+		if (completedPlaylist?.output?.link && completedPlaylist?.output?.name) {
+			addToUrl('link', completedPlaylist.output.link.split('/').at(-1) as string);
 			setPlayListData({
-				link: completed.output.link,
-				name: completed.output.name,
+				link: completedPlaylist.output.link,
+				name: completedPlaylist.output.name,
 			});
 			await refreshHistory();
 		}

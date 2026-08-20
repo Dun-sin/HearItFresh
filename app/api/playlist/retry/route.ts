@@ -69,5 +69,3 @@ export async function POST(req: Request) {
 
 	return Response.json({ generatedPlaylistId: record.id });
 }
-
-// TODO: add an option to see input used in playlist in frontend, so user can see what they used to generate the playlist
