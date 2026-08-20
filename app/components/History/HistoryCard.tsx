@@ -189,7 +189,7 @@ const GeneratedPlaylistBlock = ({
 
 			{seedCount > 0 && (
 				<div className='group/carousel relative mt-4'>
-					<div className='flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2'>
+					<div className='flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
 						{seeds.map((seed, index) => {
 							const { title, artist } = getSeedLabel(seed);
 							const isFaded = !isCompleted && index > 0;
