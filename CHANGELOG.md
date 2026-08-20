@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/Dun-sin/HearItFresh/compare/v1.31.1...v1.32.0) (2026-08-20)
+
+
+### Features
+
+* **HistoryCard:** enhance seed track display with horizontal scroll carousel ([e28ac97](https://github.com/Dun-sin/HearItFresh/commit/e28ac9781c72f03d3ff0360c6c75aaa31032c144))
+
 ## [1.31.1](https://github.com/Dun-sin/HearItFresh/compare/v1.31.0...v1.31.1) (2026-08-19)
 
 
