@@ -158,6 +158,12 @@ const GeneratedPlaylistBlock = ({
 	const statusLabel = getStatusLabel(playlist.status);
 	const statusStyles = getStatusStyles(playlist.status);
 	const dateLabel = formatRelativeTime(playlist.completedAt ?? playlist.createdAt);
+	const options = playlist.event?.data?.options;
+
+	const optionTags = [
+		options?.isNotPopular ? 'Non-popular artists' : null,
+		options?.isDifferent ? 'Different genre' : null,
+	].filter(Boolean) as string[];
 
 	return (
 		<div className='bg-lightest px-4 py-4'>
@@ -228,16 +234,11 @@ const GeneratedPlaylistBlock = ({
 					<p className='text-sm text-dark/80'>
 						Generated {dateLabel} • {seedCount} seeds
 					</p>
-					{isCompleted ? (
-						<>
-							<Tag text='Non-popular artists' />
-							<Tag text='Different genre' />
-						</>
-					) : (
-						<Tag text='Seed tracks queued' />
-					)}
+					{isCompleted &&
+						optionTags.length > 0 &&
+						optionTags.map((text) => <Tag key={text} text={text} />)}
 				</div>
-				{isCompleted && playlist.playlistLink ? (
+				{isCompleted && playlist.playlistLink && (
 					<a
 						href={playlist.playlistLink}
 						target='_blank'
@@ -245,12 +246,6 @@ const GeneratedPlaylistBlock = ({
 						className='inline-flex items-center rounded-lg bg-brand px-5 py-3 font-semibold text-lightest transition-opacity hover:opacity-90'>
 						Open in Spotify
 					</a>
-				) : (
-					<button
-						disabled
-						className='inline-flex items-center rounded-lg bg-gray-300 px-5 py-3 font-semibold text-gray-600'>
-						Open in Spotify
-					</button>
 				)}
 			</div>
 		</div>
