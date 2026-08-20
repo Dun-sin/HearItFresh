@@ -153,9 +153,8 @@ const GeneratedPlaylistBlock = ({
 	const hasArtistDirection = Boolean(artistInfo?.name);
 	const status = playlist.status?.toLowerCase();
 	const isCompleted = status === 'completed';
-	const seedItems = (playlist.seeds ?? []).slice(0, 4);
-	const extraSeedCount = Math.max((playlist.seeds?.length ?? 0) - 4, 0);
-	const seedCount = playlist.seeds?.length ?? 0;
+	const seeds = playlist.seeds ?? [];
+	const seedCount = seeds.length;
 	const statusLabel = getStatusLabel(playlist.status);
 	const statusStyles = getStatusStyles(playlist.status);
 	const dateLabel = formatRelativeTime(playlist.completedAt ?? playlist.createdAt);
@@ -188,44 +187,41 @@ const GeneratedPlaylistBlock = ({
 				)}
 			</div>
 
-			<div className='mt-4 flex items-start gap-4 overflow-x-auto pb-2'>
-				{seedItems.map((seed, index) => {
-					const { title, artist } = getSeedLabel(seed);
-					const isFaded = !isCompleted && index > 0;
-					return (
-						<div
-							key={`${playlist.id}-${seed.id ?? title}-${index}`}
-							className='min-w-[112px] max-w-[112px]'>
-							<div
-								className={`aspect-square overflow-hidden rounded-md border border-gray/15 bg-gradient-to-br from-slate-200 to-slate-100 ${isFaded ? 'opacity-70 grayscale' : ''}`}>
-								<img
-									src={
-										seed.image ||
-										`https://placehold.co/224x224/f4f4f5/64748b?text=${encodeURIComponent(
-											title.slice(0, 18),
-										)}`
-									}
-									alt={title}
-									className='h-full w-full object-cover'
-								/>
-							</div>
-							<p className='mt-2 truncate text-sm font-semibold text-dark'>
-								{title}
-							</p>
-							<p className='truncate text-xs text-gray-500'>{artist}</p>
-						</div>
-						);
-				})}
-
-				{extraSeedCount > 0 && (
-					<div className='flex min-w-[112px] max-w-[112px] flex-col items-center justify-center rounded-md border border-dashed border-gray/30 bg-gray-50 text-gray-500'>
-						<div className='flex h-11 w-11 items-center justify-center rounded-full border border-gray/25 bg-white text-xl'>
-							+
-						</div>
-						<p className='mt-3 text-sm'>+{extraSeedCount} more</p>
+			{seedCount > 0 && (
+				<div className='group/carousel relative mt-4'>
+					<div className='flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2'>
+						{seeds.map((seed, index) => {
+							const { title, artist } = getSeedLabel(seed);
+							const isFaded = !isCompleted && index > 0;
+							return (
+								<div
+									key={`${playlist.id}-${seed.id ?? title}-${index}`}
+									className='min-w-[112px] max-w-[112px] shrink-0 snap-start'>
+									<div
+										className={`aspect-square overflow-hidden rounded-md border border-gray/15 bg-gradient-to-br from-slate-200 to-slate-100 ${isFaded ? 'opacity-70 grayscale' : ''}`}>
+										<img
+											src={
+												seed.image ||
+												`https://placehold.co/224x224/f4f4f5/64748b?text=${encodeURIComponent(
+													title.slice(0, 18),
+												)}`
+											}
+											alt={title}
+											className='h-full w-full object-cover'
+										/>
+									</div>
+									<p className='mt-2 truncate text-sm font-semibold text-dark'>
+										{title}
+									</p>
+									<p className='truncate text-xs text-gray-500'>{artist}</p>
+								</div>
+							);
+						})}
 					</div>
-				)}
-			</div>
+					<div className='pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-lightest to-transparent' />
+					<div className='pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-lightest to-transparent' />
+				</div>
+			)}
 
 			<div className='mt-4 flex flex-wrap items-center justify-between gap-3'>
 				<div className='flex min-w-0 flex-wrap items-center gap-2'>
