@@ -1,3 +1,10 @@
+# [1.33.0](https://github.com/Dun-sin/HearItFresh/compare/v1.32.0...v1.33.0) (2026-08-20)
+
+
+### Features
+
+* optimize seed playlist generation and similarity scoring ([d835997](https://github.com/Dun-sin/HearItFresh/commit/d8359970f1291215a1c345ec2a478c8d49160350))
+
 # [1.32.0](https://github.com/Dun-sin/HearItFresh/compare/v1.31.1...v1.32.0) (2026-08-20)
 
 
