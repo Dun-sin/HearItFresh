@@ -2,7 +2,13 @@
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
-import { convertToSubArray, deduplicateAlbums, shuffle, sleep } from './utils';
+import {
+	cleanMusicMetadata,
+	convertToSubArray,
+	deduplicateAlbums,
+	shuffle,
+	sleep,
+} from './utils';
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -239,6 +245,8 @@ export async function getTracks(
 ): Promise<trackTypes | { isError: boolean; err: any }> {
 	const tracks: trackTypes[] = [];
 	const subArrays = convertToSubArray(albums);
+	const normalizeTrackKey = (name: string, artistName: string) =>
+		`${cleanMusicMetadata(name).toLowerCase().trim()}|${cleanMusicMetadata(artistName).toLowerCase().trim()}`;
 
 	try {
 		// Loop through each subarray of album IDs
@@ -262,7 +270,8 @@ export async function getTracks(
 				}),
 			);
 			subTracks = subTracks.filter((track, index, self) => {
-				const trackName = track.name.toLowerCase();
+				const trackName = cleanMusicMetadata(track.name).toLowerCase();
+				const trackKey = normalizeTrackKey(track.name, track.artistName);
 
 				// Check if the track is a remix or a mix or an edit or a radio mix
 				const blacklistedWords = [
@@ -284,14 +293,12 @@ export async function getTracks(
 					return false;
 				}
 
-				// Check if the track is a repetition
-				for (let i = 0; i < index; i++) {
-					if (self[i].name === track.name) {
-						return false;
-					}
-				}
-
-				return true;
+				// Collapse duplicate versioned releases by normalized title + artist.
+				return !self.some(
+					(existing, existingIndex) =>
+						existingIndex < index &&
+						normalizeTrackKey(existing.name, existing.artistName) === trackKey,
+				);
 			});
 
 			tracks.push(subTracks.flat());
