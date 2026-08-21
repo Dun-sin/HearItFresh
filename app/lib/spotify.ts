@@ -542,15 +542,20 @@ async function getArtistFollowers(
 }
 
 /**
- * Attaches Spotify follower counts to candidate artist names.
+ * Attaches Spotify follower counts to candidate artist names, returning only
+ * the artists that pass the caller's popularity predicate.
  *
  * Names that can't be resolved to a Spotify artist are dropped rather than
  * defaulted to 0 followers: without a Spotify artist there are no albums to pull
  * later, so keeping them would only waste a slot in the pool (and would silently
  * classify every unknown name as "non-popular").
  *
- * @param matchesPopularity - Predicate used purely to stop early once enough
- * candidates already satisfy the caller's popularity filter.
+ * @param matchesPopularity - Predicate enforced on every resolved artist before
+ * it is returned. The caller's popularity rule is authoritative at this
+ * filtering boundary, so resolved artists can never slip through just because
+ * they were looked up before the early-stop fired. The predicate is also used
+ * to stop early once enough candidates already satisfy it; that is purely an
+ * optimization and never replaces enforcement.
  */
 export async function resolveArtistsWithFollowers(
 	artistNames: string[],
@@ -566,15 +571,27 @@ export async function resolveArtistsWithFollowers(
 
 		const chunk = artistNames.slice(i, i + FOLLOWER_LOOKUP_CHUNK_SIZE);
 		const followerCounts = await Promise.all(
-			chunk.map((name) => limit(() => getArtistFollowers(name, signal))),
+			chunk.map((name) => {
+				const result = limit(() => getArtistFollowers(name, signal));
+				setTimeout(() => {
+					if (signal?.aborted) {
+						console.log(`Aborted lookup for ${name}`);
+					}
+				}, 2 * 1000); // 2 seconds timeout for each lookup
+				return result;
+			}),
 		);
 
 		chunk.forEach((name, index) => {
 			const followers = followerCounts[index];
 			if (followers === null) return;
 
+			// Enforcement: only keep artists that actually match the caller's
+			// popularity predicate. The early-stop below is an optimization.
+			if (!matchesPopularity(followers)) return;
+
 			resolved.push({ name, followers });
-			if (matchesPopularity(followers)) matching++;
+			matching++;
 		});
 
 		if (matching >= MAX_MATCHING_ARTISTS_PER_SEED) break;

@@ -395,8 +395,6 @@ export async function getRelatedArtists(
 
 		const similarArtists = data.similarartists.artist as { name: string }[];
 
-		// Dedupe by name and shuffle so the bounded follower lookup samples a
-		// different slice of Last.fm's list on every attempt.
 		const candidates = shuffle([
 			...new Map(
 				similarArtists
@@ -406,15 +404,22 @@ export async function getRelatedArtists(
 			).values(),
 		]);
 
+		if (!options.isNotPopular) return shuffle(candidates);
+
 		const shouldKeepArtist = (followers: number) =>
-			!options.isNotPopular || !isPopularArtistByFollowers(followers);
+			!isPopularArtistByFollowers(followers);
 
 		const artists = await resolveArtistsWithFollowers(
 			candidates,
 			shouldKeepArtist,
 			signal,
 		);
-		return shuffle(artists.map((artist) => artist.name));
+
+		return shuffle(
+			artists
+				.filter(({ followers }) => shouldKeepArtist(followers))
+				.map((artist) => artist.name),
+		);
 	} catch (err: any) {
 		if (signal?.aborted) throw new Error('Aborted');
 		console.error(`Error getting related artists for ${artistName}:`, err);
