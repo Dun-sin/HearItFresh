@@ -9,7 +9,7 @@ import React, {
 import {
 	removeTracksFromPlaylists,
 } from '../lib/spotify';
-import { getPlaylistTracks } from '../lib/utils';
+import { getPlaylistTracks } from '../lib/helpers';
 import { loadingType, playlistSongDetails } from '../types';
 
 import { useGeneralState } from '../context/generalStateContext';

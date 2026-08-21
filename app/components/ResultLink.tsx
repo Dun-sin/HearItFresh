@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 
 import OpenOnSpotify from './OpenOnSpotify';
-import { addPlaylistFullLinkFromID } from '../lib/utils';
+import { addPlaylistFullLinkFromID } from '../lib/helpers';
 import { useGeneralState } from '@/app/context/generalStateContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { getFromUrl } from '../lib/clientUtils';

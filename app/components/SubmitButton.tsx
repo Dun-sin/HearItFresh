@@ -6,7 +6,7 @@ import {
 	isSpotifyPlaylistPermissionError,
 	isValidPlaylistLink,
 	SPOTIFY_PUBLIC_PLAYLIST_ERROR,
-} from '@/app/lib/utils';
+} from '@/app/lib/helpers';
 
 import React, { useRef, useState, useEffect } from 'react';
 import SubmitButtionContainer from './SubmitButtonContainer';
@@ -19,7 +19,6 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useSeedSongs } from '@/app/context/seedSongsContext';
-import { addTracksToPlayList, createPlayList } from '../lib/spotify';
 
 const SubmitButton = () => {
 	const { setLoading } = useLoading();

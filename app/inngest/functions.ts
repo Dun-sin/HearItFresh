@@ -8,7 +8,7 @@ import { inngest } from './client';
 import { setAccessToken } from '../lib/spotifyApi';
 import { getDummyAccessToken } from '../lib/spotify-dummy-auth';
 import prisma from '../lib/prisma';
-import { buildArtistPlaylistName } from '../lib/utils';
+import { buildArtistPlaylistName } from '../lib/helpers';
 
 export const generatePlaylist = inngest.createFunction(
 	{
@@ -140,5 +140,3 @@ export const handleRunCancelled = inngest.createFunction(
 		return { success: true };
 	},
 );
-
-// TODO: remove the seed details and use the stored info from event data

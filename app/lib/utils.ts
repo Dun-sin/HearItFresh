@@ -1,352 +1,25 @@
-import {
-	getArtistsAlbums,
-	getTracks,
-	resolveArtistsWithFollowers,
-} from './spotify';
-import { LRCLibResult, singleTrack, trackTypes } from '../types';
-
-import pLimit from 'p-limit';
-
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto-js';
 
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY as string);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+import { LRCLibResult } from '../types';
 
 const key = process.env.SECRET_KEY as string;
-export const SPOTIFY_PUBLIC_PLAYLIST_ERROR =
-	'Spotify could not access this playlist. Please make the playlist public, then try again.';
 
-const ALBUM_BLACKLIST_WORDS = [
-	'remix',
-	'mix',
-	'edit',
-	'radio',
-	'- live',
-	' ver.',
-	'live-',
-	'version',
-	'tour',
-	'live',
-	'event',
-	'concert',
-	'tour',
-	'extended',
-	'special edition',
-	'bonus track',
-];
-const EDITION_KEYWORDS = [
-	'deluxe',
-	'edition',
-	'bonus',
-	'expanded',
-	'anniversary',
-	'remastered',
-	'special',
-];
-
-/**
- * Popularity is classified by Spotify follower count (see
- * `isPopularArtistByFollowers`), but Last.fm's similar-artist endpoint only
- * returns names. Every candidate therefore costs one Spotify artist lookup, so
- * lookups are concurrency-capped, cached per process, and resolved in chunks
- * that stop early once enough candidates land on the requested side of the
- * threshold.
- */
-export const MAX_FOLLOWER_LOOKUP_ATTEMPTS = 3;
-export const FOLLOWER_LOOKUP_CONCURRENCY = 10;
-export const FOLLOWER_LOOKUP_CHUNK_SIZE = 20;
-/**
- * `relatedArists` only round-robins ~65 artists across every seed, so resolving
- * more than this per seed just burns Spotify quota.
- */
-export const MAX_MATCHING_ARTISTS_PER_SEED = 40;
-const ARTIST_FOLLOWER_CACHE_LIMIT = 5000;
-
-export type ArtistWithFollowers = { name: string; followers: number };
-
-/**
- * name (lowercased) -> follower count, or null when Spotify has no such artist.
- * Shared across seeds and retry attempts within a process so the same name is
- * never looked up twice.
- */
-export const artistFollowerCache = new Map<string, number | null>();
-
-/**
- * Spotify follower count that separates "popular" from "non-popular" artists.
- * Declared once here so the search route, the options UI, and the playlist
- * generation pipeline can never drift apart on what "popular" means.
- */
-export const SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD = 500_000;
-
-/**
- * Single source of truth for the popularity split: an artist is popular once
- * their Spotify follower count reaches
- * {@link SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD}. A missing count is treated
- * as 0 followers (i.e. not popular).
- */
-export function isPopularArtistByFollowers(followers?: number) {
-	return (followers ?? 0) >= SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD;
-}
-
-/**
- * Formats a Spotify follower count for display (e.g. `1.2M`), returning null
- * when the count is unknown so callers can hide the label entirely.
- */
-export function formatFollowerCount(followers?: number | null): string | null {
-	if (typeof followers !== 'number' || !Number.isFinite(followers)) return null;
-
-	return new Intl.NumberFormat('en', {
-		notation: 'compact',
-		maximumFractionDigits: 1,
-	}).format(followers);
-}
-
-export const encrypt = (text: string): string => {
-	return crypto.AES.encrypt(text, key).toString();
-};
-
-export const decrypt = (encryptedText: string): string => {
-	const bytes = crypto.AES.decrypt(encryptedText, key);
-	const originalText = bytes.toString(crypto.enc.Utf8);
-
-	return originalText;
-};
-
-/**
- * Waits for `ms` milliseconds, rejecting early with an `Aborted` error if the
- * provided signal aborts. Shared by every retry/backoff path so the delay logic
- * (and its abort handling) lives in exactly one place.
- */
-export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		if (signal?.aborted) {
-			reject(new Error('Aborted'));
-			return;
-		}
-
-		const timer = setTimeout(resolve, ms);
-		signal?.addEventListener(
-			'abort',
-			() => {
-				clearTimeout(timer);
-				reject(new Error('Aborted'));
-			},
-			{ once: true },
-		);
-	});
-}
-
-/** Maximum number of concurrent Spotify album lookups. */
-const ALBUM_LOOKUP_CONCURRENCY = 50;
-/** Below this many albums the batch is considered too sparse to be useful. */
-const MIN_USEFUL_ALBUMS = 30;
-/** Cool-off before retrying a batch that came back too sparse. */
-const BATCH_RETRY_DELAY_MS = 5000;
-
-/**
- * Fetches all albums for a list of artists, shuffles them, and returns unique album IDs.
- *
- * Lookups are capped at {@link ALBUM_LOOKUP_CONCURRENCY} concurrent requests and
- * settled individually, so a handful of rate-limited artists can no longer blank
- * out the albums returned by the artists that did succeed. If the batch still
- * comes back too sparse to be useful, it is retried once after a short cool-off.
- *
- * @param artists - Array of artist names
- * @param signal - Optional abort signal
- * @param attempt - Internal batch retry counter; callers should not pass this
- * @returns Array of unique album IDs
- */
-export const getEveryAlbum = async (
-	artists: string[],
-	signal?: AbortSignal,
-	attempt = 0,
-): Promise<string[]> => {
-	if (signal?.aborted) throw new Error('Aborted');
-
-	const limit = pLimit(ALBUM_LOOKUP_CONCURRENCY);
-	const shuffled = shuffle(artists);
-
-	const results = await Promise.allSettled(
-		shuffled.map((artist) =>
-			limit(() => getArtistsAlbums(artist, shuffled.length, signal)),
-		),
-	);
-
-	if (signal?.aborted) throw new Error('Aborted');
-
-	const failed = results.filter((result) => result.status === 'rejected');
-	if (failed.length > 0) {
-		console.warn(
-			`getEveryAlbum: ${failed.length}/${results.length} artist lookups failed, keeping the rest`,
-		);
+export function shuffle<T>(array: T[]): T[] {
+	const arr = [...array];
+	for (let i = arr.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[arr[i], arr[j]] = [arr[j], arr[i]];
 	}
-
-	const albums = shuffle([
-		...new Set(
-			results.flatMap((result) =>
-				result.status === 'fulfilled' ? result.value : [],
-			),
-		),
-	]).filter((item): item is string => typeof item === 'string');
-
-	if (
-		albums.length < MIN_USEFUL_ALBUMS &&
-		artists.length > 0 &&
-		attempt === 0
-	) {
-		console.log(
-			`getEveryAlbum: only ${albums.length} album(s) from ${artists.length} artist(s), retrying batch in ${BATCH_RETRY_DELAY_MS}ms`,
-		);
-		await sleep(BATCH_RETRY_DELAY_MS, signal);
-		return getEveryAlbum(artists, signal, attempt + 1);
-	}
-
-	return albums;
-};
-
-export const getAllTracks = async (
-	albums: string[],
-	numTracks: number,
-	returnObjects = false,
-	signal?: AbortSignal,
-): Promise<string[] | singleTrack[] | null> => {
-	if (signal?.aborted) throw new Error('Aborted');
-	if (!albums || albums.length === 0) {
-		console.log('getAllTracks called with empty albums list');
-		return [];
-	}
-	const tracks = await getTracks(albums);
-
-	if (signal?.aborted) throw new Error('Aborted');
-	if (!tracks || 'isError' in tracks) {
-		console.log('getTracks returned error or nothing:', tracks);
-		return null;
-	}
-	console.log(
-		`getTracks returned total ${tracks.length} tracks across all albums`,
-	);
-
-	// arrange the tracks into sub arrays based on albums
-	const subTracks = tracks.reduce((acc: trackTypes[], item) => {
-		const found = acc.find((arr) => arr[0].albumName === item.albumName);
-		if (found) {
-			found.push(item);
-		} else {
-			acc.push([item]);
-		}
-		return acc;
-	}, []);
-
-	const removeEmptyObjects = subTracks.map((subArr) =>
-		subArr.filter((obj) => Object.keys(obj).length !== 0),
-	);
-
-	// get two random track from each sub array
-	const result: trackTypes = [];
-	removeEmptyObjects.forEach((subarray) => {
-		for (let i = 0; i < numTracks; i++) {
-			const randomIndex = Math.floor(Math.random() * subarray.length);
-			const randomTrack = subarray.splice(randomIndex, 1)[0];
-			result.push(randomTrack);
-		}
-	});
-
-	const filteredResult = result.filter((item) => !!item);
-
-	if (returnObjects) {
-		return filteredResult as singleTrack[];
-	}
-
-	const allTracksID = filteredResult
-		.map((item) => item.uri)
-		.filter((item) => !!item)
-		.flat();
-
-	return allTracksID as string[];
-};
-
-// handle logic for if the link is correct
-export function isValidPlaylistLink(link: string) {
-	return link.trim().startsWith('https://open.spotify.com/playlist/');
+	return arr;
 }
 
-export function addPlaylistFullLinkFromID(id: string) {
-	return 'https://open.spotify.com/playlist/' + id;
-}
-
-// handle logic for if getting the playlist id from the link
-export function extractPlaylistId(link: string) {
-	const playlistIdStartIndex = link.lastIndexOf('/') + 1;
-	const playlistIdEndIndex = link.includes('?')
-		? link.indexOf('?')
-		: link.length;
-	return link.substring(playlistIdStartIndex, playlistIdEndIndex);
-}
-
-export const convertToSubArray = (albums: string[]) => {
-	const subArrays = [];
+export const convertToSubArray = (albums: string[]): string[][] => {
+	const subArrays: string[][] = [];
 
 	for (let i = 0; i < albums.length; i += 20) {
 		subArrays.push(albums.slice(i, i + 20));
 	}
 	return subArrays;
-};
-
-/**
- * Calculates the cosine similarity between two vectors (embeddings) to measure how closely they match.
- * Returns a score from -1 (completely opposite) to 1 (exact match).
- * In our context, this compares an AI-generated track's lyrical embedding to the seeds' average embedding.
- *
- * @param embA The first embedding vector
- * @param embB The second embedding vector
- * @returns {number} The cosine similarity score
- */
-export function calculateCosineSimilarity(
-	embA: number[],
-	embB: number[],
-): number {
-	if (embA.length !== embB.length || embA.length === 0) return 0;
-	let dotProduct = 0;
-	let magA = 0;
-	let magB = 0;
-	for (let i = 0; i < embA.length; i++) {
-		dotProduct += embA[i] * embB[i];
-		magA += embA[i] * embA[i];
-		magB += embB[i] * embB[i];
-	}
-	if (magA === 0 || magB === 0) return 0;
-	return dotProduct / (Math.sqrt(magA) * Math.sqrt(magB));
-}
-
-/**
- * Calculates the "center of mass" (centroid) for a group of embeddings.
- * It adds up all dimensions across the provided embeddings and divides by the total number of embeddings.
- * In our context, this creates a single embedding that represents the "average musical traits" of the user's selected seed songs.
- *
- * @param embeddings An array of numerical embedding arrays
- * @returns {number[]} A single embedding array representing the average
- */
-export function getCentroid(embeddings: number[][]): number[] {
-	if (embeddings.length === 0) return [];
-	const dim = embeddings[0].length;
-	const centroid = new Array(dim).fill(0);
-	for (const emb of embeddings) {
-		for (let i = 0; i < dim; i++) centroid[i] += emb[i];
-	}
-	for (let i = 0; i < dim; i++) centroid[i] /= embeddings.length;
-	return centroid;
-}
-
-export const logToken = (token?: string) => {
-	if (!token) {
-		console.log('SPOTIFY TOKEN STATUS: MISSING');
-		return;
-	}
-	console.log(
-		`SPOTIFY TOKEN STATUS: PRESENT (Starts with: ${token.substring(0, 10)}...)`,
-	);
 };
 
 export const formatDate = (date: Date) => {
@@ -378,141 +51,41 @@ export function formatRelativeTime(value: Date | string) {
 	return rtf.format(-Math.max(years, 1), 'year');
 }
 
-export async function fetchSimilarArtistsFromAI(
-	artistNames: string[],
-	options: { isNotPopular: boolean; isDifferent: boolean },
-	seeds?: { name: string; artist: string; summary?: string | null }[],
-): Promise<string[]> {
-	const seedContext = seeds?.length
-		? `\nMy selected songs for lyrical inspiration are:\n${seeds
-				.map(
-					(s) =>
-						`- "${s.name}" by ${s.artist}${s.summary ? `: ${s.summary}` : ''}`,
-				)
-				.join('\n')}\n`
-		: '';
-	const type = options.isDifferent ? 'completely different from' : 'similar to';
-	const popularity = options.isNotPopular ? 'not popular' : 'popular';
-	const prompt = `analyze the following list of musicians: '${artistNames.join(
-		', ',
-	)}', and identify the sub-genre that is associated with 70 - 90% of them.${seedContext}Based on this analysis${
-		seeds?.length ? ' AND the lyrical themes of my selected songs' : ''
-	}, please provide a list of 20 musicians who are ${popularity} and are ${type} the sub-genres. Please ensure that the resulting list does not include any of the musicians from the original list provided. Only provide the list of recommended musicians separated by commas and nothing else.`;
+/**
+ * Waits for `ms` milliseconds, rejecting early with an `Aborted` error if the
+ * provided signal aborts. Shared by every retry/backoff path so the delay logic
+ * (and its abort handling) lives in exactly one place.
+ */
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		if (signal?.aborted) {
+			reject(new Error('Aborted'));
+			return;
+		}
 
-	const result = await model.generateContent(prompt);
-	const response = await result.response;
-	const text = response.text();
-	console.log('RAW AI TEXT RESPONSE:', text);
-
-	const artistList = text.replace(/:\n/g, '').trimStart().split(':');
-	const lastPart = artistList.length > 0 ? artistList.at(-1) : undefined;
-	let finalList = lastPart ? lastPart.split(', ') : [];
-
-	// Try comma split directly if the colon logic failed to extract them
-	if (finalList.length <= 1 && text.includes(',')) {
-		finalList = text.split(',').map((s) => s.trim());
-	}
-
-	if (finalList.length > 20) finalList.length = 20;
-
-	// Remove original artists from the final list
-	const filteredList = finalList.filter(
-		(artist) =>
-			!artistNames.some(
-				(originalArtist) =>
-					originalArtist.toLowerCase() === artist.toLowerCase(),
-			),
-	);
-
-	console.log('PARSED FINAL LIST:', filteredList);
-	return filteredList;
+		const timer = setTimeout(resolve, ms);
+		signal?.addEventListener(
+			'abort',
+			() => {
+				clearTimeout(timer);
+				reject(new Error('Aborted'));
+			},
+			{ once: true },
+		);
+	});
 }
 
-// export const getAllTracks = async (albums) => {
-//   const getAlbumTracks = albums.map(getOneAlbumTrack)
-//   const tracks = await Promise.all(getAlbumTracks);
-//   const flattenedTracks = tracks.flat();
+/**
+ * Formats a Spotify follower count for display (e.g. `1.2M`), returning null
+ * when the count is unknown so callers can hide the label entirely.
+ */
+export function formatFollowerCount(followers?: number | null): string | null {
+	if (typeof followers !== 'number' || !Number.isFinite(followers)) return null;
 
-//   const nonEmptyTracks = flattenedTracks.filter((track) => {
-//     if (track.toLowerCase().includes('spotify:track:')) return true
-
-//     return false
-//   });
-
-//   return nonEmptyTracks;
-// }
-
-export async function relatedArists(
-	artistNames: string[],
-	options: { isNotPopular: boolean; isDifferent: boolean },
-	signal?: AbortSignal,
-	extraExcludedArtists?: string[],
-) {
-	const relatedArtistsPerSeed = [];
-	const batches = [];
-
-	for (let i = 0; i < artistNames.length; i += 3) {
-		batches.push(artistNames.slice(i, i + 3));
-	}
-
-	for (const batch of batches) {
-		if (signal?.aborted) throw new Error('Aborted');
-		const results = await Promise.all(
-			batch.map(async (name) => {
-				const related = await getRelatedArtists(name, options, signal);
-				return shuffle(related);
-			}),
-		);
-		relatedArtistsPerSeed.push(...results);
-		if (signal?.aborted) throw new Error('Aborted');
-		await new Promise((r) => setTimeout(r, 300));
-	}
-
-	// Round robin — take one from each artist at a time until we have 65
-	shuffle(relatedArtistsPerSeed);
-	// Mutable working copies — we splice from these
-	const workingLists: string[][] = relatedArtistsPerSeed.map((arr) => [...arr]);
-
-	const finalList: string[] = [];
-	// Use a Set for O(1) duplicate checks instead of .map().includes() (O(n) per lookup)
-	const finalSet = new Set<string>();
-	const excluded = new Set([
-		...artistNames.map((n) => n.toLowerCase()),
-		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
-	]);
-
-	while (finalList.length < 65 && workingLists.length > 0) {
-		// Iterate in reverse so we can safely splice exhausted lists out
-		for (let i = workingLists.length - 1; i >= 0; i--) {
-			if (finalList.length >= 65) break;
-
-			const pool = workingLists[i];
-			// Find a valid candidate at a random position within this seed's remaining list
-			// Shuffle the pool indices so we don't always start from index 0
-			let picked = false;
-			const startIdx = Math.floor(Math.random() * pool.length);
-			for (let offset = 0; offset < pool.length; offset++) {
-				const idx = (startIdx + offset) % pool.length;
-				const name = pool[idx];
-				if (
-					!excluded.has(name.toLowerCase()) &&
-					!finalSet.has(name.toLowerCase())
-				) {
-					finalList.push(name);
-					finalSet.add(name.toLowerCase());
-					pool.splice(idx, 1); // remove so it can't be re-picked
-					picked = true;
-					break;
-				}
-			}
-			// Prune this seed's list from the rotation if it's now empty
-			if (pool.length === 0) {
-				workingLists.splice(i, 1);
-			}
-		}
-	}
-
-	return finalList;
+	return new Intl.NumberFormat('en', {
+		notation: 'compact',
+		maximumFractionDigits: 1,
+	}).format(followers);
 }
 
 export function normalizeStatus(status?: string) {
@@ -560,59 +133,61 @@ function safeParseJson(value: string) {
 	}
 }
 
-export function formatPlaylistOutput(
-	playlist: {
-		playlistLink: string | null;
-		playlistName: string | null;
-		completedAt: Date | null;
-	} | null,
-) {
-	return playlist
-		? {
-				link: playlist.playlistLink ?? '',
-				name: playlist.playlistName ?? '',
-				completedAt: playlist.completedAt,
-			}
-		: null;
+export const encrypt = (text: string): string => {
+	return crypto.AES.encrypt(text, key).toString();
+};
+
+export const decrypt = (encryptedText: string): string => {
+	const bytes = crypto.AES.decrypt(encryptedText, key);
+	const originalText = bytes.toString(crypto.enc.Utf8);
+
+	return originalText;
+};
+
+/**
+ * Calculates the cosine similarity between two vectors (embeddings) to measure how closely they match.
+ * Returns a score from -1 (completely opposite) to 1 (exact match).
+ * In our context, this compares an AI-generated track's lyrical embedding to the seeds' average embedding.
+ *
+ * @param embA The first embedding vector
+ * @param embB The second embedding vector
+ * @returns {number} The cosine similarity score
+ */
+export function calculateCosineSimilarity(
+	embA: number[],
+	embB: number[],
+): number {
+	if (embA.length !== embB.length || embA.length === 0) return 0;
+	let dotProduct = 0;
+	let magA = 0;
+	let magB = 0;
+	for (let i = 0; i < embA.length; i++) {
+		dotProduct += embA[i] * embB[i];
+		magA += embA[i] * embA[i];
+		magB += embB[i] * embB[i];
+	}
+	if (magA === 0 || magB === 0) return 0;
+	return dotProduct / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
-export const isSpotifyPlaylistPermissionError = (err: any) => {
-	const statusCode = err?.statusCode ?? err?.status ?? err?.response?.status;
-	const errorStatus =
-		err?.body?.error?.status ?? err?.response?.body?.error?.status;
-	const message = [
-		err?.message,
-		err?.body?.error?.message,
-		err?.body?.error,
-		err?.response?.body?.error?.message,
-		err?.response?.body?.error,
-	]
-		.filter(Boolean)
-		.join(' ')
-		.toLowerCase();
-
-	return (
-		statusCode === 403 || errorStatus === 403 || message.includes('forbidden')
-	);
-};
-
-export const getPlaylistTracks = async (
-	playlistId: string,
-	includeDetails = false,
-) => {
-	const response = await fetch('/api/playlist/tracks', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ playlistId }),
-	});
-	const data = await response.json();
-
-	if (!response.ok) {
-		throw data;
+/**
+ * Calculates the "center of mass" (centroid) for a group of embeddings.
+ * It adds up all dimensions across the provided embeddings and divides by the total number of embeddings.
+ * In our context, this creates a single embedding that represents the "average musical traits" of the user's selected seed songs.
+ *
+ * @param embeddings An array of numerical embedding arrays
+ * @returns {number[]} A single embedding array representing the average
+ */
+export function getCentroid(embeddings: number[][]): number[] {
+	if (embeddings.length === 0) return [];
+	const dim = embeddings[0].length;
+	const centroid = new Array(dim).fill(0);
+	for (const emb of embeddings) {
+		for (let i = 0; i < dim; i++) centroid[i] += emb[i];
 	}
-
-	return includeDetails ? data : data.tracks;
-};
+	for (let i = 0; i < dim; i++) centroid[i] /= embeddings.length;
+	return centroid;
+}
 
 export function isLRCLibResult(value: unknown): value is LRCLibResult {
 	return (
@@ -641,151 +216,4 @@ export function cleanMusicMetadata(text: string): string {
 			.replace(/\s+/g, ' ')
 			.trim()
 	);
-}
-
-export function shuffle<T>(array: T[]): T[] {
-	const arr = [...array];
-	for (let i = arr.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[arr[i], arr[j]] = [arr[j], arr[i]];
-	}
-	return arr;
-}
-
-/**
- * Builds the artist-only playlist title, e.g.
- * `Songs from {artist} we thought you might like from @hearitfresh.fav...`.
- * If the full name exceeds Spotify's 100-character playlist-name limit, the
- * artist portion is trimmed so the source and intent stay clear.
- */
-export function buildArtistPlaylistName(artistName: string): string {
-	const SUFFIX = ' you might like from @hearitfresh.favour.dev';
-	const PREFIX = 'Songs from ';
-	const MAX_NAME_LENGTH = 100;
-
-	const full = `${PREFIX}${artistName}${SUFFIX}`;
-	if (full.length <= MAX_NAME_LENGTH) return full;
-
-	const available = MAX_NAME_LENGTH - PREFIX.length - SUFFIX.length - 1;
-	const trimmedArtist =
-		artistName.length > available
-			? artistName.slice(0, Math.max(available, 0)).trimEnd() + '…'
-			: artistName;
-
-	return `${PREFIX}${trimmedArtist}${SUFFIX}`;
-}
-
-/**
- * Strips a parenthetical/bracketed edition suffix from an album title and
- * lowercases/trims the result, so variants like "Love Is Like" and
- * "Love Is Like (Deluxe)" collapse to the same base title.
- */
-function normalizeAlbumTitle(name: string): string {
-	const trimmed = name.trim();
-	const withoutSuffix = trimmed.replace(
-		/[([{][^()[\]{}]*[)\]}]?$/i,
-		(suffix) => {
-			const inner = suffix
-				.replace(/^[([{]+|[)\]}]+$/g, '')
-				.trim()
-				.toLowerCase();
-			if (
-				EDITION_KEYWORDS.some((kw) => {
-					const words = inner.split(/[\s/&-]+/);
-					return words.includes(kw) || inner.includes(kw);
-				})
-			) {
-				return '';
-			}
-			return suffix;
-		},
-	);
-	return withoutSuffix.trim().toLowerCase();
-}
-
-/**
- * Drops blacklisted albums (remix/live/etc.) and collapses edition variants
- * (Deluxe/Remastered) so "Album" and "Album (Deluxe)" map to one base title.
- * Shared by both the seed-artist path and the single-artist discography path.
- */
-export function deduplicateAlbums<T extends { name: string; id: string }>(
-	albums: T[],
-): T[] {
-	const filtered = albums.filter((album) => {
-		const name = album.name.toLowerCase();
-		return !ALBUM_BLACKLIST_WORDS.some((word) => name.includes(word));
-	});
-
-	const seenBaseTitles = new Map<string, T>();
-	const deduplicated: T[] = [];
-	for (const album of filtered) {
-		const baseTitle = normalizeAlbumTitle(album.name);
-		const existing = seenBaseTitles.get(baseTitle);
-		if (!existing) {
-			seenBaseTitles.set(baseTitle, album);
-			deduplicated.push(album);
-			continue;
-		}
-		const existingIsStandard =
-			normalizeAlbumTitle(existing.name) === existing.name.trim().toLowerCase();
-		const currentIsStandard =
-			normalizeAlbumTitle(album.name) === album.name.trim().toLowerCase();
-		if (!existingIsStandard && currentIsStandard) {
-			seenBaseTitles.set(baseTitle, album);
-			deduplicated[deduplicated.indexOf(existing)] = album;
-		}
-	}
-	return deduplicated;
-}
-
-export function cacheArtistFollowers(
-	cacheKey: string,
-	followers: number | null,
-) {
-	if (artistFollowerCache.size >= ARTIST_FOLLOWER_CACHE_LIMIT) {
-		artistFollowerCache.clear();
-	}
-	artistFollowerCache.set(cacheKey, followers);
-}
-
-export async function getRelatedArtists(
-	artistName: string,
-	options: { isNotPopular: boolean; isDifferent: boolean },
-	signal?: AbortSignal,
-): Promise<string[]> {
-	try {
-		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
-
-		const res = await fetch(url, { signal });
-		const data = await res.json();
-
-		if (!data.similarartists?.artist) return [];
-
-		const similarArtists = data.similarartists.artist as { name: string }[];
-
-		// Dedupe by name and shuffle so the bounded follower lookup samples a
-		// different slice of Last.fm's list on every attempt.
-		const candidates = shuffle([
-			...new Map(
-				similarArtists
-					.map((artist) => artist.name?.trim())
-					.filter((name): name is string => !!name)
-					.map((name) => [name.toLowerCase(), name] as const),
-			).values(),
-		]);
-
-		const shouldKeepArtist = (followers: number) =>
-			!options.isNotPopular || !isPopularArtistByFollowers(followers);
-
-		const artists = await resolveArtistsWithFollowers(
-			candidates,
-			shouldKeepArtist,
-			signal,
-		);
-		return shuffle(artists.map((artist) => artist.name));
-	} catch (err: any) {
-		if (signal?.aborted) throw new Error('Aborted');
-		console.error(`Error getting related artists for ${artistName}:`, err);
-		return [];
-	}
 }

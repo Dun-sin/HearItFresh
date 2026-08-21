@@ -1,4 +1,5 @@
-import { addPlaylistFullLinkFromID, formatRelativeTime } from '@/app/lib/utils';
+import { addPlaylistFullLinkFromID } from '@/app/lib/helpers';
+import { formatRelativeTime } from '@/app/lib/utils';
 
 import DeleteButton from './DeleteButton';
 import { useAuth } from '@/app/context/authContext';

@@ -1,23 +1,155 @@
-﻿import { playlistDetails, singleTrack, trackTypes } from "../types";
+﻿import { playlistDetails, singleTrack, trackTypes } from '../types';
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
 import pLimit from 'p-limit';
 
-import {
-	artistFollowerCache,
-	ArtistWithFollowers,
-	cacheArtistFollowers,
-	cleanMusicMetadata,
-	convertToSubArray,
-	deduplicateAlbums,
-	FOLLOWER_LOOKUP_CHUNK_SIZE,
-	FOLLOWER_LOOKUP_CONCURRENCY,
-	MAX_FOLLOWER_LOOKUP_ATTEMPTS,
-	MAX_MATCHING_ARTISTS_PER_SEED,
-	shuffle,
-	sleep,
-} from './utils';
+import { shuffle, convertToSubArray, sleep, cleanMusicMetadata } from './utils';
+
+const ALBUM_BLACKLIST_WORDS = [
+	'remix',
+	'mix',
+	'edit',
+	'radio',
+	'- live',
+	' ver.',
+	'live-',
+	'version',
+	'tour',
+	'live',
+	'event',
+	'concert',
+	'tour',
+	'extended',
+	'special edition',
+	'bonus track',
+];
+const EDITION_KEYWORDS = [
+	'deluxe',
+	'edition',
+	'bonus',
+	'expanded',
+	'anniversary',
+	'remastered',
+	'special',
+];
+
+/**
+ * Popularity is classified by Spotify follower count (see
+ * `isPopularArtistByFollowers`), but Last.fm's similar-artist endpoint only
+ * returns names. Every candidate therefore costs one Spotify artist lookup, so
+ * lookups are concurrency-capped, cached per process, and resolved in chunks
+ * that stop early once enough candidates land on the requested side of the
+ * threshold.
+ */
+export const MAX_FOLLOWER_LOOKUP_ATTEMPTS = 3;
+export const FOLLOWER_LOOKUP_CONCURRENCY = 10;
+export const FOLLOWER_LOOKUP_CHUNK_SIZE = 20;
+/**
+ * `relatedArists` only round-robins ~65 artists across every seed, so resolving
+ * more than this per seed just burns Spotify quota.
+ */
+export const MAX_MATCHING_ARTISTS_PER_SEED = 40;
+const ARTIST_FOLLOWER_CACHE_LIMIT = 5000;
+
+export type ArtistWithFollowers = { name: string; followers: number };
+
+/**
+ * name (lowercased) -> follower count, or null when Spotify has no such artist.
+ * Shared across seeds and retry attempts within a process so the same name is
+ * never looked up twice.
+ */
+export const artistFollowerCache = new Map<string, number | null>();
+
+/**
+ * Spotify follower count that separates "popular" from "non-popular" artists.
+ * Declared once here so the search route, the options UI, and the playlist
+ * generation pipeline can never drift apart on what "popular" means.
+ */
+export const SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD = 500_000;
+
+/**
+ * Single source of truth for the popularity split: an artist is popular once
+ * their Spotify follower count reaches
+ * {@link SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD}. A missing count is treated
+ * as 0 followers (i.e. not popular).
+ */
+export function isPopularArtistByFollowers(followers?: number) {
+	return (followers ?? 0) >= SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD;
+}
+
+/**
+ * Strips a parenthetical/bracketed edition suffix from an album title and
+ * lowercases/trims the result, so variants like "Love Is Like" and
+ * "Love Is Like (Deluxe)" collapse to the same base title.
+ */
+function normalizeAlbumTitle(name: string): string {
+	const trimmed = name.trim();
+	const withoutSuffix = trimmed.replace(
+		/[([{][^()[\]{}]*[)\]}]?$/i,
+		(suffix) => {
+			const inner = suffix
+				.replace(/^[([{]+|[)\]}]+$/g, '')
+				.trim()
+				.toLowerCase();
+			if (
+				EDITION_KEYWORDS.some((kw) => {
+					const words = inner.split(/[\s/&-]+/);
+					return words.includes(kw) || inner.includes(kw);
+				})
+			) {
+				return '';
+			}
+			return suffix;
+		},
+	);
+	return withoutSuffix.trim().toLowerCase();
+}
+
+/**
+ * Drops blacklisted albums (remix/live/etc.) and collapses edition variants
+ * (Deluxe/Remastered) so "Album" and "Album (Deluxe)" map to one base title.
+ * Shared by both the seed-artist path and the single-artist discography path.
+ */
+export function deduplicateAlbums<T extends { name: string; id: string }>(
+	albums: T[],
+): T[] {
+	const filtered = albums.filter((album) => {
+		const name = album.name.toLowerCase();
+		return !ALBUM_BLACKLIST_WORDS.some((word) => name.includes(word));
+	});
+
+	const seenBaseTitles = new Map<string, T>();
+	const deduplicated: T[] = [];
+	for (const album of filtered) {
+		const baseTitle = normalizeAlbumTitle(album.name);
+		const existing = seenBaseTitles.get(baseTitle);
+		if (!existing) {
+			seenBaseTitles.set(baseTitle, album);
+			deduplicated.push(album);
+			continue;
+		}
+		const existingIsStandard =
+			normalizeAlbumTitle(existing.name) === existing.name.trim().toLowerCase();
+		const currentIsStandard =
+			normalizeAlbumTitle(album.name) === album.name.trim().toLowerCase();
+		if (!existingIsStandard && currentIsStandard) {
+			seenBaseTitles.set(baseTitle, album);
+			deduplicated[deduplicated.indexOf(existing)] = album;
+		}
+	}
+	return deduplicated;
+}
+
+export function cacheArtistFollowers(
+	cacheKey: string,
+	followers: number | null,
+) {
+	if (artistFollowerCache.size >= ARTIST_FOLLOWER_CACHE_LIMIT) {
+		artistFollowerCache.clear();
+	}
+	artistFollowerCache.set(cacheKey, followers);
+}
 
 /**
  * Retrieves all tracks in a Spotify playlist using the provided link.
@@ -54,8 +186,8 @@ export async function getPlaylistDetails(playlistId: string) {
 }
 
 /**
-  Creates a new playlist on Spotify with a specific name and description based on the provided artists.
-**/
+ *   Creates a new playlist on Spotify with a specific name and description based on the provided artists.
+ **/
 export async function createPlayList(
 	name: string,
 	artists: string,
@@ -84,15 +216,14 @@ export async function createPlayList(
 }
 
 /**
-
-  Adds an array of track URIs to a Spotify playlist with the specified ID.
-  @async
-  @function addTracksToPlayList
-  @param {string[]} tracks - An array of track URIs to add to the playlist.
-  @param {string} playListID - The ID of the playlist to add the tracks to.
-  @returns {Promise<Object>} A promise that resolves with the data returned by the Spotify API if successful
-  @throws {Error} - If there is an error fetching data from the Spotify Web API.
-**/
+ *   Adds an array of track URIs to a Spotify playlist with the specified ID.
+ *   @async
+ *   @function addTracksToPlayList
+ *   @param {string[]} tracks - An array of track URIs to add to the playlist.
+ *   @param {string} playListID - The ID of the playlist to add the tracks to.
+ *   @returns {Promise<Object>} A promise that resolves with the data returned by the Spotify API if successful
+ *   @throws {Error} - If there is an error fetching data from the Spotify Web API.
+ **/
 export async function addTracksToPlayList(
 	tracks: string[],
 	playListID: string,
@@ -106,16 +237,15 @@ export async function addTracksToPlayList(
 }
 
 /**
-  This asynchronous function takes an artist name as its input, searches for the artist using the Spotify Web API's searchArtists method,
-  retrieves their top 10 albums using the getArtistAlbums method, removes any remixes or duplicate tracks, and returns up to five randomly
-  selected album IDs. If the artist has fewer than five albums, it returns all of the available album IDs.
-
-  Handles one artist only: 429 responses are retried in place (honouring `retry-after`) up to
-  MAX_ARTIST_ATTEMPTS times, and the function always resolves to a stable `string[]` so callers
-  never have to special-case error objects.
-**/
+ *   This asynchronous function takes an artist name as its input, searches for the artist using the Spotify Web API's searchArtists method,
+ *   retrieves their top 10 albums using the getArtistAlbums method, removes any remixes or duplicate tracks, and returns up to five randomly
+ *   selected album IDs. If the artist has fewer than five albums, it returns all of the available album IDs.
+ *
+ *   Handles one artist only: 429 responses are retried in place (honouring `retry-after`) up to
+ *   MAX_ARTIST_ATTEMPTS times, and the function always resolves to a stable `string[]` so callers
+ *   never have to special-case error objects.
+ **/
 const MAX_ARTIST_ATTEMPTS = 3;
-
 
 export async function getArtistsAlbums(
 	artist: string,
@@ -452,4 +582,3 @@ export async function resolveArtistsWithFollowers(
 
 	return resolved;
 }
-

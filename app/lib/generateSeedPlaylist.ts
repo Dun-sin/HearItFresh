@@ -6,12 +6,8 @@ import {
 	getSongEmbeddings,
   getUserGeneratedSongIds,
 } from './db';
-import {
-	calculateCosineSimilarity,
-	getAllTracks,
-	getEveryAlbum,
-	relatedArists,
-} from './utils';
+import { calculateCosineSimilarity } from './utils';
+import { getAllTracks, getEveryAlbum, relatedArists } from './helpers';
 import { getArtistDiscographyTracks } from './spotify';
 
 import pLimit from 'p-limit';

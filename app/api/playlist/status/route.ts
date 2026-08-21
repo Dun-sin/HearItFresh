@@ -1,10 +1,7 @@
 import prisma from '@/app/lib/prisma';
 import { getInngestRunStatus } from '@/app/lib/inngest';
-import {
-	formatPlaylistOutput,
-	normalizeOutput,
-	normalizeStatus,
-} from '@/app/lib/utils';
+import { formatPlaylistOutput } from '@/app/lib/helpers';
+import { normalizeOutput, normalizeStatus } from '@/app/lib/utils';
 
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
