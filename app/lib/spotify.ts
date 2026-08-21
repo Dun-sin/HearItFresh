@@ -2,10 +2,19 @@
 import spotifyApi, { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
+import pLimit from 'p-limit';
+
 import {
+	artistFollowerCache,
+	ArtistWithFollowers,
+	cacheArtistFollowers,
 	cleanMusicMetadata,
 	convertToSubArray,
 	deduplicateAlbums,
+	FOLLOWER_LOOKUP_CHUNK_SIZE,
+	FOLLOWER_LOOKUP_CONCURRENCY,
+	MAX_FOLLOWER_LOOKUP_ATTEMPTS,
+	MAX_MATCHING_ARTISTS_PER_SEED,
 	shuffle,
 	sleep,
 } from './utils';
@@ -148,8 +157,7 @@ export async function getArtistsAlbums(
 				return randomlySelectedAlbum;
 			}
 		} catch (err: any) {
-			const status =
-				err?.statusCode ?? err?.status ?? err?.response?.status;
+			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
 			const retryAfter = Number(
 				err?.headers?.['retry-after'] ??
 					err?.response?.headers?.['retry-after'],
@@ -203,14 +211,11 @@ export async function getArtistDiscographyTracks(
 
 			const deduplicatedAlbums = deduplicateAlbums(albums.body.items);
 
-			const albumIds = [
-				...new Set(deduplicatedAlbums.map((item) => item.id)),
-			];
+			const albumIds = [...new Set(deduplicatedAlbums.map((item) => item.id))];
 			const tracks = await getTracks(albumIds as string[]);
 			return Array.isArray(tracks) ? tracks : [];
 		} catch (err: any) {
-			const status =
-				err?.statusCode ?? err?.status ?? err?.response?.status;
+			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
 			const retryAfter = Number(
 				err?.headers?.['retry-after'] ??
 					err?.response?.headers?.['retry-after'],
@@ -349,35 +354,102 @@ export async function getUser() {
 	return user;
 }
 
-export async function getRelatedArtists(
+/**
+ * Resolves one artist name to its Spotify follower count. Uses the same
+ * `searchArtists(name, { limit: 1 })` match as `getArtistsAlbums`, so the
+ * followers we classify on belong to the exact artist whose albums are pulled
+ * later. Returns null when the artist can't be resolved (unknown to Spotify, or
+ * the lookup kept failing), and 429s are retried in place honouring
+ * `retry-after`.
+ */
+async function getArtistFollowers(
 	artistName: string,
-	options: { isNotPopular: boolean; isDifferent: boolean },
 	signal?: AbortSignal,
-): Promise<string[]> {
-	try {
-		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
+): Promise<number | null> {
+	const cacheKey = artistName.trim().toLowerCase();
+	const cached = artistFollowerCache.get(cacheKey);
+	if (cached !== undefined) return cached;
 
-		const res = await fetch(url, { signal });
-		const data = await res.json();
+	for (let attempt = 0; attempt < MAX_FOLLOWER_LOOKUP_ATTEMPTS; attempt++) {
+		try {
+			const data = await spotifyApi.searchArtists(artistName, {
+				limit: 1,
+				offset: 0,
+			});
+			const match = data.body.artists?.items?.[0];
+			const followers = match ? (match.followers?.total ?? 0) : null;
 
-		if (!data.similarartists?.artist) return [];
+			cacheArtistFollowers(cacheKey, followers);
+			return followers;
+		} catch (err: any) {
+			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
+			const retryAfter = Number(
+				err?.headers?.['retry-after'] ??
+					err?.response?.headers?.['retry-after'],
+			);
 
-		let artists = data.similarartists.artist as {
-			name: string;
-			listeners: string;
-		}[];
+			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
+				console.log(
+					`Rate limited (429) resolving followers for ${artistName}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_FOLLOWER_LOOKUP_ATTEMPTS})`,
+				);
+				// Let an abort propagate so the caller can stop the whole batch.
+				await sleep(retryAfter * 1000, signal);
+				continue;
+			}
 
-		if (options.isNotPopular) {
-			artists = artists.filter((a) => parseInt(a.listeners) < 500000);
+			console.error(
+				`Error resolving followers for ${artistName}:`,
+				err?.message || err,
+			);
+			return null;
 		}
-
-		// Last.fm doesn't have a "different genre" concept easily
-		// so just return all for isDifferent and let lyrical similarity handle it
-		const finalArtist = artists.map((a) => a.name);
-		return shuffle(finalArtist);
-	} catch (err: any) {
-		if (signal?.aborted) throw new Error('Aborted');
-		console.error(`Error getting related artists for ${artistName}:`, err);
-		return [];
 	}
+
+	console.error(
+		`getArtistFollowers exhausted ${MAX_FOLLOWER_LOOKUP_ATTEMPTS} retries for ${artistName}`,
+	);
+	return null;
 }
+
+/**
+ * Attaches Spotify follower counts to candidate artist names.
+ *
+ * Names that can't be resolved to a Spotify artist are dropped rather than
+ * defaulted to 0 followers: without a Spotify artist there are no albums to pull
+ * later, so keeping them would only waste a slot in the pool (and would silently
+ * classify every unknown name as "non-popular").
+ *
+ * @param matchesPopularity - Predicate used purely to stop early once enough
+ * candidates already satisfy the caller's popularity filter.
+ */
+export async function resolveArtistsWithFollowers(
+	artistNames: string[],
+	matchesPopularity: (followers: number) => boolean,
+	signal?: AbortSignal,
+): Promise<ArtistWithFollowers[]> {
+	const limit = pLimit(FOLLOWER_LOOKUP_CONCURRENCY);
+	const resolved: ArtistWithFollowers[] = [];
+	let matching = 0;
+
+	for (let i = 0; i < artistNames.length; i += FOLLOWER_LOOKUP_CHUNK_SIZE) {
+		if (signal?.aborted) throw new Error('Aborted');
+
+		const chunk = artistNames.slice(i, i + FOLLOWER_LOOKUP_CHUNK_SIZE);
+		const followerCounts = await Promise.all(
+			chunk.map((name) => limit(() => getArtistFollowers(name, signal))),
+		);
+
+		chunk.forEach((name, index) => {
+			const followers = followerCounts[index];
+			if (followers === null) return;
+
+			resolved.push({ name, followers });
+			if (matchesPopularity(followers)) matching++;
+		});
+
+		if (matching >= MAX_MATCHING_ARTISTS_PER_SEED) break;
+	}
+
+	return resolved;
+}
+

@@ -1,4 +1,8 @@
-import { getArtistsAlbums, getRelatedArtists, getTracks } from './spotify';
+import {
+	getArtistsAlbums,
+	getTracks,
+	resolveArtistsWithFollowers,
+} from './spotify';
 import { LRCLibResult, singleTrack, trackTypes } from '../types';
 
 import pLimit from 'p-limit';
@@ -41,6 +45,63 @@ const EDITION_KEYWORDS = [
 	'remastered',
 	'special',
 ];
+
+/**
+ * Popularity is classified by Spotify follower count (see
+ * `isPopularArtistByFollowers`), but Last.fm's similar-artist endpoint only
+ * returns names. Every candidate therefore costs one Spotify artist lookup, so
+ * lookups are concurrency-capped, cached per process, and resolved in chunks
+ * that stop early once enough candidates land on the requested side of the
+ * threshold.
+ */
+export const MAX_FOLLOWER_LOOKUP_ATTEMPTS = 3;
+export const FOLLOWER_LOOKUP_CONCURRENCY = 10;
+export const FOLLOWER_LOOKUP_CHUNK_SIZE = 20;
+/**
+ * `relatedArists` only round-robins ~65 artists across every seed, so resolving
+ * more than this per seed just burns Spotify quota.
+ */
+export const MAX_MATCHING_ARTISTS_PER_SEED = 40;
+const ARTIST_FOLLOWER_CACHE_LIMIT = 5000;
+
+export type ArtistWithFollowers = { name: string; followers: number };
+
+/**
+ * name (lowercased) -> follower count, or null when Spotify has no such artist.
+ * Shared across seeds and retry attempts within a process so the same name is
+ * never looked up twice.
+ */
+export const artistFollowerCache = new Map<string, number | null>();
+
+/**
+ * Spotify follower count that separates "popular" from "non-popular" artists.
+ * Declared once here so the search route, the options UI, and the playlist
+ * generation pipeline can never drift apart on what "popular" means.
+ */
+export const SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD = 500_000;
+
+/**
+ * Single source of truth for the popularity split: an artist is popular once
+ * their Spotify follower count reaches
+ * {@link SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD}. A missing count is treated
+ * as 0 followers (i.e. not popular).
+ */
+export function isPopularArtistByFollowers(followers?: number) {
+	return (followers ?? 0) >= SPOTIFY_POPULAR_ARTIST_FOLLOWER_THRESHOLD;
+}
+
+/**
+ * Formats a Spotify follower count for display (e.g. `1.2M`), returning null
+ * when the count is unknown so callers can hide the label entirely.
+ */
+export function formatFollowerCount(followers?: number | null): string | null {
+	if (typeof followers !== 'number' || !Number.isFinite(followers)) return null;
+
+	return new Intl.NumberFormat('en', {
+		notation: 'compact',
+		maximumFractionDigits: 1,
+	}).format(followers);
+}
 
 export const encrypt = (text: string): string => {
 	return crypto.AES.encrypt(text, key).toString();
@@ -675,4 +736,56 @@ export function deduplicateAlbums<T extends { name: string; id: string }>(
 		}
 	}
 	return deduplicated;
+}
+
+export function cacheArtistFollowers(
+	cacheKey: string,
+	followers: number | null,
+) {
+	if (artistFollowerCache.size >= ARTIST_FOLLOWER_CACHE_LIMIT) {
+		artistFollowerCache.clear();
+	}
+	artistFollowerCache.set(cacheKey, followers);
+}
+
+export async function getRelatedArtists(
+	artistName: string,
+	options: { isNotPopular: boolean; isDifferent: boolean },
+	signal?: AbortSignal,
+): Promise<string[]> {
+	try {
+		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
+
+		const res = await fetch(url, { signal });
+		const data = await res.json();
+
+		if (!data.similarartists?.artist) return [];
+
+		const similarArtists = data.similarartists.artist as { name: string }[];
+
+		// Dedupe by name and shuffle so the bounded follower lookup samples a
+		// different slice of Last.fm's list on every attempt.
+		const candidates = shuffle([
+			...new Map(
+				similarArtists
+					.map((artist) => artist.name?.trim())
+					.filter((name): name is string => !!name)
+					.map((name) => [name.toLowerCase(), name] as const),
+			).values(),
+		]);
+
+		const shouldKeepArtist = (followers: number) =>
+			!options.isNotPopular || !isPopularArtistByFollowers(followers);
+
+		const artists = await resolveArtistsWithFollowers(
+			candidates,
+			shouldKeepArtist,
+			signal,
+		);
+		return shuffle(artists.map((artist) => artist.name));
+	} catch (err: any) {
+		if (signal?.aborted) throw new Error('Aborted');
+		console.error(`Error getting related artists for ${artistName}:`, err);
+		return [];
+	}
 }
