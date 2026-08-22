@@ -1,3 +1,10 @@
+# [1.37.0](https://github.com/Dun-sin/HearItFresh/compare/v1.36.0...v1.37.0) (2026-08-22)
+
+
+### Features
+
+* optimize artist lookup by reusing Spotify IDs for non-popular artists ([5dda0b5](https://github.com/Dun-sin/HearItFresh/commit/5dda0b5336490aef4020eb9d17d00413e188b828))
+
 # [1.36.0](https://github.com/Dun-sin/HearItFresh/compare/v1.35.0...v1.36.0) (2026-08-22)
 
 
