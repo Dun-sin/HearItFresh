@@ -1,3 +1,10 @@
+# [1.38.0](https://github.com/Dun-sin/HearItFresh/compare/v1.37.0...v1.38.0) (2026-08-22)
+
+
+### Features
+
+* enhance Inngest run status fetching and output normalization ([0f191c6](https://github.com/Dun-sin/HearItFresh/commit/0f191c6fa2246ecc835027e6152ba0712d94f936))
+
 # [1.37.0](https://github.com/Dun-sin/HearItFresh/compare/v1.36.0...v1.37.0) (2026-08-22)
 
 
