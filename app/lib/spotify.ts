@@ -34,6 +34,8 @@ const EDITION_KEYWORDS = [
 	'special',
 ];
 
+const SPOTIFY_PLAYLIST_TRACK_PAGE_SIZE = 100;
+const MAX_PLAYLIST_TRACKS_TO_FETCH = 500;
 /**
  * Popularity is classified by Spotify follower count (see
  * `isPopularArtistByFollowers`), but Last.fm's similar-artist endpoint only
@@ -161,8 +163,37 @@ export function cacheArtistFollowers(
  */
 export async function getAllTracksInAPlaylist(link: string): Promise<any> {
 	try {
-		const data = await spotifyApi.getPlaylistTracks(link);
-		return data.body.items;
+		const firstPage = await spotifyApi.getPlaylistTracks(link, {
+			limit: SPOTIFY_PLAYLIST_TRACK_PAGE_SIZE,
+			offset: 0,
+		});
+
+		const totalToFetch = Math.min(
+			firstPage.body.total ?? firstPage.body.items.length,
+			MAX_PLAYLIST_TRACKS_TO_FETCH,
+		);
+
+		const tracks = [...firstPage.body.items];
+
+		for (
+			let offset = SPOTIFY_PLAYLIST_TRACK_PAGE_SIZE;
+			offset < totalToFetch;
+			offset += SPOTIFY_PLAYLIST_TRACK_PAGE_SIZE
+		) {
+			const limit = Math.min(
+				SPOTIFY_PLAYLIST_TRACK_PAGE_SIZE,
+				totalToFetch - offset,
+			);
+
+			const page = await spotifyApi.getPlaylistTracks(link, {
+				limit,
+				offset,
+			});
+
+			tracks.push(...page.body.items);
+		}
+
+		return tracks;
 	} catch (err) {
 		return err;
 	}
