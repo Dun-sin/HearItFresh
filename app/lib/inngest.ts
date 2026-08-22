@@ -48,8 +48,17 @@ export function selectCurrentRun(runs: InngestRun[]): InngestRun | null {
 export const getCurrentRunForEvent = async (
 	eventId: string,
 ): Promise<InngestRun | null> => {
-	const runs = await getInngestEventRuns(eventId);
-	return selectCurrentRun(runs);
+	const run = selectCurrentRun(await getInngestEventRuns(eventId));
+	const runId = run?.run_id ?? run?.id;
+	const status = normalizeStatus(run?.status);
+
+	if (!runId) return run;
+	if (run?.output) return run;
+
+	const isTerminal = TERMINAL_STATUSES.includes(status as InngestRunStatus);
+	if (!isTerminal) return run;
+
+	return await getInngestRunStatus(runId);
 };
 
 export const getInngestRunStatus = async (runId: string) => {

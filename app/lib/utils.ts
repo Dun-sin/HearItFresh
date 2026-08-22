@@ -3,7 +3,7 @@ import crypto from 'crypto-js';
 import { LRCLibResult } from '../types';
 
 const key = process.env.SECRET_KEY as string;
-
+export type PlaylistOutput = { link: string; name: string };
 export function shuffle<T>(array: T[]): T[] {
 	const arr = [...array];
 	for (let i = arr.length - 1; i > 0; i--) {
@@ -103,24 +103,39 @@ export function normalizeStatus(status?: string) {
 	return status;
 }
 
-export function normalizeOutput(
-	output: unknown,
-): { link: string; name: string } | null {
+export function normalizeOutput(output: unknown): PlaylistOutput | null {
 	if (!output) return null;
 
-	const parsedOutput =
-		typeof output === 'string' ? safeParseJson(output) : output;
+	const parsed = typeof output === 'string' ? safeParseJson(output) : output;
+	if (!parsed) return null;
 
-	if (
-		parsedOutput &&
-		typeof parsedOutput === 'object' &&
-		'link' in parsedOutput &&
-		'name' in parsedOutput
-	) {
-		return {
-			link: String(parsedOutput.link),
-			name: String(parsedOutput.name),
-		};
+	return extractPlaylistOutput(parsed, new Set());
+}
+
+function extractPlaylistOutput(
+	value: unknown,
+	seen: Set<unknown>,
+): PlaylistOutput | null {
+	if (!value || typeof value !== 'object') return null;
+	if (seen.has(value)) return null;
+	seen.add(value);
+
+	if ('link' in value && 'name' in value) {
+		const link = String((value as any).link || '');
+		const name = String((value as any).name || '');
+		return link && name ? { link, name } : null;
+	}
+
+	for (const key of ['output', 'result', 'data', 'body']) {
+		const nested = extractPlaylistOutput((value as any)[key], seen);
+		if (nested) return nested;
+	}
+
+	if (Array.isArray(value)) {
+		for (const item of value) {
+			const nested = extractPlaylistOutput(item, seen);
+			if (nested) return nested;
+		}
 	}
 
 	return null;
