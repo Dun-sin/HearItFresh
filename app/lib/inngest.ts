@@ -1,7 +1,55 @@
+import { normalizeStatus } from './utils';
+
 const getInngestBaseUrl = () => {
 	return process.env.NODE_ENV === 'production'
 		? 'https://api.inngest.com'
 		: 'http://localhost:8288';
+};
+
+export type InngestRunStatus =
+	| 'Pending'
+	| 'Running'
+	| 'Scheduled'
+	| 'Completed'
+	| 'Cancelled'
+	| 'Failed';
+
+export type InngestRun = {
+	run_id?: string;
+	id?: string;
+	status?: string;
+	output?: unknown;
+	[key: string]: unknown;
+};
+
+const TERMINAL_STATUSES: InngestRunStatus[] = [
+	'Completed',
+	'Failed',
+	'Cancelled',
+];
+const ACTIVE_STATUSES: InngestRunStatus[] = ['Running', 'Scheduled', 'Pending'];
+
+export function selectCurrentRun(runs: InngestRun[]): InngestRun | null {
+	if (!runs || runs.length === 0) return null;
+
+	const terminalRun = runs.find((run) => {
+		const status = normalizeStatus(run.status);
+		return TERMINAL_STATUSES.includes(status as InngestRunStatus);
+	});
+
+	const activeRun = runs.find((run) => {
+		const status = normalizeStatus(run.status);
+		return ACTIVE_STATUSES.includes(status as InngestRunStatus);
+	});
+
+	return terminalRun ?? activeRun ?? runs[0] ?? null;
+}
+
+export const getCurrentRunForEvent = async (
+	eventId: string,
+): Promise<InngestRun | null> => {
+	const runs = await getInngestEventRuns(eventId);
+	return selectCurrentRun(runs);
 };
 
 export const getInngestRunStatus = async (runId: string) => {
@@ -21,7 +69,9 @@ export const getInngestRunStatus = async (runId: string) => {
 	return json.data;
 };
 
-export const getInngestEventRuns = async (eventId: string) => {
+export const getInngestEventRuns = async (
+	eventId: string,
+): Promise<InngestRun[]> => {
 	const baseUrl = getInngestBaseUrl();
 
 	const response = await fetch(`${baseUrl}/v1/events/${eventId}/runs`, {
@@ -35,5 +85,18 @@ export const getInngestEventRuns = async (eventId: string) => {
 	}
 
 	const json = await response.json();
-	return json.data;
+
+	if (Array.isArray(json.data)) {
+		return json.data as InngestRun[];
+	}
+
+	if (Array.isArray(json.data?.runs)) {
+		return json.data.runs as InngestRun[];
+	}
+
+	if (Array.isArray(json.runs)) {
+		return json.runs as InngestRun[];
+	}
+
+	return [];
 };

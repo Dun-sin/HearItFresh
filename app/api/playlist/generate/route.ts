@@ -13,6 +13,32 @@ export async function POST(req: Request) {
 		artistImage,
 	} = await req.json();
 
+	const isGuest = !userId;
+
+	if (isGuest) {
+		const { ids } = await inngest.send({
+			name: 'playlist/generate',
+			data: {
+				seeds,
+				artistNames,
+				options,
+				userId: null,
+				sourcePlaylistId,
+				artistId,
+				artistName,
+				artistImage,
+				generatedPlaylistId: null,
+				persistResult: false,
+			},
+		});
+
+		return Response.json({
+			mode: 'guest',
+			eventId: ids[0],
+			generatedPlaylistId: null,
+		});
+	}
+
 	let dbRecord: { id: string } | null = null;
 
 	try {
@@ -43,6 +69,7 @@ export async function POST(req: Request) {
 			artistName,
 			artistImage,
 			generatedPlaylistId: dbRecord.id,
+			persistResult: true,
 		};
 		const { ids } = await inngest.send({
 			name: 'playlist/generate',

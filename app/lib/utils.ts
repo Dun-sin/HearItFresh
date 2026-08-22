@@ -97,6 +97,7 @@ export function normalizeStatus(status?: string) {
 	if (lowerStatus === 'cancelled' || lowerStatus === 'canceled')
 		return 'Cancelled';
 	if (lowerStatus === 'running') return 'Running';
+	if (lowerStatus === 'pending') return 'Pending';
 	if (lowerStatus === 'scheduled') return 'Scheduled';
 
 	return status;

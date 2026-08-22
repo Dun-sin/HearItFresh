@@ -63,9 +63,9 @@ export async function POST(req: Request) {
 
       try {
         const eventRuns = await getInngestEventRuns(event.id);
-        if (eventRuns?.runs?.length > 0) {
-          const newestRun = eventRuns.runs[eventRuns.runs.length - 1];
-          runId = newestRun.id;
+        if (eventRuns?.length > 0) {
+          const newestRun = eventRuns[eventRuns.length - 1];
+          runId = newestRun.id ?? newestRun.run_id ?? null;
           run = newestRun;
           await prisma.generatedPlaylist.update({
             where: { id: record.id },

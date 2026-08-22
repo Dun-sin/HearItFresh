@@ -31,32 +31,35 @@ export const generatePlaylist = inngest.createFunction(
 			generatedPlaylistId,
 			artistId,
 			artistName,
+			persistResult = true,
 		} = event.data;
 
 		const isArtistMode = Boolean(artistId);
 
-		await step.run('save-run-id', async () => {
-			const existingRecord = await prisma.generatedPlaylist.findUnique({
-				where: { id: generatedPlaylistId },
-			});
+		if (persistResult && generatedPlaylistId) {
+			await step.run('save-run-id', async () => {
+				const existingRecord = await prisma.generatedPlaylist.findUnique({
+					where: { id: generatedPlaylistId },
+				});
 
-			await prisma.generatedPlaylist.update({
-				where: { id: generatedPlaylistId },
-				data: {
-					inngestRunId: runId,
-					status: 'pending',
-					...(existingRecord?.event
-						? {}
-						: {
-								event: {
-									name: 'playlist/generate',
-									id: event.id,
-									data: event.data,
-								},
-							}),
-				},
+				await prisma.generatedPlaylist.update({
+					where: { id: generatedPlaylistId },
+					data: {
+						inngestRunId: runId,
+						status: 'pending',
+						...(existingRecord?.event
+							? {}
+							: {
+									event: {
+										name: 'playlist/generate',
+										id: event.id,
+										data: event.data,
+									},
+								}),
+					},
+				});
 			});
-		});
+		}
 
 		const result = await step.run('generate-playlist-tracks', async () => {
 			if (isArtistMode) {
@@ -98,19 +101,21 @@ export const generatePlaylist = inngest.createFunction(
 			await addTracksToPlayList(result.tracks, playListID);
 		});
 
-		await step.run('save-playlist-to-db', async () => {
-			await prisma.generatedPlaylist.updateMany({
-				where: { inngestRunId: runId },
-				data: {
-					playlistName: name,
-					playlistLink: link,
-					playlistId: playListID,
-					status: 'completed',
-					errorMessage: null,
-					completedAt: new Date(),
-				},
+		if (persistResult && generatedPlaylistId) {
+			await step.run('save-playlist-to-db', async () => {
+				await prisma.generatedPlaylist.updateMany({
+					where: { inngestRunId: runId },
+					data: {
+						playlistName: name,
+						playlistLink: link,
+						playlistId: playListID,
+						status: 'completed',
+						errorMessage: null,
+						completedAt: new Date(),
+					},
+				});
 			});
-		});
+		}
 
 		return { link, name };
 	},

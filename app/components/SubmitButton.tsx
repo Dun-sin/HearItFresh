@@ -19,6 +19,7 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useSeedSongs } from '@/app/context/seedSongsContext';
+import { addTracksToPlayList, createPlayList } from '../lib';
 
 const SubmitButton = () => {
 	const { setLoading } = useLoading();
@@ -29,7 +30,7 @@ const SubmitButton = () => {
 		setButtonClicked,
 		setPlayListData,
 	} = useGeneralState();
-	const { user, logOut } = useAuth();
+	const { user } = useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { spotifyPlaylist } = useInput();
 	const { setHistory } = useHistory();
@@ -50,6 +51,7 @@ const SubmitButton = () => {
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const activeRunIdRef = useRef<string | null>(null);
 	const activeGeneratedPlaylistIdRef = useRef<string | null>(null);
+	const activeEventIdRef = useRef<string | null>(null);
 	const inngestStartedRef = useRef(false);
 
 	// Terminal state flags
@@ -93,7 +95,9 @@ const SubmitButton = () => {
 	}, [user?.user_id]);
 
 	const refreshHistory = async () => {
-		const response = await fetch(`/api/users/${user?.user_id}/history`);
+		if (!user?.user_id) return;
+
+		const response = await fetch(`/api/users/${user.user_id}/history`);
 		const data = await response.json();
 		const history =
 			data.message?.map(
@@ -190,6 +194,7 @@ const SubmitButton = () => {
 		abortedRef.current = false;
 		activeRunIdRef.current = null;
 		activeGeneratedPlaylistIdRef.current = null;
+		activeEventIdRef.current = null;
 
 		setButtonClicked(true);
 		setLoading(true);
@@ -206,34 +211,36 @@ const SubmitButton = () => {
 			);
 
 			if (process.env.NODE_ENV === 'production') {
-				// Inngest path
-				inngestStartedRef.current = true;
-				const payload = {
-					seeds: selectedSongsData,
-					artistNames: extractedArtists,
-					options: {
-						isNotPopular: isNotPopularArtists,
-						isDifferent: isDifferentTypesOfArtists,
-					},
+			// Inngest path
+			inngestStartedRef.current = true;
+			const payload = {
+				seeds: selectedSongsData,
+				artistNames: extractedArtists,
+				options: {
+					isNotPopular: isNotPopularArtists,
+					isDifferent: isDifferentTypesOfArtists,
+				},
 				artistId: selectedArtist?.id,
 				artistName: selectedArtist?.name,
 				artistImage: selectedArtist?.image,
 				userId: user?.user_id,
-					sourcePlaylistId: spotifyPlaylist.current?.value
-						? extractPlaylistId(spotifyPlaylist.current.value)
-						: undefined,
-				};
-				const result = await fetch('/api/playlist/generate', {
-					method: 'POST',
-					body: JSON.stringify(payload),
-				});
-				console.log('[handleSeedPlaylistGeneration] Starting polling...');
-				const { generatedPlaylistId } = await result.json();
-				console.log(
-					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-				);
-				activeGeneratedPlaylistIdRef.current = generatedPlaylistId;
-				await pollForCompletion(payload, 0);
+				sourcePlaylistId: spotifyPlaylist.current?.value
+					? extractPlaylistId(spotifyPlaylist.current.value)
+					: undefined,
+			};
+			const result = await fetch('/api/playlist/generate', {
+				method: 'POST',
+				body: JSON.stringify(payload),
+			});
+			console.log('[handleSeedPlaylistGeneration] Starting polling...');
+			const { generatedPlaylistId, eventId, mode } = await result.json();
+			console.log(
+				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+			);
+			activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
+			activeEventIdRef.current = mode === 'guest' ? eventId : null;
+
+			await pollForCompletion(payload, 0);
 			} else {
 				inngestStartedRef.current = false;
 				abortControllerRef.current = new AbortController();
@@ -332,21 +339,59 @@ const SubmitButton = () => {
 		if (abortedRef.current) return;
 
 		const generatedPlaylistId = activeGeneratedPlaylistIdRef.current;
+		const eventId = activeEventIdRef.current;
 		console.log(
-			'[pollForCompletion] Polling for generatedPlaylistId:',
+			'[pollForCompletion] Polling for generatedPlaylistId/runId/eventId:',
 			generatedPlaylistId,
+			activeRunIdRef.current,
+			eventId,
 		);
+
 		const params = new URLSearchParams();
-		if (generatedPlaylistId)
-			params.set('generatedPlaylistId', generatedPlaylistId);
-		if (payload.userId) params.set('userId', payload.userId);
+
+		if (payload.userId && activeGeneratedPlaylistIdRef.current) {
+			params.set('generatedPlaylistId', activeGeneratedPlaylistIdRef.current);
+			params.set('userId', payload.userId);
+		} else if (activeRunIdRef.current) {
+			params.set('runId', activeRunIdRef.current);
+		} else if (activeEventIdRef.current) {
+			params.set('eventId', activeEventIdRef.current);
+		}
 
 		const res = await fetch(`/api/playlist/status?${params.toString()}`);
-		const data = await res.json();
+
+		if (!res.ok) {
+			await new Promise((r) => setTimeout(r, 5000));
+			await pollForCompletion(payload, unexpectedRetries + 1);
+			return;
+		}
+
+		let data: any;
+		try {
+			data = await res.json();
+		} catch {
+			if (unexpectedRetries >= MAX_UNEXPECTED_RETRIES) {
+				throw new Error(
+					'Polling stopped after repeatedly receiving an invalid status response',
+				);
+			}
+			console.warn(
+				'[pollForCompletion] Invalid status body — retrying in 5s...',
+				`(attempt ${unexpectedRetries + 1}/${MAX_UNEXPECTED_RETRIES})`,
+			);
+			await new Promise((r) => setTimeout(r, 5000));
+			if (!abortedRef.current) {
+				await pollForCompletion(payload, unexpectedRetries + 1);
+			}
+			return;
+		}
+
 		console.log('[pollForCompletion] Status:', data.status, data);
 
-		// Track the runId so we can cancel it if the user requests
-		if (data.runId) activeRunIdRef.current = data.runId;
+		if (!payload.userId && data.runId) {
+			activeRunIdRef.current = data.runId;
+			activeEventIdRef.current = null;
+		}
 
 		if (data.status === 'Completed') {
 			console.log('[pollForCompletion] Completed!');
@@ -412,6 +457,7 @@ const SubmitButton = () => {
 		abortControllerRef.current = null;
 		activeRunIdRef.current = null;
 		activeGeneratedPlaylistIdRef.current = null;
+		activeEventIdRef.current = null;
 
 		if (generatedPlaylistId && inngestStartedRef.current) {
 			try {
@@ -438,6 +484,18 @@ const SubmitButton = () => {
 		setPlayListData({ link, name });
 		clearSeeds();
 		toast.success('Playlist Created');
+
+		if (!user?.user_id) {
+			toast.warning(
+				'Add this playlist to your Spotify library now, or you may lose access to it later.',
+				{
+					autoClose: 100000,
+					bodyStyle: {
+						color: 'red',
+					},
+				},
+			);
+		}
 	};
 
 	async function handleIfItsAPlaylistLink(link: string) {
@@ -537,9 +595,8 @@ const SubmitButton = () => {
 		text: string,
 		sourcePlaylist?: { id: string; name: string },
 	) => {
-		if (!user) {
-			logOut();
-			return { message: 'error', history: [] };
+		if (!user?.user_id) {
+			return { message: 'skipped', history: [] };
 		}
 
 		const userId = user.user_id;
@@ -561,7 +618,7 @@ const SubmitButton = () => {
 
 	const btnClass = isLowSeedCount ? 'bg-gray-400 text-lightest' : undefined;
 
-	return (
+		return (
 		<SubmitButtionContainer
 			handleSubmit={handleSubmit}
 			onCancel={handleCancel}

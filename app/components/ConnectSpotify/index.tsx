@@ -8,8 +8,16 @@ import { useAuth } from '@/app/context/authContext';
 import useRefreshToken from '@/app/hooks/useRefreshToken';
 
 const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
-  const { isAuthInProgress, isLoggedIn, authInProgress, logIn, setUserData, setAccessToken } =
-    useAuth();
+  const {
+    isAuthInProgress,
+    isLoggedIn,
+    isGuest,
+    authInProgress,
+    logIn,
+    continueAsGuest,
+    setUserData,
+    setAccessToken,
+  } = useAuth();
 
   const [expires, setExpires] = useState<number | null>(null);
   const isExchangingCode = useRef(false);
@@ -129,23 +137,30 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   useRefreshToken(expires, refreshAccessToken);
 
   return (
-    !isLoggedIn && (
-      <div className='absolute top-0 w-full h-full flex items-center justify-center backdrop-blur-sm bg-lightest/45 flex-col'>
-        <p className={`text-flg md:text-fmd font-bold`}>
-          {isAuthInProgress
-            ? 'Connecting your Google account'
-            : 'Please login with Google to use this tool'}
-        </p>
-        {!isAuthInProgress && (
-          <a
-            href={authUrl}
-            className='px-4 py-2 bg-brand rounded-md text-lightest'>
-            Connect Your Google Account
-          </a>
-        )}
-      </div>
-    )
-  );
+		!isLoggedIn &&
+		!isGuest && (
+			<div className='absolute top-0 w-full h-full flex items-center justify-center backdrop-blur-sm bg-lightest/65 flex-col gap-4'>
+				<p className={`text-flg md:text-fmd font-bold`}>
+					{isAuthInProgress && 'Connecting your Google account'}
+				</p>
+				{!isAuthInProgress && (
+					<>
+						<a
+							href={authUrl}
+							className='px-4 py-2 bg-brand rounded-md text-lightest'>
+							Continue with Google
+						</a>
+						<button
+							type='button'
+							onClick={continueAsGuest}
+							className='text-fxs underline'>
+							Continue without logging in
+						</button>
+					</>
+				)}
+			</div>
+		)
+	);
 };
 
 export default ConnectSpotify;
