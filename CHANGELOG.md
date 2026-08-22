@@ -1,3 +1,12 @@
+# [1.35.0](https://github.com/Dun-sin/HearItFresh/compare/v1.34.0...v1.35.0) (2026-08-22)
+
+
+### Features
+
+* display dynamic option tags for completed playlists ([a753c12](https://github.com/Dun-sin/HearItFresh/commit/a753c128f6acc475c85087e7089f7851c8c9e1d2))
+* handle completed playlist generation in SubmitButton ([509effb](https://github.com/Dun-sin/HearItFresh/commit/509effb51166fe2a1c57b11680820ae3d5dc287d))
+* implement guest mode for playlist generation with run-based status polling ([c32c620](https://github.com/Dun-sin/HearItFresh/commit/c32c620c2f4dbc4b30fbfd156e88297feb1a27cd))
+
 # [1.34.0](https://github.com/Dun-sin/HearItFresh/compare/v1.33.0...v1.34.0) (2026-08-20)
 
 
