@@ -52,16 +52,28 @@ export const FOLLOWER_LOOKUP_CHUNK_SIZE = 20;
  * more than this per seed just burns Spotify quota.
  */
 export const MAX_MATCHING_ARTISTS_PER_SEED = 40;
-const ARTIST_FOLLOWER_CACHE_LIMIT = 5000;
-
-export type ArtistWithFollowers = { name: string; followers: number };
+const SPOTIFY_ARTIST_CACHE_LIMIT = 5000;
 
 /**
- * name (lowercased) -> follower count, or null when Spotify has no such artist.
- * Shared across seeds and retry attempts within a process so the same name is
- * never looked up twice.
+ * A Last.fm name that has been matched to a real Spotify artist. The `id` makes
+ * the later album fetch free of a second search, while `followers` is what the
+ * popularity filter is applied to.
  */
-export const artistFollowerCache = new Map<string, number | null>();
+export type ResolvedSpotifyArtist = {
+	id: string;
+	name: string;
+	followers: number;
+};
+
+/**
+ * searched name (lowercased) -> resolved artist, or null when Spotify has no
+ * such artist. Shared across seeds and retry attempts within a process so the
+ * same name is never looked up twice.
+ */
+export const spotifyArtistCache = new Map<
+	string,
+	ResolvedSpotifyArtist | null
+>();
 
 /**
  * Spotify follower count that separates "popular" from "non-popular" artists.
@@ -143,14 +155,14 @@ export function deduplicateAlbums<T extends { name: string; id: string }>(
 	return deduplicated;
 }
 
-export function cacheArtistFollowers(
+export function cacheSpotifyArtist(
 	cacheKey: string,
-	followers: number | null,
+	artist: ResolvedSpotifyArtist | null,
 ) {
-	if (artistFollowerCache.size >= ARTIST_FOLLOWER_CACHE_LIMIT) {
-		artistFollowerCache.clear();
+	if (spotifyArtistCache.size >= SPOTIFY_ARTIST_CACHE_LIMIT) {
+		spotifyArtistCache.clear();
 	}
-	artistFollowerCache.set(cacheKey, followers);
+	spotifyArtistCache.set(cacheKey, artist);
 }
 
 /**
@@ -268,18 +280,24 @@ export async function addTracksToPlayList(
 }
 
 /**
- *   This asynchronous function takes an artist name as its input, searches for the artist using the Spotify Web API's searchArtists method,
- *   retrieves their top 10 albums using the getArtistAlbums method, removes any remixes or duplicate tracks, and returns up to five randomly
- *   selected album IDs. If the artist has fewer than five albums, it returns all of the available album IDs.
+ *   Fetches the top albums for an already-resolved Spotify artist id, drops
+ *   remixes/live records and edition duplicates, and returns up to a
+ *   batch-size-dependent number of randomly selected album IDs.
  *
- *   Handles one artist only: 429 responses are retried in place (honouring `retry-after`) up to
- *   MAX_ARTIST_ATTEMPTS times, and the function always resolves to a stable `string[]` so callers
- *   never have to special-case error objects.
+ *   Callers that already searched Spotify (e.g. the non-popular filtering pass,
+ *   which needs follower counts anyway) reuse the id they got back instead of
+ *   searching for the same artist a second time.
+ *
+ *   Handles one artist only: 429 responses are retried in place (honouring
+ *   `retry-after`) up to MAX_ARTIST_ATTEMPTS times, and the function always
+ *   resolves to a stable `string[]` so callers never have to special-case error
+ *   objects.
  **/
 const MAX_ARTIST_ATTEMPTS = 3;
 
-export async function getArtistsAlbums(
-	artist: string,
+export async function getArtistAlbumsById(
+	artistId: string,
+	artistName: string,
 	artistsLength: number,
 	signal?: AbortSignal,
 ): Promise<string[]> {
@@ -290,33 +308,16 @@ export async function getArtistsAlbums(
 
 	for (let attempt = 0; attempt < MAX_ARTIST_ATTEMPTS; attempt++) {
 		try {
-			const _data = await spotifyApi.searchArtists(artist, {
-				limit: 1,
-				offset: 0,
-			});
-			if (!_data.body.artists?.items[0]) {
-				console.log(`Artist not found: ${artist}`);
-				return [];
-			}
-			const artistId = _data.body.artists?.items[0].id as string;
-			const options = {
+			const data = await spotifyApi.getArtistAlbums(artistId, {
 				limit: 10,
-				album_type: 'album',
 				include_groups: 'album',
-			};
-			const data = await spotifyApi.getArtistAlbums(artistId, options);
+			});
 
 			const deduplicated = deduplicateAlbums(data.body.items);
 
-			if (maxAlbums >= deduplicated.length) {
-				return deduplicated.map((item: { id: any }) => item.id);
-			} else {
-				const sortedAlbum = shuffle(deduplicated);
-				const randomlySelectedAlbum = sortedAlbum
-					.slice(0, maxAlbums)
-					.map((item: { id: any }) => item.id);
-				return randomlySelectedAlbum;
-			}
+			return shuffle(deduplicated)
+				.slice(0, Math.min(maxAlbums, deduplicated.length))
+				.map((item) => item.id);
 		} catch (err: any) {
 			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
 			const retryAfter = Number(
@@ -326,7 +327,7 @@ export async function getArtistsAlbums(
 
 			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
 				console.log(
-					`Rate limited (429) for ${artist}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_ARTIST_ATTEMPTS})`,
+					`Rate limited (429) for ${artistName}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_ARTIST_ATTEMPTS})`,
 				);
 				// Let an abort propagate so the caller can stop the whole batch.
 				await sleep(retryAfter * 1000, signal);
@@ -334,7 +335,7 @@ export async function getArtistsAlbums(
 			}
 
 			console.error(
-				`Error in getArtistsAlbums for ${artist}:`,
+				`Error in getArtistAlbumsById for ${artistName}:`,
 				err?.message || err,
 			);
 			if (err?.response?.body)
@@ -344,9 +345,34 @@ export async function getArtistsAlbums(
 	}
 
 	console.error(
-		`getArtistsAlbums exhausted ${MAX_ARTIST_ATTEMPTS} retries for ${artist}`,
+		`getArtistAlbumsById exhausted ${MAX_ARTIST_ATTEMPTS} retries for ${artistName}`,
 	);
 	return [];
+}
+
+/**
+ *   Name-only entry point for album fetching: resolves the name to a Spotify
+ *   artist first, then defers to {@link getArtistAlbumsById}. Used by paths that
+ *   never needed follower counts (the popular/default path), so they still only
+ *   pay for one search per artist.
+ **/
+export async function getArtistsAlbums(
+	artist: string,
+	artistsLength: number,
+	signal?: AbortSignal,
+): Promise<string[]> {
+	const resolved = await resolveSpotifyArtist(artist, signal);
+	if (!resolved) {
+		console.log(`Artist not found: ${artist}`);
+		return [];
+	}
+
+	return getArtistAlbumsById(
+		resolved.id,
+		resolved.name,
+		artistsLength,
+		signal,
+	);
 }
 
 /**
@@ -516,19 +542,20 @@ export async function getUser() {
 }
 
 /**
- * Resolves one artist name to its Spotify follower count. Uses the same
- * `searchArtists(name, { limit: 1 })` match as `getArtistsAlbums`, so the
- * followers we classify on belong to the exact artist whose albums are pulled
- * later. Returns null when the artist can't be resolved (unknown to Spotify, or
- * the lookup kept failing), and 429s are retried in place honouring
- * `retry-after`.
+ * Resolves one artist name to the Spotify artist behind it, keeping both the id
+ * and the follower count from the same `searchArtists(name, { limit: 1 })`
+ * match. Follower filtering and album fetching therefore always talk about the
+ * exact same artist, and the id lets the album fetch skip a second search.
+ *
+ * Returns null when the artist can't be resolved (unknown to Spotify, or the
+ * lookup kept failing), and 429s are retried in place honouring `retry-after`.
  */
-async function getArtistFollowers(
+async function resolveSpotifyArtist(
 	artistName: string,
 	signal?: AbortSignal,
-): Promise<number | null> {
+): Promise<ResolvedSpotifyArtist | null> {
 	const cacheKey = artistName.trim().toLowerCase();
-	const cached = artistFollowerCache.get(cacheKey);
+	const cached = spotifyArtistCache.get(cacheKey);
 	if (cached !== undefined) return cached;
 
 	for (let attempt = 0; attempt < MAX_FOLLOWER_LOOKUP_ATTEMPTS; attempt++) {
@@ -538,10 +565,16 @@ async function getArtistFollowers(
 				offset: 0,
 			});
 			const match = data.body.artists?.items?.[0];
-			const followers = match ? (match.followers?.total ?? 0) : null;
+			const resolved: ResolvedSpotifyArtist | null = match
+				? {
+						id: match.id,
+						name: match.name,
+						followers: match.followers?.total ?? 0,
+					}
+				: null;
 
-			cacheArtistFollowers(cacheKey, followers);
-			return followers;
+			cacheSpotifyArtist(cacheKey, resolved);
+			return resolved;
 		} catch (err: any) {
 			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
 			const retryAfter = Number(
@@ -551,30 +584,28 @@ async function getArtistFollowers(
 
 			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
 				console.log(
-					`Rate limited (429) resolving followers for ${artistName}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_FOLLOWER_LOOKUP_ATTEMPTS})`,
+					`Rate limited (429) resolving ${artistName}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_FOLLOWER_LOOKUP_ATTEMPTS})`,
 				);
 				// Let an abort propagate so the caller can stop the whole batch.
 				await sleep(retryAfter * 1000, signal);
 				continue;
 			}
 
-			console.error(
-				`Error resolving followers for ${artistName}:`,
-				err?.message || err,
-			);
+			console.error(`Error resolving ${artistName}:`, err?.message || err);
 			return null;
 		}
 	}
 
 	console.error(
-		`getArtistFollowers exhausted ${MAX_FOLLOWER_LOOKUP_ATTEMPTS} retries for ${artistName}`,
+		`resolveSpotifyArtist exhausted ${MAX_FOLLOWER_LOOKUP_ATTEMPTS} retries for ${artistName}`,
 	);
 	return null;
 }
 
 /**
- * Attaches Spotify follower counts to candidate artist names, returning only
- * the artists that pass the caller's popularity predicate.
+ * Resolves candidate artist names to real Spotify artists, returning only the
+ * ones that pass the caller's popularity predicate. Each returned artist carries
+ * its Spotify id, so the album fetch downstream never has to search again.
  *
  * Names that can't be resolved to a Spotify artist are dropped rather than
  * defaulted to 0 followers: without a Spotify artist there are no albums to pull
@@ -592,18 +623,18 @@ export async function resolveArtistsWithFollowers(
 	artistNames: string[],
 	matchesPopularity: (followers: number) => boolean,
 	signal?: AbortSignal,
-): Promise<ArtistWithFollowers[]> {
+): Promise<ResolvedSpotifyArtist[]> {
 	const limit = pLimit(FOLLOWER_LOOKUP_CONCURRENCY);
-	const resolved: ArtistWithFollowers[] = [];
+	const resolved: ResolvedSpotifyArtist[] = [];
 	let matching = 0;
 
 	for (let i = 0; i < artistNames.length; i += FOLLOWER_LOOKUP_CHUNK_SIZE) {
 		if (signal?.aborted) throw new Error('Aborted');
 
 		const chunk = artistNames.slice(i, i + FOLLOWER_LOOKUP_CHUNK_SIZE);
-		const followerCounts = await Promise.all(
+		const resolvedArtists = await Promise.all(
 			chunk.map((name) => {
-				const result = limit(() => getArtistFollowers(name, signal));
+				const result = limit(() => resolveSpotifyArtist(name, signal));
 				setTimeout(() => {
 					if (signal?.aborted) {
 						console.log(`Aborted lookup for ${name}`);
@@ -613,17 +644,16 @@ export async function resolveArtistsWithFollowers(
 			}),
 		);
 
-		chunk.forEach((name, index) => {
-			const followers = followerCounts[index];
-			if (followers === null) return;
+		for (const artist of resolvedArtists) {
+			if (artist === null) continue;
 
 			// Enforcement: only keep artists that actually match the caller's
 			// popularity predicate. The early-stop below is an optimization.
-			if (!matchesPopularity(followers)) return;
+			if (!matchesPopularity(artist.followers)) continue;
 
-			resolved.push({ name, followers });
+			resolved.push(artist);
 			matching++;
-		});
+		}
 
 		if (matching >= MAX_MATCHING_ARTISTS_PER_SEED) break;
 	}

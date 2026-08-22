@@ -7,7 +7,12 @@ import {
   getUserGeneratedSongIds,
 } from './db';
 import { calculateCosineSimilarity } from './utils';
-import { getAllTracks, getEveryAlbum, relatedArists } from './helpers';
+import {
+	getAllTracks,
+	getEveryAlbum,
+	relatedArists,
+	artistNameOf,
+} from './helpers';
 import { getArtistDiscographyTracks } from './spotify';
 
 import pLimit from 'p-limit';
@@ -216,7 +221,7 @@ export async function generateSeedPlaylist(
 			);
 			throwIfAborted();
 
-			usedArtistNames.push(...finalList);
+			usedArtistNames.push(...finalList.map(artistNameOf));
 
 			const albums = await getEveryAlbum(finalList, signal);
 			throwIfAborted();

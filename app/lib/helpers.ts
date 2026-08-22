@@ -1,7 +1,9 @@
 import {
 	getArtistsAlbums,
+	getArtistAlbumsById,
 	getTracks,
 	resolveArtistsWithFollowers,
+	ResolvedSpotifyArtist,
 	isPopularArtistByFollowers,
 } from './spotify';
 import { singleTrack, trackTypes } from '../types';
@@ -11,6 +13,14 @@ import pLimit from 'p-limit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 import { shuffle, sleep } from './utils';
+
+/**
+ * A single artist to fetch albums for: either a raw Last.fm name (popular
+ * path, which never needed a Spotify lookup) or a Spotify-resolved artist
+ * (non-popular path, which carried the id back from the follower filter so the
+ * album fetch skips a second search).
+ */
+export type AlbumLookupArtist = string | ResolvedSpotifyArtist;
 
 export const SPOTIFY_PUBLIC_PLAYLIST_ERROR =
 	'Spotify could not access this playlist. Please make the playlist public, then try again.';
@@ -139,13 +149,14 @@ const BATCH_RETRY_DELAY_MS = 5000;
  * out the albums returned by the artists that did succeed. If the batch still
  * comes back too sparse to be useful, it is retried once after a short cool-off.
  *
- * @param artists - Array of artist names
+ * @param artists - Array of artist names or resolved Spotify artists. Resolved
+ * artists reuse their cached id for the album lookup; plain names search once.
  * @param signal - Optional abort signal
  * @param attempt - Internal batch retry counter; callers should not pass this
  * @returns Array of unique album IDs
  */
 export const getEveryAlbum = async (
-	artists: string[],
+	artists: AlbumLookupArtist[],
 	signal?: AbortSignal,
 	attempt = 0,
 ): Promise<string[]> => {
@@ -156,7 +167,16 @@ export const getEveryAlbum = async (
 
 	const results = await Promise.allSettled(
 		shuffled.map((artist) =>
-			limit(() => getArtistsAlbums(artist, shuffled.length, signal)),
+			limit(() =>
+				typeof artist === 'string'
+					? getArtistsAlbums(artist, shuffled.length, signal)
+					: getArtistAlbumsById(
+							artist.id,
+							artist.name,
+							shuffled.length,
+							signal,
+						),
+			),
 		),
 	);
 
@@ -304,6 +324,18 @@ export async function fetchSimilarArtistsFromAI(
 }
 
 /**
+ * A candidate returned by `getRelatedArtists`: either a raw Last.fm name (the
+ * popular/default path, which never touched Spotify) or a Spotify-resolved
+ * artist (the non-popular path, which carries the id back from the follower
+ * filter). The behavioral identity for dedup/exclusion is always the name.
+ */
+export type RelatedArtistCandidate = string | ResolvedSpotifyArtist;
+
+/** Extracts the dedup/exclusion identity (the artist name) from a candidate. */
+export const artistNameOf = (artist: RelatedArtistCandidate) =>
+	typeof artist === 'string' ? artist : artist.name;
+
+/**
  * `relatedArists` only round-robins ~65 artists across every seed, so resolving
  * more than this per seed just burns Spotify quota.
  */
@@ -313,7 +345,7 @@ export async function relatedArists(
 	signal?: AbortSignal,
 	extraExcludedArtists?: string[],
 ) {
-	const relatedArtistsPerSeed = [];
+	const relatedArtistsPerSeed: RelatedArtistCandidate[][] = [];
 	const batches = [];
 
 	for (let i = 0; i < artistNames.length; i += 3) {
@@ -336,9 +368,11 @@ export async function relatedArists(
 	// Round robin — take one from each artist at a time until we have 65
 	shuffle(relatedArtistsPerSeed);
 	// Mutable working copies — we splice from these
-	const workingLists: string[][] = relatedArtistsPerSeed.map((arr) => [...arr]);
+	const workingLists: RelatedArtistCandidate[][] = relatedArtistsPerSeed.map(
+		(arr) => [...arr],
+	);
 
-	const finalList: string[] = [];
+	const finalList: RelatedArtistCandidate[] = [];
 	// Use a Set for O(1) duplicate checks instead of .map().includes() (O(n) per lookup)
 	const finalSet = new Set<string>();
 	const excluded = new Set([
@@ -358,13 +392,14 @@ export async function relatedArists(
 			const startIdx = Math.floor(Math.random() * pool.length);
 			for (let offset = 0; offset < pool.length; offset++) {
 				const idx = (startIdx + offset) % pool.length;
-				const name = pool[idx];
+				const candidate = pool[idx];
+				const candidateName = artistNameOf(candidate);
 				if (
-					!excluded.has(name.toLowerCase()) &&
-					!finalSet.has(name.toLowerCase())
+					!excluded.has(candidateName.toLowerCase()) &&
+					!finalSet.has(candidateName.toLowerCase())
 				) {
-					finalList.push(name);
-					finalSet.add(name.toLowerCase());
+					finalList.push(candidate);
+					finalSet.add(candidateName.toLowerCase());
 					pool.splice(idx, 1); // remove so it can't be re-picked
 					picked = true;
 					break;
@@ -384,7 +419,7 @@ export async function getRelatedArtists(
 	artistName: string,
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	signal?: AbortSignal,
-): Promise<string[]> {
+): Promise<RelatedArtistCandidate[]> {
 	try {
 		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
 
@@ -416,9 +451,7 @@ export async function getRelatedArtists(
 		);
 
 		return shuffle(
-			artists
-				.filter(({ followers }) => shouldKeepArtist(followers))
-				.map((artist) => artist.name),
+			artists.filter(({ followers }) => shouldKeepArtist(followers)),
 		);
 	} catch (err: any) {
 		if (signal?.aborted) throw new Error('Aborted');
