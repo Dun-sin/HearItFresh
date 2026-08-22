@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/Dun-sin/HearItFresh/compare/v1.33.0...v1.34.0) (2026-08-20)
+
+
+### Features
+
+* **spotify:** improve track deduplication with normalized metadata matching ([0977421](https://github.com/Dun-sin/HearItFresh/commit/097742164f40165d1ec09bc1b9b6625e0b89d82b))
+
 # [1.33.0](https://github.com/Dun-sin/HearItFresh/compare/v1.32.0...v1.33.0) (2026-08-20)
 
 
