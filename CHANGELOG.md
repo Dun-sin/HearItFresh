@@ -1,3 +1,10 @@
+# [1.36.0](https://github.com/Dun-sin/HearItFresh/compare/v1.35.0...v1.36.0) (2026-08-22)
+
+
+### Features
+
+* **spotify:** implement pagination for playlist track fetching ([2f89019](https://github.com/Dun-sin/HearItFresh/commit/2f8901944e27c042cb54ab1f6e3674b4ec06ed06))
+
 # [1.35.0](https://github.com/Dun-sin/HearItFresh/compare/v1.34.0...v1.35.0) (2026-08-22)
 
 
