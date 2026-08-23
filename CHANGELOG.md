@@ -1,3 +1,10 @@
+## [1.38.1](https://github.com/Dun-sin/HearItFresh/compare/v1.38.0...v1.38.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* handle missing output for completed Inngest runs ([6f0ce5c](https://github.com/Dun-sin/HearItFresh/commit/6f0ce5c75bad11570da9493bc707c4bf9bb3f63e))
+
 # [1.38.0](https://github.com/Dun-sin/HearItFresh/compare/v1.37.0...v1.38.0) (2026-08-22)
 
 
