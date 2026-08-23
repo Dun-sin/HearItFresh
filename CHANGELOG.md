@@ -1,3 +1,10 @@
+# [1.39.0](https://github.com/Dun-sin/HearItFresh/compare/v1.38.1...v1.39.0) (2026-08-23)
+
+
+### Features
+
+* **inngest:** migrate trace API to v2 and harden output parsing ([041d8e8](https://github.com/Dun-sin/HearItFresh/commit/041d8e879fd04b49afbb05ae89da7f554cab4d91))
+
 ## [1.38.1](https://github.com/Dun-sin/HearItFresh/compare/v1.38.0...v1.38.1) (2026-08-23)
 
 
