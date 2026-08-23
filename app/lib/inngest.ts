@@ -105,8 +105,12 @@ export const getInngestRunStatus = async (runId: string) => {
 		status: data?.status,
 		hasOutput: !!data?.output,
 		outputType: typeof data?.output,
-		outputKeys: data?.output && typeof data?.output === 'object' ? Object.keys(data.output) : null,
+		outputKeys:
+			data?.output && typeof data?.output === 'object'
+				? Object.keys(data.output)
+				: null,
 		output: data?.output,
+		data,
 	});
 
 	return data;
