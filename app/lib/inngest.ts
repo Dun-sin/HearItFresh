@@ -1,4 +1,4 @@
-import { normalizeStatus } from './utils';
+import { normalizeOutput, normalizeStatus } from './utils';
 
 const getInngestBaseUrl = () => {
 	return process.env.NODE_ENV === 'production'
@@ -109,3 +109,48 @@ export const getInngestEventRuns = async (
 
 	return [];
 };
+
+export async function getInngestRunTrace(runId: string) {
+	const response = await fetch(
+		`${getInngestBaseUrl()}/v1/runs/${runId}/trace?includeOutput=true`,
+		{
+			headers: {
+				Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch run trace: ${response.status}`);
+	}
+
+	const json = await response.json();
+	return json.data;
+}
+
+function findFinalStepOutput(span: any): { link: string; name: string } | null {
+	if (!span) return null;
+
+	if (span.stepId === 'finalize-playlist-output') {
+		return normalizeOutput(span.output);
+	}
+
+	for (const child of span.children ?? []) {
+		const output: { link: string; name: string } | null =
+			findFinalStepOutput(child);
+		if (output) return output;
+	}
+
+	return null;
+}
+
+export async function getCompletedPlaylistOutput(
+	runId: string,
+	run?: InngestRun | null,
+): Promise<{ link: string; name: string } | null> {
+	const runOutput = normalizeOutput(run?.output);
+	if (runOutput) return runOutput;
+
+	const trace = await getInngestRunTrace(runId);
+	return findFinalStepOutput(trace?.rootSpan);
+}

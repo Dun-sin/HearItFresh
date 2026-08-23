@@ -101,6 +101,10 @@ export const generatePlaylist = inngest.createFunction(
 			await addTracksToPlayList(result.tracks, playListID);
 		});
 
+		const playlistOutput = await step.run('finalize-playlist-output', async () => {
+			return { link, name };
+		});
+
 		if (persistResult && generatedPlaylistId) {
 			await step.run('save-playlist-to-db', async () => {
 				await prisma.generatedPlaylist.updateMany({
@@ -117,7 +121,7 @@ export const generatePlaylist = inngest.createFunction(
 			});
 		}
 
-		return { link, name };
+		return playlistOutput;
 	},
 );
 

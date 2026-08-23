@@ -2,6 +2,7 @@ import prisma from '@/app/lib/prisma';
 import {
 	getInngestRunStatus,
 	getCurrentRunForEvent,
+	getCompletedPlaylistOutput,
 } from '@/app/lib/inngest';
 import { formatPlaylistOutput } from '@/app/lib/helpers';
 import { normalizeOutput, normalizeStatus } from '@/app/lib/utils';
@@ -17,10 +18,16 @@ export async function GET(req: Request) {
 	if (runId && !generatedPlaylistId) {
 		try {
 			const run = await getInngestRunStatus(runId);
-			const output = normalizeOutput(run?.output);
+			const status = normalizeStatus(run?.status);
+			const runOutput = normalizeOutput(run?.output);
+
+			const output =
+				status === 'Completed' && !runOutput
+					? await getCompletedPlaylistOutput(runId, run)
+					: runOutput;
 
 			return Response.json({
-				status: normalizeStatus(run?.status),
+				status,
 				output,
 				runId: run?.run_id ?? run?.id ?? runId,
 				lastPlaylist: output,
@@ -74,13 +81,20 @@ export async function GET(req: Request) {
 	if (record.inngestRunId) {
 		const run = await getInngestRunStatus(record.inngestRunId);
 		const status = normalizeStatus(run?.status);
-		const output = normalizeOutput(run?.output);
+		const runOutput = normalizeOutput(run?.output);
+
+		const inngestOutput =
+			status === 'Completed' && !runOutput
+				? await getCompletedPlaylistOutput(record.inngestRunId, run)
+				: runOutput;
+
+		const persistedOutput = formatPlaylistOutput(record);
 
 		return Response.json({
 			status,
-			output: output ?? formatPlaylistOutput(record),
+			output: inngestOutput ?? persistedOutput,
 			runId: record.inngestRunId,
-			lastPlaylist: formatPlaylistOutput(record),
+			lastPlaylist: persistedOutput,
 		});
 	}
 
