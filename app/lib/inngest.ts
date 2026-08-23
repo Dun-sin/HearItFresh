@@ -99,7 +99,17 @@ export const getInngestRunStatus = async (runId: string) => {
 	}
 
 	const json = await response.json();
-	return json.data;
+	const data = json.data;
+
+	console.log('[getInngestRunStatus] Run:', runId, {
+		status: data?.status,
+		hasOutput: !!data?.output,
+		outputType: typeof data?.output,
+		outputKeys: data?.output && typeof data?.output === 'object' ? Object.keys(data.output) : null,
+		output: data?.output,
+	});
+
+	return data;
 };
 
 export const getInngestEventRuns = async (
