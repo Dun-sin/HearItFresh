@@ -1,6 +1,9 @@
 import prisma from '@/app/lib/prisma';
-import { getInngestRunStatus, getInngestEventRuns } from '@/app/lib/inngest';
-import { normalizeStatus, normalizeOutput } from '@/app/lib/utils';
+import {
+	getInngestRunStatus,
+	getInngestEventRuns,
+	normalizeRun,
+} from '@/app/lib/inngest';
 
 type ReconcileResponse = {
 	status?:
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
 			continue;
 		}
 
-    const status = normalizeStatus(run?.status);
+		const { status, output, raw } = normalizeRun(run);
 
 		if (
 			status === 'Running' ||
@@ -95,8 +98,6 @@ export async function POST(req: Request) {
 			};
 			continue;
 		}
-
-		const output = normalizeOutput(run?.output);
 
 		// if the status is Completed, Cancelled, or Failed, we need to update the record in the database and add it to the updated array
 		if (status === 'Completed') {
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
       });
     } else if (status === 'Failed') {
       await applyTerminalState(record, 'Failed', updated, {
-        errorMessage: run?.errorMessage || 'Generation failed',
+        errorMessage: (raw?.errorMessage as string | undefined) || 'Generation failed',
       });
     }
   }

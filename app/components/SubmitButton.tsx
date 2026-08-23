@@ -46,6 +46,11 @@ const SubmitButton = () => {
 		clearSeeds,
 	} = useSeedSongs();
 
+	const isGuest = !user?.user_id;
+	const failedMessage = isGuest
+		? "We couldn't create your playlist. Please sign in and try again."
+		: "We couldn't create your playlist. Please try again.";
+
 	// Refs for in-flight Inngest job management
 	const abortedRef = useRef(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -326,49 +331,6 @@ const SubmitButton = () => {
 		}
 	};
 
-	const retryTraceFallback = async (
-		runId: string | null,
-		traceRetries = 0,
-	): Promise<void> => {
-		const MAX_TRACE_RETRIES = 10;
-
-		if (abortedRef.current) return;
-		if (!runId || activeRunIdRef.current !== runId) return;
-
-		let output: { link?: string; name?: string } | null = null;
-		try {
-			const res = await fetch('/api/playlist/trace', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ runId }),
-			});
-			if (res.ok) {
-				const traceData = await res.json();
-				output = traceData.output ?? null;
-			}
-		} catch {
-			output = null;
-		}
-
-		if (abortedRef.current || activeRunIdRef.current !== runId) return;
-
-		if (output?.link && output?.name) {
-			await createSpotifyPlaylist(output.link, output.name);
-			return;
-		}
-
-		if (traceRetries >= MAX_TRACE_RETRIES) {
-			throw new Error('Playlist generation completed without playlist output');
-		}
-
-		console.warn(
-			`[pollForCompletion] Trace fallback attempt ${traceRetries + 1}/${MAX_TRACE_RETRIES} returned no usable output — retrying in 10s...`,
-		);
-		await new Promise((resolve) => setTimeout(resolve, 10000));
-		if (abortedRef.current || activeRunIdRef.current !== runId) return;
-		await retryTraceFallback(runId, traceRetries + 1);
-	};
-
 	const pollForCompletion = async (
 		payload: Record<string, any>,
 		unexpectedRetries = 0,
@@ -439,12 +401,14 @@ const SubmitButton = () => {
 				await createSpotifyPlaylist(playlist.link, playlist.name);
 				return;
 			}
-			await retryTraceFallback(data.runId ?? activeRunIdRef.current, 0);
+			setFailed(true);
+			setErrorMessage(failedMessage);
+			throw new Error(failedMessage);
 		} else if (data.status === 'Failed') {
 			console.log('[pollForCompletion] Failed!');
 			setFailed(true);
-			setErrorMessage(data.errorMessage || 'Playlist generation failed');
-			throw new Error(data.errorMessage || 'Playlist generation failed');
+			setErrorMessage(failedMessage);
+			throw new Error(failedMessage);
 		} else if (data.status === 'Cancelled') {
 			console.warn('[pollForCompletion] Inngest reported job as Cancelled.');
 			setFailed(true);
@@ -661,6 +625,7 @@ const SubmitButton = () => {
 			onCancel={handleCancel}
 			failed={failed}
 			errorMessage={errorMessage}
+			canRetry={Boolean(user?.user_id)}
 			btnClass={btnClass}
 			disabled={isLowSeedCount}
 		/>

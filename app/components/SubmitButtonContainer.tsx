@@ -10,6 +10,7 @@ const SubmitButtionContainer = ({
 	onCancel,
 	failed,
 	errorMessage,
+	canRetry,
 	btnText,
 	btnClass,
 	disabled,
@@ -18,6 +19,7 @@ const SubmitButtionContainer = ({
 	onCancel?: () => void;
 	failed?: boolean;
 	errorMessage?: string | null;
+	canRetry?: boolean;
 	btnText?: string;
 	btnClass?: string;
 	disabled?: boolean;
@@ -44,13 +46,15 @@ const SubmitButtionContainer = ({
 		return (
 			<div className='flex flex-col items-center gap-3 w-full'>
 				<p className='text-sm text-red-400 text-center'>
-					Generation failed: {errorMessage}
+					{errorMessage}
 				</p>
-			<button
-				className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
-				onClick={handleSubmit}>
-				Try Again
-			</button>
+				{canRetry && (
+					<button
+						className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
+						onClick={handleSubmit}>
+						Try Again
+					</button>
+				)}
 			</div>
 		);
 	}

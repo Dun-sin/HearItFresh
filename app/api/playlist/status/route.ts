@@ -2,9 +2,9 @@ import prisma from '@/app/lib/prisma';
 import {
 	getInngestRunStatus,
 	getCurrentRunForEvent,
+	normalizeRun,
 } from '@/app/lib/inngest';
 import { formatPlaylistOutput } from '@/app/lib/helpers';
-import { normalizeOutput, normalizeStatus } from '@/app/lib/utils';
 
 export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
@@ -17,14 +17,13 @@ export async function GET(req: Request) {
 	if (runId && !generatedPlaylistId) {
 		try {
 			const run = await getInngestRunStatus(runId);
-			const status = normalizeStatus(run?.status);
-			const runOutput = normalizeOutput(run?.output);
+			const { status, output, runId: resolvedRunId } = normalizeRun(run);
 
 			return Response.json({
 				status,
-				output: runOutput,
-				runId: run?.run_id ?? run?.id ?? runId,
-				lastPlaylist: runOutput,
+				output,
+				runId: resolvedRunId ?? runId,
+				lastPlaylist: output,
 			});
 		} catch (error) {
 			console.error('[playlist/status] run lookup failed', error);
@@ -40,12 +39,12 @@ export async function GET(req: Request) {
 	if (eventId && !generatedPlaylistId) {
 		try {
 			const run = await getCurrentRunForEvent(eventId);
-			const output = normalizeOutput(run?.output);
+			const { status, output, runId: resolvedRunId } = normalizeRun(run);
 
 			return Response.json({
-				status: normalizeStatus(run?.status) ?? 'Pending',
+				status: status ?? 'Pending',
 				output,
-				runId: run?.run_id ?? run?.id ?? null,
+				runId: resolvedRunId ?? null,
 				lastPlaylist: output,
 			});
 		} catch (error) {
@@ -74,13 +73,12 @@ export async function GET(req: Request) {
 
 	if (record.inngestRunId) {
 		const run = await getInngestRunStatus(record.inngestRunId);
-		const status = normalizeStatus(run?.status);
-		const runOutput = normalizeOutput(run?.output);
+		const { status, output } = normalizeRun(run);
 		const persistedOutput = formatPlaylistOutput(record);
 
 		return Response.json({
 			status,
-			output: runOutput,
+			output,
 			runId: record.inngestRunId,
 			lastPlaylist: persistedOutput,
 		});

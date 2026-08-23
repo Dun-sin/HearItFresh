@@ -1,10 +1,8 @@
-import { normalizeOutput, normalizeStatus } from './utils';
-
-const getInngestBaseUrl = () => {
-	return process.env.NODE_ENV === 'production'
-		? 'https://api.inngest.com'
-		: 'http://localhost:8288';
-};
+import {
+	normalizeOutput,
+	normalizeStatus,
+	PlaylistOutput,
+} from './utils';
 
 const getInngestV2BaseUrl = () => {
 	return process.env.NODE_ENV === 'production'
@@ -28,12 +26,37 @@ export type InngestRun = {
 	[key: string]: unknown;
 };
 
+export type NormalizedInngestRun = {
+	runId: string | null;
+	status: InngestRunStatus | null;
+	output: PlaylistOutput | null;
+	raw: InngestRun;
+};
+
 const TERMINAL_STATUSES: InngestRunStatus[] = [
 	'Completed',
 	'Failed',
 	'Cancelled',
 ];
 const ACTIVE_STATUSES: InngestRunStatus[] = ['Running', 'Scheduled', 'Pending'];
+
+/**
+ * Normalizes the v2 API run object into the app's canonical shape at the
+ * adapter boundary so callers never re-implement status/output mapping.
+ */
+export function normalizeRun(
+	run: InngestRun | null | undefined,
+): NormalizedInngestRun {
+	if (!run) {
+		return { runId: null, status: null, output: null, raw: {} };
+	}
+
+	const runId = run.run_id ?? run.id ?? null;
+	const status = (normalizeStatus(run.status) as InngestRunStatus) ?? null;
+	const output = normalizeOutput(run.output);
+
+	return { runId, status, output, raw: run };
+}
 
 export function selectCurrentRun(runs: InngestRun[]): InngestRun | null {
 	if (!runs || runs.length === 0) return null;
@@ -119,10 +142,3 @@ export const getInngestEventRuns = async (
 
 	return [];
 };
-
-export async function getCompletedPlaylistOutput(
-	run?: InngestRun | null,
-): Promise<{ link: string; name: string } | null> {
-	const runOutput = normalizeOutput(run?.output);
-	return runOutput;
-}
