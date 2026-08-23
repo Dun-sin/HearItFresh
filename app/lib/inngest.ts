@@ -54,9 +54,18 @@ export function selectCurrentRun(runs: InngestRun[]): InngestRun | null {
 export const getCurrentRunForEvent = async (
 	eventId: string,
 ): Promise<InngestRun | null> => {
-	const run = selectCurrentRun(await getInngestEventRuns(eventId));
+	const runs = await getInngestEventRuns(eventId);
+	const run = selectCurrentRun(runs);
 	const runId = run?.run_id ?? run?.id;
 	const status = normalizeStatus(run?.status);
+
+	console.log('[getCurrentRunForEvent] Event:', eventId, {
+		runId,
+		status,
+		hasOutput: !!run?.output,
+		outputType: typeof run?.output,
+		outputKeys: run?.output && typeof run?.output === 'object' ? Object.keys(run.output) : null,
+	});
 
 	if (!runId) return run;
 	if (run?.output) return run;
@@ -64,7 +73,16 @@ export const getCurrentRunForEvent = async (
 	const isTerminal = TERMINAL_STATUSES.includes(status as InngestRunStatus);
 	if (!isTerminal) return run;
 
-	return await getInngestRunStatus(runId);
+	const fullRun = await getInngestRunStatus(runId);
+	console.log('[getCurrentRunForEvent] Full run fetch:', {
+		fullRunId: fullRun?.run_id ?? fullRun?.id,
+		fullStatus: normalizeStatus(fullRun?.status),
+		fullHasOutput: !!fullRun?.output,
+		fullOutputType: typeof fullRun?.output,
+		fullOutputKeys: fullRun?.output && typeof fullRun?.output === 'object' ? Object.keys(fullRun.output) : null,
+	});
+
+	return fullRun;
 };
 
 export const getInngestRunStatus = async (runId: string) => {
