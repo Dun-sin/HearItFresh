@@ -2,7 +2,6 @@ import prisma from '@/app/lib/prisma';
 import {
 	getInngestRunStatus,
 	getCurrentRunForEvent,
-	getCompletedPlaylistOutput,
 } from '@/app/lib/inngest';
 import { formatPlaylistOutput } from '@/app/lib/helpers';
 import { normalizeOutput, normalizeStatus } from '@/app/lib/utils';
@@ -21,16 +20,11 @@ export async function GET(req: Request) {
 			const status = normalizeStatus(run?.status);
 			const runOutput = normalizeOutput(run?.output);
 
-			const output =
-				status === 'Completed' && !runOutput
-					? await getCompletedPlaylistOutput(runId, run)
-					: runOutput;
-
 			return Response.json({
 				status,
-				output,
+				output: runOutput,
 				runId: run?.run_id ?? run?.id ?? runId,
-				lastPlaylist: output,
+				lastPlaylist: runOutput,
 			});
 		} catch (error) {
 			console.error('[playlist/status] run lookup failed', error);
@@ -82,17 +76,11 @@ export async function GET(req: Request) {
 		const run = await getInngestRunStatus(record.inngestRunId);
 		const status = normalizeStatus(run?.status);
 		const runOutput = normalizeOutput(run?.output);
-
-		const inngestOutput =
-			status === 'Completed' && !runOutput
-				? await getCompletedPlaylistOutput(record.inngestRunId, run)
-				: runOutput;
-
 		const persistedOutput = formatPlaylistOutput(record);
 
 		return Response.json({
 			status,
-			output: inngestOutput ?? persistedOutput,
+			output: runOutput,
 			runId: record.inngestRunId,
 			lastPlaylist: persistedOutput,
 		});
@@ -117,8 +105,9 @@ export async function GET(req: Request) {
 
 	return Response.json({
 		status: 'Pending',
-		output: formatPlaylistOutput(record) ?? formatPlaylistOutput(lastPlaylist),
+		output: null,
 		runId: null,
-		lastPlaylist: formatPlaylistOutput(lastPlaylist),
+		lastPlaylist:
+			formatPlaylistOutput(record) ?? formatPlaylistOutput(lastPlaylist),
 	});
 }

@@ -151,20 +151,16 @@ const SubmitButton = () => {
 			setTimeout(() => pollPendingGeneration(generatedPlaylistId), 10000);
 			return;
 		}
-
-		const completedPlaylist =
-			data.updated?.find(
-				(item: any) =>
-					item.status === 'Completed' && item.output?.link && item.output?.name,
-			) ??
-			(data.status === 'Completed' && (data.output ?? data.lastPlaylist)?.link
-				? {
-						output: data.output ?? data.lastPlaylist,
-					}
-				: null);
+		const completedPlaylist = data.updated?.find(
+			(item: any) =>
+				item.status === 'Completed' && item.output?.link && item.output?.name,
+		);
 
 		if (completedPlaylist?.output?.link && completedPlaylist?.output?.name) {
-			addToUrl('link', completedPlaylist.output.link.split('/').at(-1) as string);
+			addToUrl(
+				'link',
+				completedPlaylist.output.link.split('/').at(-1) as string,
+			);
 			setPlayListData({
 				link: completedPlaylist.output.link,
 				name: completedPlaylist.output.name,
@@ -211,36 +207,36 @@ const SubmitButton = () => {
 			);
 
 			if (process.env.NODE_ENV === 'production') {
-			// Inngest path
-			inngestStartedRef.current = true;
-			const payload = {
-				seeds: selectedSongsData,
-				artistNames: extractedArtists,
-				options: {
-					isNotPopular: isNotPopularArtists,
-					isDifferent: isDifferentTypesOfArtists,
-				},
-				artistId: selectedArtist?.id,
-				artistName: selectedArtist?.name,
-				artistImage: selectedArtist?.image,
-				userId: user?.user_id,
-				sourcePlaylistId: spotifyPlaylist.current?.value
-					? extractPlaylistId(spotifyPlaylist.current.value)
-					: undefined,
-			};
-			const result = await fetch('/api/playlist/generate', {
-				method: 'POST',
-				body: JSON.stringify(payload),
-			});
-			console.log('[handleSeedPlaylistGeneration] Starting polling...');
-			const { generatedPlaylistId, eventId, mode } = await result.json();
-			console.log(
-				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-			);
-			activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
-			activeEventIdRef.current = mode === 'guest' ? eventId : null;
+				// Inngest path
+				inngestStartedRef.current = true;
+				const payload = {
+					seeds: selectedSongsData,
+					artistNames: extractedArtists,
+					options: {
+						isNotPopular: isNotPopularArtists,
+						isDifferent: isDifferentTypesOfArtists,
+					},
+					artistId: selectedArtist?.id,
+					artistName: selectedArtist?.name,
+					artistImage: selectedArtist?.image,
+					userId: user?.user_id,
+					sourcePlaylistId: spotifyPlaylist.current?.value
+						? extractPlaylistId(spotifyPlaylist.current.value)
+						: undefined,
+				};
+				const result = await fetch('/api/playlist/generate', {
+					method: 'POST',
+					body: JSON.stringify(payload),
+				});
+				console.log('[handleSeedPlaylistGeneration] Starting polling...');
+				const { generatedPlaylistId, eventId, mode } = await result.json();
+				console.log(
+					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+				);
+				activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
+				activeEventIdRef.current = mode === 'guest' ? eventId : null;
 
-			await pollForCompletion(payload, 0);
+				await pollForCompletion(payload, 0);
 			} else {
 				inngestStartedRef.current = false;
 				abortControllerRef.current = new AbortController();
@@ -330,6 +326,49 @@ const SubmitButton = () => {
 		}
 	};
 
+	const retryTraceFallback = async (
+		runId: string | null,
+		traceRetries = 0,
+	): Promise<void> => {
+		const MAX_TRACE_RETRIES = 10;
+
+		if (abortedRef.current) return;
+		if (!runId || activeRunIdRef.current !== runId) return;
+
+		let output: { link?: string; name?: string } | null = null;
+		try {
+			const res = await fetch('/api/playlist/trace', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ runId }),
+			});
+			if (res.ok) {
+				const traceData = await res.json();
+				output = traceData.output ?? null;
+			}
+		} catch {
+			output = null;
+		}
+
+		if (abortedRef.current || activeRunIdRef.current !== runId) return;
+
+		if (output?.link && output?.name) {
+			await createSpotifyPlaylist(output.link, output.name);
+			return;
+		}
+
+		if (traceRetries >= MAX_TRACE_RETRIES) {
+			throw new Error('Playlist generation completed without playlist output');
+		}
+
+		console.warn(
+			`[pollForCompletion] Trace fallback attempt ${traceRetries + 1}/${MAX_TRACE_RETRIES} returned no usable output — retrying in 10s...`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, 10000));
+		if (abortedRef.current || activeRunIdRef.current !== runId) return;
+		await retryTraceFallback(runId, traceRetries + 1);
+	};
+
 	const pollForCompletion = async (
 		payload: Record<string, any>,
 		unexpectedRetries = 0,
@@ -395,14 +434,12 @@ const SubmitButton = () => {
 
 		if (data.status === 'Completed') {
 			console.log('[pollForCompletion] Completed!');
-			const playlist = data.output ?? data.lastPlaylist;
-			if (!playlist?.link || !playlist?.name) {
-				throw new Error(
-					'Playlist generation completed without playlist output',
-				);
+			const playlist = data.output;
+			if (playlist?.link && playlist?.name) {
+				await createSpotifyPlaylist(playlist.link, playlist.name);
+				return;
 			}
-			const { link, name } = playlist;
-			await createSpotifyPlaylist(link, name);
+			await retryTraceFallback(data.runId ?? activeRunIdRef.current, 0);
 		} else if (data.status === 'Failed') {
 			console.log('[pollForCompletion] Failed!');
 			setFailed(true);
