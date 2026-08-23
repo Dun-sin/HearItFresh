@@ -20,20 +20,6 @@ export async function GET(req: Request) {
 			const status = normalizeStatus(run?.status);
 			const runOutput = normalizeOutput(run?.output);
 
-			console.log('[playlist/status] runId polling:', {
-				runId,
-				status,
-				run,
-				hasRawOutput: !!run?.output,
-				rawOutputType: typeof run?.output,
-				rawOutputKeys:
-					run?.output && typeof run?.output === 'object'
-						? Object.keys(run.output)
-						: null,
-				hasOutput: !!runOutput,
-				output: runOutput,
-			});
-
 			return Response.json({
 				status,
 				output: runOutput,
