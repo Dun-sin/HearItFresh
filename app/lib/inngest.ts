@@ -6,6 +6,12 @@ const getInngestBaseUrl = () => {
 		: 'http://localhost:8288';
 };
 
+const getInngestV2BaseUrl = () => {
+	return process.env.NODE_ENV === 'production'
+		? 'https://api.inngest.com/v2'
+		: 'http://localhost:8288/api/v2';
+};
+
 export type InngestRunStatus =
 	| 'Pending'
 	| 'Running'
@@ -112,7 +118,7 @@ export const getInngestEventRuns = async (
 
 export async function getInngestRunTrace(runId: string) {
 	const response = await fetch(
-		`${getInngestBaseUrl()}/v1/runs/${runId}/trace?includeOutput=true`,
+		`${getInngestV2BaseUrl()}/runs/${runId}/trace?includeOutput=true`,
 		{
 			headers: {
 				Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
@@ -128,17 +134,35 @@ export async function getInngestRunTrace(runId: string) {
 	return json.data;
 }
 
-function findFinalStepOutput(span: any): { link: string; name: string } | null {
-	if (!span) return null;
+function findFinalStepOutput(value: unknown): { link: string; name: string } | null {
+	if (!value || typeof value !== 'object') return null;
 
-	if (span.stepId === 'finalize-playlist-output') {
-		return normalizeOutput(span.output);
+	const record = value as Record<string, any>;
+	const stepId =
+		record.stepId ??
+		record.step_id ??
+		record.name ??
+		record.displayName ??
+		record.display_name;
+
+	if (stepId === 'finalize-playlist-output') {
+		const output = normalizeOutput(record.output);
+		if (output) return output;
 	}
 
-	for (const child of span.children ?? []) {
-		const output: { link: string; name: string } | null =
-			findFinalStepOutput(child);
-		if (output) return output;
+	for (const child of Object.values(record)) {
+		if (Array.isArray(child)) {
+			for (const item of child) {
+				const output = findFinalStepOutput(item);
+				if (output) return output;
+			}
+			continue;
+		}
+
+		if (child && typeof child === 'object') {
+			const output = findFinalStepOutput(child);
+			if (output) return output;
+		}
 	}
 
 	return null;
@@ -151,6 +175,14 @@ export async function getCompletedPlaylistOutput(
 	const runOutput = normalizeOutput(run?.output);
 	if (runOutput) return runOutput;
 
-	const trace = await getInngestRunTrace(runId);
-	return findFinalStepOutput(trace?.rootSpan);
+	try {
+		const trace = await getInngestRunTrace(runId);
+		return findFinalStepOutput(trace);
+	} catch (error) {
+		console.error('[inngest] completed run trace lookup failed', {
+			runId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return null;
+	}
 }
