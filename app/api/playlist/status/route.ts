@@ -23,9 +23,13 @@ export async function GET(req: Request) {
 			console.log('[playlist/status] runId polling:', {
 				runId,
 				status,
+				run,
 				hasRawOutput: !!run?.output,
 				rawOutputType: typeof run?.output,
-				rawOutputKeys: run?.output && typeof run?.output === 'object' ? Object.keys(run.output) : null,
+				rawOutputKeys:
+					run?.output && typeof run?.output === 'object'
+						? Object.keys(run.output)
+						: null,
 				hasOutput: !!runOutput,
 				output: runOutput,
 			});
