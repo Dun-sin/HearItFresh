@@ -1,6 +1,9 @@
 import { inngest } from '@/app/inngest/client';
 import prisma from '@/app/lib/prisma';
-import { getInngestRunStatus } from '@/app/lib/inngest';
+import {
+	getInngestRunStatus,
+	isRunActive,
+} from '@/app/lib/inngest';
 
 export async function POST(req: Request) {
 	const { generatedPlaylistId } = await req.json();
@@ -26,7 +29,7 @@ export async function POST(req: Request) {
 	if (record.inngestRunId) {
 		try {
 			const run = await getInngestRunStatus(record.inngestRunId);
-			if (run && run.status === 'Running') {
+			if (isRunActive(run)) {
 				return Response.json(
 					{
 						error:

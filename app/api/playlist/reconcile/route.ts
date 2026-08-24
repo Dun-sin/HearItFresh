@@ -112,9 +112,9 @@ export async function POST(req: Request) {
       await applyTerminalState(record, 'Cancelled', updated, {
         errorMessage: 'Generation was cancelled',
       });
-    } else if (status === 'Failed') {
+		} else if (status === 'Failed') {
       await applyTerminalState(record, 'Failed', updated, {
-        errorMessage: (raw?.errorMessage as string | undefined) || 'Generation failed',
+        errorMessage: extractErrorMessage(raw),
       });
     }
   }
@@ -124,6 +124,25 @@ export async function POST(req: Request) {
 	}
 
 	return Response.json(response);
+}
+
+function extractErrorMessage(raw: Record<string, unknown> | undefined): string {
+	if (!raw) return 'Generation failed';
+
+	if (typeof raw.errorMessage === 'string' && raw.errorMessage) {
+		return raw.errorMessage;
+	}
+
+	const error = raw.error;
+	if (
+		error &&
+		typeof error === 'object' &&
+		typeof (error as { message?: unknown }).message === 'string'
+	) {
+		return (error as { message: string }).message;
+	}
+
+	return 'Generation failed';
 }
 
 async function applyTerminalState(
