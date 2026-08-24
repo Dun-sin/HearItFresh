@@ -1,3 +1,10 @@
+# [1.40.0](https://github.com/Dun-sin/HearItFresh/compare/v1.39.0...v1.40.0) (2026-08-24)
+
+
+### Features
+
+* improve Inngest run handling and error extraction ([695c22a](https://github.com/Dun-sin/HearItFresh/commit/695c22acb94d9032c0f1944d3d51eda9fc288292))
+
 # [1.39.0](https://github.com/Dun-sin/HearItFresh/compare/v1.38.1...v1.39.0) (2026-08-23)
 
 
