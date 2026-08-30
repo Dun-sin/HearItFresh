@@ -1,3 +1,10 @@
+# [1.41.0](https://github.com/Dun-sin/HearItFresh/compare/v1.40.0...v1.41.0) (2026-08-30)
+
+
+### Features
+
+* **ui:** add privacy policy page ([#54](https://github.com/Dun-sin/HearItFresh/issues/54)) ([857c389](https://github.com/Dun-sin/HearItFresh/commit/857c389d4943c8ac4d5046b55c6513f7cf9f89f0))
+
 # [1.40.0](https://github.com/Dun-sin/HearItFresh/compare/v1.39.0...v1.40.0) (2026-08-24)
 
 
