@@ -14,8 +14,7 @@ const PrivacyPolicyPage = () => {
 			</div>
 
 			<p>
-				This Privacy Policy explains what information HearItFresh (&quot;we&quot;,
-				&quot;our&quot;, &quot;the app&quot;) collects, why, and how it&apos;s handled
+				This Privacy Policy explains what information HearItFresh collects, why, and how it&apos;s handled
 				when you use the app, including its integration with your YouTube account.
 			</p>
 
