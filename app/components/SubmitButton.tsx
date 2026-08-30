@@ -4,13 +4,18 @@ import {
 	extractPlaylistId,
 	getPlaylistTracks,
 	isSpotifyPlaylistPermissionError,
-	isValidPlaylistLink,
+	detectPlaylistProvider,
+	extractYoutubePlaylistId,
 	SPOTIFY_PUBLIC_PLAYLIST_ERROR,
 } from '@/app/lib/helpers';
 
 import React, { useRef, useState, useEffect } from 'react';
 import SubmitButtionContainer from './SubmitButtonContainer';
-import { addToUrl } from '@/app/lib/clientUtils';
+import {
+	addToUrl,
+	openYoutubeConnectPopup,
+	type YoutubeGuestCredentials,
+} from '@/app/lib/clientUtils';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
@@ -19,7 +24,7 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useSeedSongs } from '@/app/context/seedSongsContext';
-import { addTracksToPlayList, createPlayList } from '../lib';
+import type { ProviderName } from '@/app/lib/providers/types';
 
 const SubmitButton = () => {
 	const { setLoading } = useLoading();
@@ -29,13 +34,19 @@ const SubmitButton = () => {
 		buttonClick,
 		setButtonClicked,
 		setPlayListData,
+		provider,
+		setProvider,
 	} = useGeneralState();
 	const { user } = useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { spotifyPlaylist } = useInput();
 	const { setHistory } = useHistory();
-	const { isNotPopularArtists, isDifferentTypesOfArtists, selectedArtist } =
-		useOptions();
+	const {
+		isNotPopularArtists,
+		isDifferentTypesOfArtists,
+		selectedArtist,
+		setSelectedArtist,
+	} = useOptions();
 
 	const {
 		extractedSongs,
@@ -51,13 +62,15 @@ const SubmitButton = () => {
 		? "We couldn't create your playlist. Please sign in and try again."
 		: "We couldn't create your playlist. Please try again.";
 
-	// Refs for in-flight Inngest job management
 	const abortedRef = useRef(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const activeRunIdRef = useRef<string | null>(null);
 	const activeGeneratedPlaylistIdRef = useRef<string | null>(null);
 	const activeEventIdRef = useRef<string | null>(null);
 	const inngestStartedRef = useRef(false);
+	const youtubeGuestCredentialsRef = useRef<YoutubeGuestCredentials | null>(
+		null,
+	);
 
 	// Terminal state flags
 	const [failed, setFailed] = useState(false);
@@ -131,9 +144,7 @@ const SubmitButton = () => {
 
 	const pollPendingGeneration = async (generatedPlaylistId: string) => {
 		setLoading(true);
-		setLoadingMessage(
-			'Generating your playlist....',
-		);
+		setLoadingMessage('Generating your playlist....');
 
 		const response = await fetch('/api/playlist/reconcile', {
 			method: 'POST',
@@ -214,32 +225,42 @@ const SubmitButton = () => {
 			if (process.env.NODE_ENV === 'production') {
 				// Inngest path
 				inngestStartedRef.current = true;
-				const payload = {
-					seeds: selectedSongsData,
-					artistNames: extractedArtists,
-					options: {
-						isNotPopular: isNotPopularArtists,
-						isDifferent: isDifferentTypesOfArtists,
-					},
-					artistId: selectedArtist?.id,
-					artistName: selectedArtist?.name,
-					artistImage: selectedArtist?.image,
-					userId: user?.user_id,
-					sourcePlaylistId: spotifyPlaylist.current?.value
-						? extractPlaylistId(spotifyPlaylist.current.value)
+				const rawLink = spotifyPlaylist.current?.value ?? '';
+				const sourcePlaylistId = rawLink
+					? provider === 'youtube'
+						? extractYoutubePlaylistId(rawLink)
+						: extractPlaylistId(rawLink)
+					: undefined;
+
+			const payload = {
+				seeds: selectedSongsData,
+				artistNames: extractedArtists,
+				options: {
+					isNotPopular: isNotPopularArtists,
+					isDifferent: isDifferentTypesOfArtists,
+				},
+				artistId: selectedArtist?.id,
+				artistName: selectedArtist?.name,
+				artistImage: selectedArtist?.image,
+				userId: user?.user_id,
+				youtubeGuestCredentials:
+					!user?.user_id && provider === 'youtube'
+						? youtubeGuestCredentialsRef.current
 						: undefined,
-				};
-				const result = await fetch('/api/playlist/generate', {
-					method: 'POST',
-					body: JSON.stringify(payload),
-				});
-				console.log('[handleSeedPlaylistGeneration] Starting polling...');
-				const { generatedPlaylistId, eventId, mode } = await result.json();
-				console.log(
-					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-				);
-				activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
-				activeEventIdRef.current = mode === 'guest' ? eventId : null;
+				provider,
+				sourcePlaylistId,
+			};
+			const result = await fetch('/api/playlist/generate', {
+				method: 'POST',
+				body: JSON.stringify(payload),
+			});
+			console.log('[handleSeedPlaylistGeneration] Starting polling...');
+			const { generatedPlaylistId, eventId, mode } = await result.json();
+			console.log(
+				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+			);
+			activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
+			activeEventIdRef.current = mode === 'guest' ? eventId : null;
 
 				await pollForCompletion(payload, 0);
 			} else {
@@ -263,6 +284,7 @@ const SubmitButton = () => {
 						artistId: selectedArtist?.id,
 						artistName: selectedArtist?.name,
 						userId: user?.user_id,
+						provider,
 					}),
 					signal: abortControllerRef.current.signal,
 				});
@@ -287,30 +309,32 @@ const SubmitButton = () => {
 					? `Songs from ${selectedArtist.name} you might like from @hearitfresh.favour.dev`
 					: 'HearItFresh - Lyrics Inspired @hearitfresh.favour.dev';
 
-				setLoadingMessage('Creating your new playlist on Spotify...');
-				const playlistInfo = await createPlayList(
-					playlistName,
-					'Created by HearItFresh',
+				setLoadingMessage(
+					`Creating your new playlist on ${provider === 'youtube' ? 'YouTube Music' : 'Spotify'}...`,
 				);
+				const createRes = await fetch('/api/playlist/dev-create', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						provider,
+						tracks: resultData.tracks,
+						playlistName,
+						description: 'Created by HearItFresh',
+						userId: user?.user_id,
+					}),
+				});
+				const createData = await createRes.json();
 				if (
 					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 					abortedRef.current
 				)
 					return;
 
-				if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
+				if (!createRes.ok || createData.error) {
+					throw new Error(createData.error || 'Failed to create playlist');
+				}
 
-				const { id, link, name } = playlistInfo;
-				const playListID = id.substring('spotify:playlist:'.length);
-
-				setLoadingMessage('Adding the tracks to your Spotify playlist...');
-				await addTracksToPlayList(resultData.tracks, playListID);
-				if (
-					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
-					abortedRef.current
-				)
-					return;
-				createSpotifyPlaylist(link, name);
+				createSpotifyPlaylist(createData.link, createData.name);
 			}
 		} catch (err: any) {
 			// Swallow errors that occurred after a user-initiated cancel
@@ -481,21 +505,27 @@ const SubmitButton = () => {
 	};
 
 	const createSpotifyPlaylist = async (link: string, name: string) => {
+		const derivedProvider: ProviderName =
+			link.includes('youtube.com') || link.includes('youtu.be')
+				? 'youtube'
+				: 'spotify';
 		addToUrl('link', link.split('/').at(-1) as string);
-		setPlayListData({ link, name });
+		setPlayListData({ link, name, provider: derivedProvider });
 		clearSeeds();
 		toast.success('Playlist Created');
 
 		if (!user?.user_id) {
-			toast.warning(
-				'Add this playlist to your Spotify library now, or you may lose access to it later.',
-				{
-					autoClose: 100000,
-					bodyStyle: {
-						color: 'red',
+			if (derivedProvider === 'spotify') {
+				toast.warning(
+					'Add this playlist to your Spotify library now, or you may lose access to it later.',
+					{
+						autoClose: 100000,
+						bodyStyle: {
+							color: 'red',
+						},
 					},
-				},
-			);
+				);
+			}
 		}
 	};
 
@@ -508,22 +538,87 @@ const SubmitButton = () => {
 			.substring(2, 15);
 		const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
 
-		if (!isValidPlaylistLink(link)) {
+		const detected = detectPlaylistProvider(link);
+
+		if (detected.provider === 'unsupported') {
+			setErrorMessages({
+				...errorMessages,
+				notCorrectSpotifyLink: false,
+				error: `We don't support ${detected.label} playlists yet — try a Spotify or YouTube Music playlist link instead.`,
+			});
+			setLoading(false);
+			return;
+		}
+
+		if (detected.provider === 'unknown') {
 			setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: true });
 			setLoading(false);
 			return;
 		}
 
-		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
+		setErrorMessages({
+			...errorMessages,
+			notCorrectSpotifyLink: false,
+			error: null,
+		});
+
+		if (detected.provider === 'youtube') {
+			youtubeGuestCredentialsRef.current = null;
+
+			const alreadyConnected = user?.user_id
+				? await fetch(
+						`/api/youtube/status?userId=${encodeURIComponent(user.user_id)}`,
+					)
+						.then((r) => r.json())
+						.then((s) => Boolean(s.connected))
+				: false;
+
+			if (!alreadyConnected) {
+				setLoadingMessage('Waiting for YouTube authorization...');
+				const result = await openYoutubeConnectPopup(user?.user_id);
+				if (
+					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
+					abortedRef.current
+				)
+					return;
+				if (!result.connected) {
+					setErrorMessages({
+						...errorMessages,
+						error:
+							'YouTube authorization was cancelled or failed. Please try again.',
+					});
+					setLoading(false);
+					return;
+				}
+				youtubeGuestCredentialsRef.current = result.guestCredentials ?? null;
+			}
+		}
+
+		setProvider(detected.provider);
+		// Artist search only resolves Spotify artist ids; a previously selected
+		// artist won't work as a YouTube channel id (see Options.tsx's
+		// artist-mode guard), so drop it once the detected provider is YouTube.
+		if (detected.provider === 'youtube') setSelectedArtist(null);
 
 		try {
 			setLoadingMessage(
-				'Connecting to Spotify to extract your playlist details...',
+				`Connecting to ${detected.provider === 'youtube' ? 'YouTube' : 'Spotify'} to extract your playlist details...`,
 			);
-			const playlistId = extractPlaylistId(link);
+			const playlistId =
+				detected.provider === 'youtube'
+					? extractYoutubePlaylistId(link)
+					: extractPlaylistId(link);
 
 			setLoadingMessage('Retrieving all tracks from the provided playlist...');
-			const playlistData = await getPlaylistTracks(playlistId, true);
+			const playlistData = await getPlaylistTracks(
+				playlistId,
+				true,
+				detected.provider,
+				user?.user_id,
+				!user?.user_id && detected.provider === 'youtube'
+					? youtubeGuestCredentialsRef.current
+					: undefined,
+			);
 			if (
 				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 				abortedRef.current
@@ -542,20 +637,19 @@ const SubmitButton = () => {
 			)
 				return;
 
-			const trackArtists = playlistTracks
-				.flat()
-				.map((item: any) => item.track.artists.slice(0, 2));
-			const artistNames: string[] = trackArtists
-				.flat()
-				.map((item: any) => item.name);
+			// playlistTracks is a flat ProviderTrack[] (see getProvider().getAllTracksInPlaylist),
+			// normalized the same way for both Spotify and YouTube.
+			const artistNames: string[] = playlistTracks.map(
+				(item: any) => item.artistName,
+			);
 			const uniqueArtistNames = [...new Set(artistNames)];
 
 			// Phase 1: Set extracted songs into context for the UI picker
-			const formattedTracks = playlistTracks.flat().map((item: any) => ({
-				id: item.track.id,
-				name: item.track.name,
-				artist: item.track.artists.map((a: any) => a.name),
-				image: item.track.album.images[0]?.url,
+			const formattedTracks = playlistTracks.map((item: any) => ({
+				id: item.externalId,
+				name: item.name,
+				artist: [item.artistName],
+				image: item.imageUrl,
 			}));
 
 			setExtractedSongs(formattedTracks);

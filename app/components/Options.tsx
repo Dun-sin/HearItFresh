@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useOptions } from '@/app/context/optionsContext';
+import { useGeneralState } from '@/app/context/generalStateContext';
 import ArtistSearchInput from './ArtistSearchInput';
 
 const Options = () => {
@@ -11,7 +12,10 @@ const Options = () => {
 		selectedArtist,
 		setSelectedArtist,
 	} = useOptions();
+	const { provider } = useGeneralState();
 	const [searchOpen, setSearchOpen] = useState(false);
+
+	const artistModeDisabled = provider === 'youtube';
 
 	return (
 		<div className={`flex flex-col gap-2`}>
@@ -89,21 +93,27 @@ const Options = () => {
 					<div className='flex items-center pl-4'>
 						<label
 							htmlFor='specificArtist'
-							className='cursor-pointer select-none text-sm flex items-center gap-2'>
+							className={`select-none text-sm flex items-center gap-2 ${artistModeDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
 							<input
 								type='checkbox'
 								name='specificArtist'
 								checked={searchOpen}
+								disabled={artistModeDisabled}
 								onChange={(e) => setSearchOpen(!!e.target.checked)}
 								className='form-checkbox w-4 h-4 text-brand rounded'
 							/>
 							<span>Find songs from a specific artist</span>
 						</label>
+						{artistModeDisabled && (
+							<span className='text-fxs text-gray dark:text-gray'>
+								Not available for YouTube Music yet
+							</span>
+						)}
 					</div>
 				)}
 			</div>
 
-			{searchOpen && !selectedArtist && (
+			{searchOpen && !selectedArtist && !artistModeDisabled && (
 				<div className='pl-4'>
 					<ArtistSearchInput />
 				</div>

@@ -7,6 +7,7 @@ import {
 	isPopularArtistByFollowers,
 } from './spotify';
 import { singleTrack, trackTypes } from '../types';
+import type { ProviderName } from './providers/types';
 
 import pLimit from 'p-limit';
 
@@ -32,6 +33,60 @@ export function isValidPlaylistLink(link: string) {
 
 export function addPlaylistFullLinkFromID(id: string) {
 	return 'https://open.spotify.com/playlist/' + id;
+}
+
+export function isValidYoutubePlaylistLink(link: string) {
+	try {
+		const url = new URL(link.trim());
+		const host = url.hostname.replace(/^www\./, '');
+		return (
+			(host === 'youtube.com' || host === 'music.youtube.com') &&
+			url.pathname === '/playlist' &&
+			Boolean(url.searchParams.get('list'))
+		);
+	} catch {
+		return false;
+	}
+}
+
+export function extractYoutubePlaylistId(link: string) {
+	const url = new URL(link.trim());
+	return url.searchParams.get('list') ?? '';
+}
+
+export function addYoutubePlaylistFullLinkFromID(id: string) {
+	return 'https://www.youtube.com/playlist?list=' + id;
+}
+
+export type DetectedPlaylistProvider =
+	| { provider: ProviderName }
+	| { provider: 'unsupported'; label: string }
+	| { provider: 'unknown' };
+
+const UNSUPPORTED_PLAYLIST_SERVICES: { host: string; label: string }[] = [
+	{ host: 'music.apple.com', label: 'Apple Music' },
+	{ host: 'tidal.com', label: 'Tidal' },
+	{ host: 'deezer.com', label: 'Deezer' },
+	{ host: 'music.amazon.com', label: 'Amazon Music' },
+	{ host: 'soundcloud.com', label: 'SoundCloud' },
+];
+
+export function detectPlaylistProvider(link: string): DetectedPlaylistProvider {
+	const trimmed = link.trim();
+	if (isValidPlaylistLink(trimmed)) return { provider: 'spotify' };
+	if (isValidYoutubePlaylistLink(trimmed)) return { provider: 'youtube' };
+
+	try {
+		const host = new URL(trimmed).hostname.replace(/^www\./, '');
+		const unsupported = UNSUPPORTED_PLAYLIST_SERVICES.find(
+			(service) => host === service.host || host.endsWith(`.${service.host}`),
+		);
+		if (unsupported)
+			return { provider: 'unsupported', label: unsupported.label };
+	} catch {
+		// Not a URL at all — fall through to 'unknown'.
+	}
+	return { provider: 'unknown' };
 }
 
 // handle logic for if getting the playlist id from the link
@@ -115,11 +170,19 @@ export const logToken = (token?: string) => {
 export const getPlaylistTracks = async (
 	playlistId: string,
 	includeDetails = false,
+	provider: ProviderName = 'spotify',
+	userId?: string | null,
+	youtubeGuestCredentials?: unknown,
 ) => {
 	const response = await fetch('/api/playlist/tracks', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ playlistId }),
+		body: JSON.stringify({
+			playlistId,
+			provider,
+			userId,
+			youtubeGuestCredentials,
+		}),
 	});
 	const data = await response.json();
 

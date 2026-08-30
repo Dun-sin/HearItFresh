@@ -162,7 +162,7 @@ export async function embedSong(
 	if (existing) {
 		song = await updateSong(existing.id, lyrics);
 	} else {
-		song = await addSong(spotifyTrack, lyrics);
+		song = await addSong(spotifyTrack, lyrics, undefined, spotifyTrack.provider ?? 'spotify');
 	}
 	await addEmbeddingToSong(song.id, embeddingData);
 

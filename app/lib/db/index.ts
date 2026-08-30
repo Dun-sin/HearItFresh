@@ -1,12 +1,33 @@
 "use server";
 
 import { SpotifyTrack, HistoryKind } from '@/app/types';
+import type { ProviderName } from '../providers/types';
 import { getCentroid } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
-import { getDummyAccessToken } from '../spotify-dummy-auth';
-import { getPlaylistDetails } from '../spotify';
-import { setAccessToken } from '../spotifyApi';
+import { getProvider } from '../providers';
+
+
+function idColumn(provider: ProviderName): 'spotifyId' | 'youtubeId' {
+	return provider === 'youtube' ? 'youtubeId' : 'spotifyId';
+}
+
+
+export const encodeGeneratedSongId = (
+	provider: ProviderName,
+	externalId: string,
+) => `${provider}:${externalId}`;
+
+export const decodeGeneratedSongId = (
+	entry: string,
+): { provider: ProviderName; externalId: string } | null => {
+	const idx = entry.indexOf(':');
+	if (idx <= 0) return null;
+	const provider = entry.slice(0, idx);
+	const externalId = entry.slice(idx + 1);
+	if (provider !== 'spotify' && provider !== 'youtube') return null;
+	return { provider, externalId };
+};
 
 export interface HistoryEntry {
 	text: string;
@@ -25,6 +46,7 @@ export type GeneratedPlaylistHistory = {
 	playlistId: string | null;
 	playlistName: string | null;
 	playlistLink: string | null;
+	provider?: string | null;
 	completedAt: Date | null;
 	createdAt: Date;
 	status?: string;
@@ -140,12 +162,10 @@ export async function getUserHistory(
 
 		if (sourcePlaylistIds.length === 0) return userHistory;
 
-		const token = await getDummyAccessToken();
-		setAccessToken(token);
 		const sourcePlaylistDetails = await Promise.all(
 			sourcePlaylistIds.map(async (id) => {
-				const details = await getPlaylistDetails(id);
-				if (!details || typeof details !== 'object' || 'message' in details) {
+				const details = await getProvider('spotify').getPlaylistDetails(id);
+				if (!details) {
 					return [id, null] as const;
 				}
 				return [
@@ -169,6 +189,7 @@ export async function getUserHistory(
 				playlistId: true,
 				playlistName: true,
 				playlistLink: true,
+				provider: true,
 				completedAt: true,
 				createdAt: true,
 				status: true,
@@ -176,7 +197,7 @@ export async function getUserHistory(
 				errorMessage: true,
 				retryCount: true,
 				event: true,
-			},
+			} as any,
 		});
 
 		const playlistsBySource = generatedPlaylists.reduce(
@@ -188,6 +209,7 @@ export async function getUserHistory(
 					playlistId: playlist.playlistId,
 					playlistName: playlist.playlistName,
 					playlistLink: playlist.playlistLink,
+					provider: (playlist as any).provider,
 					completedAt: playlist.completedAt,
 					createdAt: playlist.createdAt,
 					status: playlist.status,
@@ -274,36 +296,53 @@ export async function getUserHistory(
 }
 
 export async function getSong(
-	spotifyId: string,
+	externalId: string,
+	provider: ProviderName = 'spotify',
 ): Promise<(Song & { embedding: string | number[] | null }) | null> {
+	const col = idColumn(provider);
 	const row = await prisma.$queryRawUnsafe<
 		Array<Song & { embedding: string | number[] | null }>
 	>(
 		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId"
      FROM "Song"
-     WHERE "spotifyId" = $1
+     WHERE "${col}" = $1
      LIMIT 1`,
-		spotifyId,
+		externalId,
 	);
 	return row[0] ?? null;
 }
 
 export async function addSong(
-	spotifyTrack: SpotifyTrack,
+	songInput: SpotifyTrack,
 	lyrics: string,
 	summary?: string | null,
+	provider: ProviderName = 'spotify',
 ) {
-	return await prisma.song.create({
-		data: {
-			title: spotifyTrack.title,
-			artist: spotifyTrack.artist,
-			album: spotifyTrack.album,
-			spotifyId: spotifyTrack.id,
-			lyrics,
-			summary,
-			isComplete: true,
-		},
-	});
+	const col = idColumn(provider);
+	const data: any = {
+		title: songInput.title,
+		artist: songInput.artist,
+		album: songInput.album,
+		lyrics,
+		summary,
+		isComplete: true,
+	};
+	data[col] = songInput.id;
+	return await prisma.song.create({ data });
+}
+
+export async function cacheYoutubeIdForSpotifyId(
+	spotifyId: string,
+	youtubeId: string,
+): Promise<void> {
+	try {
+		await prisma.song.updateMany({
+			where: { spotifyId, youtubeId: null },
+			data: { youtubeId },
+		});
+	} catch (e) {
+		console.error('Failed to cache youtubeId for song', spotifyId, e);
+	}
 }
 
 export async function updateSong(songId: string, lyrics: string) {
@@ -327,32 +366,30 @@ export async function addEmbeddingToSong(songId: string, embedding: number[]) {
 
 export async function findSimilarSongs(
 	seedEmbeddings: number[][],
-	excludeSpotifyIds: string[],
+	excludeIds: string[],
 	limit: number = 24,
+	provider: ProviderName = 'spotify',
 ): Promise<any[]> {
 	if (seedEmbeddings.length === 0) return [];
 
+	const col = idColumn(provider);
 	const centroid = getCentroid(seedEmbeddings);
 
 	// 1. Build the safe exclusion list
-	const safeExcludes = excludeSpotifyIds.filter((id) =>
-		/^[a-zA-Z0-9]+$/.test(id),
-	);
+	const safeExcludes = excludeIds.filter((id) => /^[a-zA-Z0-9]+$/.test(id));
 	const excludeClause =
 		safeExcludes.length > 0
-			? `AND "spotifyId" NOT IN (${safeExcludes
-					.map((id) => `'${id}'`)
-					.join(',')})`
+			? `AND "${col}" NOT IN (${safeExcludes.map((id) => `'${id}'`).join(',')})`
 			: '';
 
 	// 2. Use Parameterized Query ($1) instead of string injection
 	return await prisma.$queryRawUnsafe(
 		`
-    SELECT id, title, artist, album, "spotifyId",
+    SELECT id, title, artist, album, "${col}" AS "externalId",
            embedding <=> $1::vector AS distance
     FROM "Song"
     WHERE embedding IS NOT NULL
-      AND "spotifyId" IS NOT NULL
+      AND "${col}" IS NOT NULL
       ${excludeClause}
     ORDER BY distance ASC
     LIMIT $2
@@ -363,19 +400,23 @@ export async function findSimilarSongs(
 }
 
 export async function getSongEmbeddings(
-	spotifyIds: string[],
+	ids: string[],
+	provider: ProviderName = 'spotify',
 ): Promise<{ embedding: string | number[] }[]> {
-	const safeIds = spotifyIds.filter((id) => /^[a-zA-Z0-9]+$/.test(id));
+	const col = idColumn(provider);
+	const safeIds = ids.filter((id) => /^[a-zA-Z0-9]+$/.test(id));
 	if (safeIds.length === 0) return [];
 
 	const list = safeIds.map((id) => `'${id}'`).join(',');
 	return await prisma.$queryRawUnsafe(`
     SELECT embedding::text AS embedding FROM "Song"
-    WHERE "spotifyId" IN (${list}) AND embedding IS NOT NULL
+    WHERE "${col}" IN (${list}) AND embedding IS NOT NULL
   `);
 }
 
-export async function getUserGeneratedSongIds(userId: string): Promise<string[]> {
+export async function getUserGeneratedSongIds(
+	userId: string,
+): Promise<string[]> {
 	try {
 		const user = await prisma.user.findUnique({
 			where: { userId },
@@ -388,13 +429,45 @@ export async function getUserGeneratedSongIds(userId: string): Promise<string[]>
 	}
 }
 
+export async function findYoutubeConnection(userId: string) {
+	return prisma.youtubeConnection.findUnique({ where: { userId } });
+}
+
+export async function saveYoutubeConnection(params: {
+	userId: string;
+	accessToken: string;
+	refreshToken: string;
+	expiresAt: Date;
+	scope?: string | null;
+}) {
+	const { userId, ...data } = params;
+	return prisma.youtubeConnection.upsert({
+		where: { userId },
+		create: { userId, ...data, scope: data.scope ?? null },
+		update: { ...data, scope: data.scope ?? null },
+	});
+}
+
+export async function updateYoutubeConnectionTokens(
+	userId: string,
+	data: { accessToken: string; refreshToken: string; expiresAt: Date },
+) {
+	return prisma.youtubeConnection.update({ where: { userId }, data });
+}
+
+export async function removeYoutubeConnection(userId: string) {
+	await prisma.youtubeConnection.deleteMany({ where: { userId } });
+}
+
 export async function addGeneratedSongsForUser(
 	userId: string,
-	spotifyIds: string[],
+	ids: string[],
+	provider: ProviderName = 'spotify',
 ): Promise<void> {
 	try {
 		const existingIds = await getUserGeneratedSongIds(userId);
-		const uniqueIds = [...new Set([...existingIds, ...spotifyIds])];
+		const encoded = ids.map((id) => encodeGeneratedSongId(provider, id));
+		const uniqueIds = [...new Set([...existingIds, ...encoded])];
 		await prisma.user.update({
 			where: { userId },
 			data: { generatedSongIds: uniqueIds },

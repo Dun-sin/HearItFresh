@@ -8,9 +8,12 @@ import React, {
 	useState,
 } from 'react';
 
+import type { ProviderName } from '@/app/lib/providers/types';
+
 interface PlayListData {
 	link: string;
 	name: string;
+	provider?: ProviderName;
 }
 
 interface ErrorMessages {
@@ -26,6 +29,8 @@ interface GeneralStateContextProps {
 	setButtonClicked: (clicked: boolean) => void;
 	errorMessages: ErrorMessages;
 	setErrorMessages: (errors: ErrorMessages) => void;
+	provider: ProviderName;
+	setProvider: (provider: ProviderName) => void;
 }
 
 const GeneralStateContext = createContext<GeneralStateContextProps | undefined>(
@@ -38,8 +43,10 @@ const GeneralStateProvider: React.FC<{ children: ReactNode }> = ({
 	const [playListData, setPlayListData] = useState<PlayListData>({
 		link: '',
 		name: '',
+		provider: 'spotify',
 	});
 	const [buttonClick, setButtonClicked] = useState<boolean>(false);
+	const [provider, setProvider] = useState<ProviderName>('spotify');
 	const [errorMessages, setErrorMessages] = useState<ErrorMessages>({
 		notCorrectSpotifyLink: false,
 		notCorrectFormatForArtist: false,
@@ -54,8 +61,10 @@ const GeneralStateProvider: React.FC<{ children: ReactNode }> = ({
 			setButtonClicked,
 			errorMessages,
 			setErrorMessages,
+			provider,
+			setProvider,
 		}),
-		[playListData, buttonClick, errorMessages],
+		[playListData, buttonClick, errorMessages, provider],
 	);
 
 	return (

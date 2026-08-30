@@ -1,5 +1,6 @@
 import { inngest } from '@/app/inngest/client';
 import prisma from '@/app/lib/prisma';
+import { isProviderName } from '@/app/lib/providers';
 
 export async function POST(req: Request) {
 	const {
@@ -11,7 +12,11 @@ export async function POST(req: Request) {
 		artistId,
 		artistName,
 		artistImage,
+		provider,
+		youtubeGuestCredentials,
 	} = await req.json();
+
+	const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
 
 	const isGuest = !userId;
 
@@ -27,8 +32,10 @@ export async function POST(req: Request) {
 				artistId,
 				artistName,
 				artistImage,
+				provider: resolvedProvider,
 				generatedPlaylistId: null,
 				persistResult: false,
+				youtubeGuestCredentials,
 			},
 		});
 
@@ -46,9 +53,10 @@ export async function POST(req: Request) {
 			data: {
 				userId,
 				sourcePlaylistId,
+				provider: resolvedProvider,
 				status: 'pending',
 				seeds,
-			},
+			} as any,
 		});
 	} catch (error: any) {
 		console.error('Failed to create playlist DB record:', error);
@@ -68,6 +76,7 @@ export async function POST(req: Request) {
 			artistId,
 			artistName,
 			artistImage,
+			provider: resolvedProvider,
 			generatedPlaylistId: dbRecord.id,
 			persistResult: true,
 		};

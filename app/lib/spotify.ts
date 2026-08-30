@@ -4,26 +4,14 @@ import { getDummyAccessToken } from './spotify-dummy-auth';
 
 import pLimit from 'p-limit';
 
-import { shuffle, convertToSubArray, sleep, cleanMusicMetadata } from './utils';
+import {
+	shuffle,
+	convertToSubArray,
+	sleep,
+	cleanMusicMetadata,
+	NON_CANONICAL_RELEASE_KEYWORDS,
+} from './utils';
 
-const ALBUM_BLACKLIST_WORDS = [
-	'remix',
-	'mix',
-	'edit',
-	'radio',
-	'- live',
-	' ver.',
-	'live-',
-	'version',
-	'tour',
-	'live',
-	'event',
-	'concert',
-	'tour',
-	'extended',
-	'special edition',
-	'bonus track',
-];
 const EDITION_KEYWORDS = [
 	'deluxe',
 	'edition',
@@ -130,7 +118,7 @@ export function deduplicateAlbums<T extends { name: string; id: string }>(
 ): T[] {
 	const filtered = albums.filter((album) => {
 		const name = album.name.toLowerCase();
-		return !ALBUM_BLACKLIST_WORDS.some((word) => name.includes(word));
+		return !NON_CANONICAL_RELEASE_KEYWORDS.some((word) => name.includes(word));
 	});
 
 	const seenBaseTitles = new Map<string, T>();
@@ -466,22 +454,11 @@ export async function getTracks(
 				const trackKey = normalizeTrackKey(track.name, track.artistName);
 
 				// Check if the track is a remix or a mix or an edit or a radio mix
-				const blacklistedWords = [
-					'remix',
-					'mix',
-					'edit',
-					'radio',
-					'- live',
-					' ver.',
-					'live-',
-					'version',
-					'tour',
-					'live',
-					'event',
-					'concert',
-					'tour',
-				];
-				if (blacklistedWords.some((word) => trackName.includes(word))) {
+				if (
+					NON_CANONICAL_RELEASE_KEYWORDS.some((word) =>
+						trackName.includes(word),
+					)
+				) {
 					return false;
 				}
 

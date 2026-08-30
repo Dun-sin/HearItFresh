@@ -27,7 +27,7 @@ const PlaylistInput = () => {
 				<span className={`w-full`}>
 					<span className={`w-full flex items-center gap-2`}>
 						<h2 className={`text-fmd md:text-fsm`}>
-							Enter a Spotify Playlist Link
+							Enter a Spotify or YouTube Music Playlist Link
 						</h2>
 						<span
 							className='relative flex items-center group cursor-help'
@@ -49,19 +49,22 @@ const PlaylistInput = () => {
 						</span>
 					</span>
 					<h3 className='dark:text-gray text-dark text-fsm md:text-fxs'>
-						e.g https://open.spotify.com/playlist/1B2CSnhZXXVC6xQcY3R4Fk
+						e.g https://open.spotify.com/playlist/3d4.. or
+						https://music.youtube.com/playlist?list=34..
 					</h3>
 					<input
 						type='text'
 						name='spotifyPlaylist'
 						className='h-8 rounded p-2 outline-none border-2 focus:border-brand w-full text-darkest'
 						ref={spotifyPlaylist}
-						aria-label='spotifyPlaylist'
+						aria-label='playlistLink'
 					/>
 				</span>
 			</label>
 			{errorMessages.notCorrectSpotifyLink === true && (
-				<p className='text-fsm text-red-500'>Not a correct spotify link</p>
+				<p className='text-fsm text-red-500'>
+					Not a correct Spotify or YouTube Music playlist link
+				</p>
 			)}
 
 			{extractedSongs.length > 0 && (

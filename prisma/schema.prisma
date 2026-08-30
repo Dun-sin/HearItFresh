@@ -19,6 +19,7 @@ model User {
   history             Json?
   generatedSongIds    String[]
   generatedPlaylists  GeneratedPlaylist[]
+  youtubeConnection   YoutubeConnection?
 
   @@map("users")
 }
@@ -46,6 +47,7 @@ model GeneratedPlaylist {
   playlistId      String?         @map("playlist_id")
   sourcePlaylistId String?        @map("source_playlist_id")
   inngestRunId    String?         @map("inngest_run_id")
+  provider        String          @default("spotify") @map("provider")
   event           Json?
   status          String          @default("pending")
   seeds           Json?
@@ -57,4 +59,18 @@ model GeneratedPlaylist {
   @@map("generated_playlists")
   @@index([userId])
   @@index([userId, sourcePlaylistId])
+}
+
+model YoutubeConnection {
+  id           String   @id @default(cuid())
+  userId       String   @unique @map("user_id")
+  user         User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  accessToken  String   @map("access_token")
+  refreshToken String   @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  scope        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("youtube_connections")
 }

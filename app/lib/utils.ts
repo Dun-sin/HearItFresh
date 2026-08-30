@@ -213,6 +213,24 @@ export function isLRCLibResult(value: unknown): value is LRCLibResult {
 	);
 }
 
+export const NON_CANONICAL_RELEASE_KEYWORDS = [
+	'remix',
+	'mix',
+	'edit',
+	'radio',
+	'- live',
+	' ver.',
+	'live-',
+	'version',
+	'tour',
+	'live',
+	'event',
+	'concert',
+	'extended',
+	'special edition',
+	'bonus track',
+];
+
 export function cleanMusicMetadata(text: string): string {
 	return (
 		text

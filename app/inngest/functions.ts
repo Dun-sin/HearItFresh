@@ -1,12 +1,10 @@
-import { addTracksToPlayList, createPlayList } from '../lib/spotify';
-
 import {
 	generateArtistPlaylist,
 	generateSeedPlaylist,
 } from '../lib/generateSeedPlaylist';
+import { getProvider } from '../lib/providers';
+import type { ProviderAuthCtx, ProviderName } from '../lib/providers/types';
 import { inngest } from './client';
-import { setAccessToken } from '../lib/spotifyApi';
-import { getDummyAccessToken } from '../lib/spotify-dummy-auth';
 import prisma from '../lib/prisma';
 import { buildArtistPlaylistName } from '../lib/helpers';
 
@@ -31,10 +29,14 @@ export const generatePlaylist = inngest.createFunction(
 			generatedPlaylistId,
 			artistId,
 			artistName,
+			provider = 'spotify' as ProviderName,
 			persistResult = true,
+			youtubeGuestCredentials,
 		} = event.data;
 
 		const isArtistMode = Boolean(artistId);
+		
+		const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 
 		if (persistResult && generatedPlaylistId) {
 			await step.run('save-run-id', async () => {
@@ -67,38 +69,51 @@ export const generatePlaylist = inngest.createFunction(
 					{ id: artistId, name: artistName },
 					seeds,
 					userId,
+					provider,
+					undefined,
+					youtubeGuestCredentials,
 				);
 			}
-			return await generateSeedPlaylist(seeds, artistNames, options, userId);
+			return await generateSeedPlaylist(
+				seeds,
+				artistNames,
+				options,
+				userId,
+				provider,
+				undefined,
+				youtubeGuestCredentials,
+			);
 		});
 
 		if (result.error || !result.tracks?.length)
 			throw new Error(result.error || 'Failed to generate tracks');
 
-		const playlistInfo = await step.run('create-spotify-playlist', async () => {
-			const token = await getDummyAccessToken();
-			setAccessToken(token);
+		const playlistInfo = await step.run('create-playlist', async () => {
+			// Each provider's own createPlaylist/addTracksToPlaylist already
+			// authenticates itself (see spotifyProvider/youtubeProvider) — an
+			// extra ensureAuth() here would just double the token fetch/refresh.
+			const musicProvider = getProvider(provider);
 			const playlistName = isArtistMode
 				? buildArtistPlaylistName(artistName)
 				: (seeds.length > 0
 						? 'HearItFresh - Lyrics Inspired'
 						: 'HearItFresh - Similar to Playlist') + '@hearitfresh.favour.dev';
 
-			return await createPlayList(
+			return await musicProvider.createPlaylist(
 				playlistName,
 				isArtistMode ? artistName : 'Created by HearItFresh',
+				authCtx,
 			);
 		});
 
-		if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
+		if ('isError' in playlistInfo) throw new Error(String(playlistInfo.err));
 
-		const { id, link, name } = playlistInfo;
-		const playListID = id.substring('spotify:playlist:'.length);
+		const { externalId, link, name } = playlistInfo;
+		const playListID = externalId;
 
 		await step.run('add-tracks-to-playlist', async () => {
-			const token = await getDummyAccessToken();
-			setAccessToken(token);
-			await addTracksToPlayList(result.tracks, playListID);
+			const musicProvider = getProvider(provider);
+			await musicProvider.addTracksToPlaylist(result.tracks, playListID, authCtx);
 		});
 
 		const playlistOutput = await step.run('finalize-playlist-output', async () => {
@@ -113,10 +128,11 @@ export const generatePlaylist = inngest.createFunction(
 						playlistName: name,
 						playlistLink: link,
 						playlistId: playListID,
+						provider,
 						status: 'completed',
 						errorMessage: null,
 						completedAt: new Date(),
-					},
+					} as any,
 				});
 			});
 		}

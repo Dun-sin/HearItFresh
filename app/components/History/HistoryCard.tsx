@@ -245,7 +245,9 @@ const GeneratedPlaylistBlock = ({
 						target='_blank'
 						rel='noreferrer'
 						className='inline-flex items-center rounded-lg bg-brand px-5 py-3 font-semibold text-lightest transition-opacity hover:opacity-90'>
-						Open in Spotify
+						{playlist.provider === 'youtube'
+							? 'Open in YouTube Music'
+							: 'Open in Spotify'}
 					</a>
 				)}
 			</div>

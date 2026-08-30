@@ -2,9 +2,11 @@
 
 import {
 	addGeneratedSongsForUser,
+	cacheYoutubeIdForSpotifyId,
 	findSimilarSongs,
 	getSongEmbeddings,
-  getUserGeneratedSongIds,
+	getUserGeneratedSongIds,
+	decodeGeneratedSongId,
 } from './db';
 import { calculateCosineSimilarity } from './utils';
 import {
@@ -13,17 +15,30 @@ import {
 	relatedArists,
 	artistNameOf,
 } from './helpers';
-import { getArtistDiscographyTracks } from './spotify';
+import { getProvider } from './providers';
+import type {
+	ProviderAuthCtx,
+	ProviderName,
+	ProviderTrackRef,
+} from './providers/types';
 
 import pLimit from 'p-limit';
 import { processSong } from './processSong';
 import { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
+type CandidateTrack = {
+	spotifyId: string;
+	name: string;
+	artistName: string;
+	albumName?: string;
+};
+
 async function getAndParseSeedEmbeddings(
 	seedSpotifyIds: string[],
+	provider: ProviderName = 'spotify',
 ): Promise<number[][]> {
-	const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
+	const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds, provider);
 
 	return rawEmbeddings
 		.map((row: any) => {
@@ -41,28 +56,34 @@ async function getAndParseSeedEmbeddings(
 }
 
 async function scoreAndFilterTracks(
-	newTracks: any[],
+	newTracks: CandidateTrack[],
 	seedEmbeddings: number[][],
-	accumulatedUris: string[],
+	accumulatedIds: Set<string>,
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
-): Promise<{ uri: string; name: string; artist: string }[]> {
+): Promise<CandidateTrack[]> {
 	const THRESHOLD = 0.8;
 	const CUTOFF = THRESHOLD - 0.25;
 	const CUTOFF_EPSILON = 0.02;
-	const needed = 100 - accumulatedUris.length + 20;
+	const needed = 100 - accumulatedIds.size + 20;
 
 	const scoredTracks = await Promise.all(
 		newTracks.map((track) =>
 			pLimitInstance(async () => {
 				if (signal?.aborted) return null;
 				try {
+					// Candidate tracks are always sourced from Spotify's catalog
+					// (via getEveryAlbum/getAllTracks) regardless of the target
+					// provider — only resolveSpotifyTracksToRefs maps them onto
+					// the target provider afterward — so this id is always a
+					// Spotify id.
 					const processed = await processSong(
 						{
-							id: track.id,
+							id: track.spotifyId,
 							title: track.name,
 							artist: track.artistName,
-							album: track.albumName,
+							album: track.albumName ?? 'Unknown Album',
+							provider: 'spotify',
 						},
 						signal,
 					);
@@ -82,9 +103,7 @@ async function scoreAndFilterTracks(
 					}
 					const thresholdHits = scores.filter((s) => s >= THRESHOLD).length;
 					return {
-						uri: track.uri,
-						name: track.name,
-						artist: track.artistName,
+						...track,
 						thresholdHits,
 						maxScore,
 					};
@@ -97,15 +116,8 @@ async function scoreAndFilterTracks(
 	);
 
 	const validScored = scoredTracks.filter(
-		(
-			t,
-		): t is {
-			uri: string;
-			name: string;
-			artist: string;
-			thresholdHits: number;
-			maxScore: number;
-		} => t !== null,
+		(t): t is CandidateTrack & { thresholdHits: number; maxScore: number } =>
+			t !== null,
 	);
 
 	console.log(
@@ -120,13 +132,57 @@ async function scoreAndFilterTracks(
 	return newTracksAccepted;
 }
 
+async function resolveSpotifyTracksToRefs(
+	candidates: CandidateTrack[],
+	provider: ProviderName,
+	authCtx: ProviderAuthCtx,
+): Promise<ProviderTrackRef[]> {
+	if (provider === 'spotify') {
+		return candidates.map((c) => ({
+			provider: 'spotify',
+			externalId: c.spotifyId,
+		}));
+	}
+
+	const youtube = getProvider('youtube');
+	if (!youtube.searchTrackVideo) return [];
+
+	const limit = pLimit(5);
+	const searchTrackVideo = youtube.searchTrackVideo!;
+	const refs = await Promise.all(
+		candidates.map((c) =>
+			limit(async () => {
+				const videoId = await searchTrackVideo(
+					{
+						name: c.name,
+						artistName: c.artistName,
+						albumName: c.albumName,
+					},
+					authCtx,
+				);
+				if (!videoId) return null;
+				await cacheYoutubeIdForSpotifyId(c.spotifyId, videoId);
+				const ref: ProviderTrackRef = {
+					provider: 'youtube',
+					externalId: videoId,
+				};
+				return ref;
+			}),
+		),
+	);
+	return refs.filter((r): r is ProviderTrackRef => r !== null);
+}
+
 export async function generateSeedPlaylist(
 	seeds: { id: string; name: string; artist: string[]; album?: string }[],
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	userId?: string,
+	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
-): Promise<{ tracks: string[]; error?: string }> {
+	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
+): Promise<{ tracks: ProviderTrackRef[]; error?: string }> {
+	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = () => {
 		if (signal?.aborted) {
 			throw new Error('Aborted');
@@ -137,11 +193,20 @@ export async function generateSeedPlaylist(
 		throwIfAborted();
 		const token = await getDummyAccessToken();
 		setAccessToken(token);
-		console.log('Generating seed playlist...');
+		console.log(`Generating seed playlist (provider=${provider})...`);
 
 		let previouslyGeneratedIds: string[] = [];
 		if (userId) {
-			previouslyGeneratedIds = await getUserGeneratedSongIds(userId);
+			const raw = await getUserGeneratedSongIds(userId);
+			previouslyGeneratedIds = raw
+				.map((entry) => decodeGeneratedSongId(entry))
+				.filter((d): d is { provider: ProviderName; externalId: string } => {
+					if (!d) return false;
+					// keep only ids that belong to the active provider's space,
+					// restored to their bare external id.
+					return d.provider === provider;
+				})
+				.map((d) => d.externalId);
 		}
 
 		const seedSpotifyIds = seeds.map((s) => s.id);
@@ -155,6 +220,7 @@ export async function generateSeedPlaylist(
 						title: seed.name,
 						artist: seed.artist[0] || 'Unknown Artist',
 						album: seed.album || 'Unknown Album',
+						provider,
 					},
 					signal,
 				);
@@ -162,7 +228,7 @@ export async function generateSeedPlaylist(
 		);
 
 		throwIfAborted();
-		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
+		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds, provider);
 
 		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
 			return {
@@ -172,32 +238,39 @@ export async function generateSeedPlaylist(
 			};
 		}
 
-		let dbMatchesUris: string[] = [];
+		let dbMatchesRefs: ProviderTrackRef[] = [];
 		let remainingNeeded = 100;
 
 		if (seedEmbeddings.length > 0) {
 			const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
-			const dbSimilar = await findSimilarSongs(seedEmbeddings, excludeIds, 24);
-			throwIfAborted();
-			dbMatchesUris = dbSimilar.map(
-				(song: any) => `spotify:track:${song.spotifyId}`,
+			const dbSimilar = await findSimilarSongs(
+				seedEmbeddings,
+				excludeIds,
+				24,
+				provider,
 			);
-			remainingNeeded = 100 - dbMatchesUris.length;
+			throwIfAborted();
+			dbMatchesRefs = dbSimilar.map(
+				(song: any) =>
+					({ provider, externalId: song.externalId }) as ProviderTrackRef,
+			);
+			remainingNeeded = 100 - dbMatchesRefs.length;
 		}
 
 		if (remainingNeeded <= 10) {
 			if (userId) {
-				const generatedSpotifyIds = dbMatchesUris.map((uri) =>
-					uri.replace('spotify:track:', ''),
+				await addGeneratedSongsForUser(
+					userId,
+					dbMatchesRefs.map((r) => r.externalId),
+					provider,
 				);
-				await addGeneratedSongsForUser(userId, generatedSpotifyIds);
 			}
-			return { tracks: dbMatchesUris };
+			return { tracks: dbMatchesRefs };
 		}
 
-		const accumulatedUris = [...dbMatchesUris];
+		const accumulatedRefs = [...dbMatchesRefs];
 		const checkedTrackIds = new Set<string>(
-			dbMatchesUris.map((uri) => uri.replace('spotify:track:', '')),
+			dbMatchesRefs.map((r) => r.externalId),
 		);
 		const checkedTrackTitles = new Set<string>();
 		const titleKey = (title: string, artist: string) =>
@@ -205,7 +278,7 @@ export async function generateSeedPlaylist(
 		const usedArtistNames: string[] = [];
 
 		for (let attempt = 0; attempt < 2; attempt++) {
-			if (accumulatedUris.length >= 80) break;
+			if (accumulatedRefs.length >= 80) break;
 			throwIfAborted();
 
 			const targetArtists =
@@ -235,38 +308,52 @@ export async function generateSeedPlaylist(
 
 			if (!aiTracks || aiTracks.length === 0) continue;
 
-			const newTracks = aiTracks.filter(
-				(t) =>
-					!checkedTrackIds.has(t.id) &&
-					!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
-			);
+			const newTracks = aiTracks
+				.filter(
+					(t: any) =>
+						!checkedTrackIds.has(t.id) &&
+						!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
+				)
+				.map(
+					(t: any): CandidateTrack => ({
+						spotifyId: t.id,
+						name: t.name,
+						artistName: t.artistName,
+						albumName: t.albumName,
+					}),
+				);
 
 			const pLimitInstance = pLimit(15);
 			const acceptedTracks = await scoreAndFilterTracks(
 				newTracks,
 				seedEmbeddings,
-				accumulatedUris,
+				checkedTrackIds,
 				pLimitInstance,
 				signal,
 			);
 			throwIfAborted();
-			const newUris = acceptedTracks.map((t) => t.uri);
-			accumulatedUris.push(...newUris);
-			newUris.forEach((uri) =>
-				checkedTrackIds.add(uri.replace('spotify:track:', '')),
+
+			const newRefs = await resolveSpotifyTracksToRefs(
+				acceptedTracks,
+				provider,
+				authCtx,
 			);
+
+			accumulatedRefs.push(...newRefs);
+			newRefs.forEach((r) => checkedTrackIds.add(r.externalId));
 			acceptedTracks.forEach((t) =>
-				checkedTrackTitles.add(titleKey(t.name, t.artist)),
+				checkedTrackTitles.add(titleKey(t.name, t.artistName)),
 			);
 		}
 
-		const finalTracks = [...accumulatedUris].slice(0, 100);
+		const finalTracks = [...accumulatedRefs].slice(0, 100);
 
 		if (userId) {
-			const generatedSpotifyIds = finalTracks.map((uri) =>
-				uri.replace('spotify:track:', ''),
+			await addGeneratedSongsForUser(
+				userId,
+				finalTracks.map((r) => r.externalId),
+				provider,
 			);
-			await addGeneratedSongsForUser(userId, generatedSpotifyIds);
 		}
 
 		return { tracks: finalTracks };
@@ -280,14 +367,17 @@ export async function generateSeedPlaylist(
  * Artist-only generation path. Instead of expanding through related artists,
  * this pulls the selected artist's full discography, scores those tracks
  * against the provided lyric/embedding seeds, keeps the tracks that pass the
- * similarity cutoff, ranks by strongest match, and returns up to 100 URIs.
+ * similarity cutoff, ranks by strongest match, and returns up to 100 refs.
  */
 export async function generateArtistPlaylist(
 	artist: { id: string; name: string },
 	seeds: { id: string; name: string; artist: string[]; album?: string }[],
 	userId?: string,
+	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
-): Promise<{ tracks: string[]; error?: string }> {
+	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
+): Promise<{ tracks: ProviderTrackRef[]; error?: string }> {
+	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = () => {
 		if (signal?.aborted) {
 			throw new Error('Aborted');
@@ -298,7 +388,9 @@ export async function generateArtistPlaylist(
 		throwIfAborted();
 		const token = await getDummyAccessToken();
 		setAccessToken(token);
-		console.log(`Generating artist playlist for ${artist.name}...`);
+		console.log(
+			`Generating artist playlist for ${artist.name} (provider=${provider})...`,
+		);
 
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
@@ -311,6 +403,7 @@ export async function generateArtistPlaylist(
 						title: seed.name,
 						artist: seed.artist[0] || 'Unknown Artist',
 						album: seed.album || 'Unknown Album',
+						provider,
 					},
 					signal,
 				);
@@ -318,7 +411,7 @@ export async function generateArtistPlaylist(
 		);
 
 		throwIfAborted();
-		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
+		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds, provider);
 
 		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
 			return {
@@ -329,7 +422,15 @@ export async function generateArtistPlaylist(
 		}
 
 		throwIfAborted();
-		const discography = await getArtistDiscographyTracks(artist.id, signal);
+		// For Spotify, `artist.id` is the Spotify artist id. For YouTube the same
+		// field is interpreted as a YouTube channel id (artist search is
+		// Spotify-only in v1, so the YouTube path here is best-effort).
+		const providerImpl = getProvider(provider);
+		const discography = await providerImpl.getArtistDiscographyTracks(
+			artist.id,
+			signal,
+			authCtx,
+		);
 		if (!discography || discography.length === 0) {
 			return {
 				tracks: [],
@@ -341,29 +442,42 @@ export async function generateArtistPlaylist(
 		const checkedTrackTitles = new Set<string>();
 		const titleKey = (title: string, artistName: string) =>
 			title.toLowerCase().trim() + '|' + artistName.toLowerCase().trim();
-		const newTracks = discography.filter((t) => {
-			const excluded =
-				checkedTrackIds.has(t.id) ||
-				checkedTrackTitles.has(titleKey(t.name, t.artistName));
-			return !excluded;
-		});
+		const newTracks: CandidateTrack[] = discography
+			.filter((t) => {
+				const excluded =
+					checkedTrackIds.has(t.externalId) ||
+					checkedTrackTitles.has(titleKey(t.name, t.artistName));
+				return !excluded;
+			})
+			.map((t) => ({
+				spotifyId: t.externalId,
+				name: t.name,
+				artistName: t.artistName,
+				albumName: t.albumName,
+			}));
 		const pLimitInstance = pLimit(15);
 		const acceptedTracks = await scoreAndFilterTracks(
 			newTracks,
 			seedEmbeddings,
-			[],
+			checkedTrackIds,
 			pLimitInstance,
 			signal,
 		);
 		throwIfAborted();
 
-		const finalTracks = acceptedTracks.map((t) => t.uri).slice(0, 100);
+		const finalRefs = await resolveSpotifyTracksToRefs(
+			acceptedTracks,
+			provider,
+			authCtx,
+		);
+		const finalTracks = finalRefs.slice(0, 100);
 
 		if (userId) {
-			const generatedSpotifyIds = finalTracks.map((uri) =>
-				uri.replace('spotify:track:', ''),
+			await addGeneratedSongsForUser(
+				userId,
+				finalTracks.map((r) => r.externalId),
+				provider,
 			);
-			await addGeneratedSongsForUser(userId, generatedSpotifyIds);
 		}
 
 		return { tracks: finalTracks };

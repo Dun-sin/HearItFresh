@@ -6,13 +6,11 @@ import React, {
 	useMemo,
 	useState,
 } from 'react';
-import {
-	removeTracksFromPlaylists,
-} from '../lib/spotify';
-import { getPlaylistTracks } from '../lib/helpers';
+import { extractYoutubePlaylistId, getPlaylistTracks } from '../lib/helpers';
 import { loadingType, playlistSongDetails } from '../types';
 
 import { useGeneralState } from '../context/generalStateContext';
+import { useAuth } from '../context/authContext';
 
 type PlaylistViewContextType = {
 	showingTracks: playlistSongDetails[];
@@ -43,7 +41,12 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
 	const { playListData } = useGeneralState();
-	const link = playListData.link.split('/').at(-1) as string;
+	const { user } = useAuth();
+	const provider = playListData.provider ?? 'spotify';
+	const link =
+		provider === 'youtube'
+			? extractYoutubePlaylistId(playListData.link)
+			: (playListData.link.split('/').at(-1) as string);
 
 	const [loading, setLoading] = useState<loadingType>({
 		isLoading: false,
@@ -52,7 +55,7 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	const [startedEditing, setStartedEditing] = useState(false);
 	const [tracks, setTracks] = useState<playlistSongDetails[]>([]);
 	const [showingTracks, setShowingTracks] = useState<playlistSongDetails[]>([]);
-	const [tracksToRemove, setTracksToRemove] = useState<{ uri: string }[]>([]);
+	const [tracksToRemove, setTracksToRemove] = useState<string[]>([]);
 	const [tracksDeleted, setTracksDeleted] = useState<playlistSongDetails[]>([]);
 
 	useEffect(() => {
@@ -68,22 +71,22 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	}, [showingTracks, tracks]);
 
 	const getTracks = useCallback(async () => {
-		const data = await getPlaylistTracks(link);
+		const data = await getPlaylistTracks(link, false, provider, user?.user_id);
 
 		if (!Array.isArray(data)) {
 			console.error('Failed to load playlist tracks:', data);
 			return;
 		}
 
-		const tracks = data.map((item: any) => {
-			const track = item.track;
-			const image = track.album.images?.[1]?.url ?? track.album.images?.[0]?.url;
-			const artist = track.artists.map((subitem: any) => subitem.name);
-			return { id: track.id, name: track.name, artist, image };
-		});
+		const tracks = data.map((item: any) => ({
+			id: item.externalId,
+			name: item.name,
+			artist: [item.artistName],
+			image: item.imageUrl,
+		}));
 
 		setTracks(tracks);
-	}, [link]);
+	}, [link, provider, user?.user_id]);
 
 	const deleteTrack = useCallback(
 		(id: string) => {
@@ -94,7 +97,7 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 			const deletingTrack = tracks.filter((track) => track.id === id)[0];
 
 			setTracksDeleted((prev) => [...prev, deletingTrack]);
-			setTracksToRemove((prev) => [...prev, { uri: 'spotify:track:' + id }]);
+			setTracksToRemove((prev) => [...prev, id]);
 		},
 		[tracks],
 	);
@@ -112,9 +115,7 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 			const remainingDeletedTracks = tracksDeleted.filter(
 				(track) => !ids.includes(track.id),
 			);
-			const TracksToRemove = tracksToRemove.filter(
-				(track) => !ids.includes(track.uri.split(':').at(-1) as string),
-			);
+			const TracksToRemove = tracksToRemove.filter((id) => !ids.includes(id));
 
 			setTracksToRemove(TracksToRemove);
 			setTracksDeleted(remainingDeletedTracks);
@@ -125,14 +126,23 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 
 	const saveTracks = useCallback(async () => {
 		setLoading({ isLoading: true, message: 'Deleting Tracks....' });
-		await removeTracksFromPlaylists(link, tracksToRemove);
+		await fetch('/api/playlist/remove-tracks', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				provider,
+				playlistId: link,
+				trackIds: tracksToRemove,
+				userId: user?.user_id,
+			}),
+		});
 
 		await getTracks();
 		setLoading({ isLoading: false, message: null });
 		setTracksToRemove([]);
 		setTracksDeleted([]);
 		setStartedEditing(false);
-	}, [tracksToRemove]);
+	}, [tracksToRemove, provider, link, user?.user_id, getTracks]);
 
 	const value = useMemo(
 		() => ({

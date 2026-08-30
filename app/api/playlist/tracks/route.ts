@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getAllTracksInAPlaylist, getPlaylistDetails } from '@/app/lib/spotify';
-import { getDummyAccessToken } from '@/app/lib/spotify-dummy-auth';
-import { setAccessToken } from '@/app/lib/spotifyApi';
+import { getProvider, isProviderName } from '@/app/lib/providers';
+import type { ProviderAuthCtx } from '@/app/lib/providers/types';
 
 const getSpotifyStatusCode = (err: any) =>
 	err?.statusCode ?? err?.status ?? err?.response?.status ?? 500;
 
 export async function POST(req: Request) {
 	try {
-		const { playlistId } = await req.json();
+		const { playlistId, provider, userId, youtubeGuestCredentials } =
+			await req.json();
 
 		if (!playlistId) {
 			return NextResponse.json(
@@ -17,12 +17,13 @@ export async function POST(req: Request) {
 			);
 		}
 
-		const token = await getDummyAccessToken();
-		setAccessToken(token);
+		const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
+		const musicProvider = getProvider(resolvedProvider);
+		const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 
 		const [tracks, playlist] = await Promise.all([
-			getAllTracksInAPlaylist(playlistId),
-			getPlaylistDetails(playlistId),
+			musicProvider.getAllTracksInPlaylist(playlistId, authCtx),
+			musicProvider.getPlaylistDetails(playlistId, authCtx),
 		]);
 
 		if (!Array.isArray(tracks)) {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
 
 		return NextResponse.json({
 			tracks,
+			provider: resolvedProvider,
 			playlist:
 				playlist && typeof playlist === 'object' && 'id' in playlist
 					? playlist

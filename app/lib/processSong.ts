@@ -91,7 +91,7 @@ export async function processSong(
 	signal?: AbortSignal,
 ): Promise<(Song & { embeddingData?: number[] | null }) | null> {
 	if (signal?.aborted) throw new Error('Aborted');
-	const existing = await getSong(spotifyTrack.id);
+	const existing = await getSong(spotifyTrack.id, spotifyTrack.provider ?? 'spotify');
 
 	if (existing) {
 		const embeddingData =

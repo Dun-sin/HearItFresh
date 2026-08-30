@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 import HistoryCard from './HistoryCard';
+import ConnectYoutube from '@/app/components/ConnectYoutube';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
@@ -126,13 +127,16 @@ const History = () => {
 		}
 	};
 
-	return (
+		return (
 		user && (
 			<div className='text-fbase w-full max-w-6xl mx-auto'>
 				<p className='font-bold text-fmd flex items-center gap-2'>
 					<span className='icon-[weui--music-outlined] text-fmd' />
 					Generation History
 				</p>
+				<div className='mt-5'>
+					<ConnectYoutube />
+				</div>
 				<div className='flex flex-col gap-5 w-full mt-5'>
 			{history && history.length > 0 ? (
 					history.map(

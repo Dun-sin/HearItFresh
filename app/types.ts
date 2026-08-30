@@ -1,4 +1,5 @@
 import { Song } from './generated/prisma';
+import type { ProviderName } from './lib/providers/types';
 
 export type singleTrack = {
 	name: string;
@@ -7,6 +8,13 @@ export type singleTrack = {
 	id: string;
 	artistName: string;
 };
+
+
+export type SongInput = Pick<Song, 'id' | 'title' | 'artist' | 'album'> & {
+	provider?: ProviderName;
+};
+
+export type { ProviderName };
 
 export type trackTypes = singleTrack[];
 
@@ -49,6 +57,7 @@ export type GeneratedPlaylistHistory = {
 	playlistId: string | null;
 	playlistName: string | null;
 	playlistLink: string | null;
+	provider?: string | null;
 	completedAt: Date | string | null;
 	createdAt: Date | string;
 	status?: string;
@@ -67,7 +76,7 @@ export type SeedTrackHistory = {
 	image?: string;
 };
 
-export type SpotifyTrack = Pick<Song, 'id' | 'title' | 'artist' | 'album'>;
+export type SpotifyTrack = SongInput;
 
 export type LRCLibResult = {
 	instrumental?: boolean;

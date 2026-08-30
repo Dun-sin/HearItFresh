@@ -18,6 +18,7 @@ const ResultLink = () => {
 			setPlayListData({
 				...playListData,
 				link: addPlaylistFullLinkFromID(link),
+				provider: 'spotify',
 			});
 	}, []);
 
@@ -25,7 +26,7 @@ const ResultLink = () => {
 		!loading && (
 			<section className='w-full'>
 				{playListData.link.length !== 0 ? (
-					<OpenOnSpotify />
+					<OpenOnSpotify provider={playListData.provider ?? 'spotify'} />
 				) : (
 					<p className='text-fxs text-red-500'>
 						{errorMessages.error !== null && errorMessages.error}
