@@ -1,5 +1,3 @@
-import pLimit from 'p-limit';
-
 import { resolveYoutubeAccessToken } from './auth';
 import {
 	createPlaylist as ytCreatePlaylist,
@@ -11,6 +9,7 @@ import {
 	getPlaylistDetails as ytGetPlaylistDetails,
 	getPlaylistItems as ytGetPlaylistItems,
 } from './client';
+import { cleanMusicMetadata, formatApiError } from '../../utils';
 import type {
 	MusicProvider,
 	ProviderAuthCtx,
@@ -20,7 +19,11 @@ import type {
 } from '../types';
 
 const MAX_DISCOGRAPHY_PAGES = 3;
-const ADD_TRACK_CONCURRENCY = 5;
+
+const normalizeArtistName = (channelTitle: string) =>
+	channelTitle.replace(/\s*-\s*topic\s*$/i, '').trim() || channelTitle;
+
+const normalizeTrackName = (title: string) => cleanMusicMetadata(title) || title;
 
 async function token(ctx?: ProviderAuthCtx): Promise<string> {
 	return resolveYoutubeAccessToken(ctx ?? {});
@@ -55,27 +58,31 @@ async function addTracksToPlaylist(
 	ctx: ProviderAuthCtx,
 ): Promise<void> {
 	const accessToken = await token(ctx);
-	const limit = pLimit(ADD_TRACK_CONCURRENCY);
 	const errors: unknown[] = [];
-	await Promise.all(
-		tracks.map((track) =>
-			limit(async () => {
-				try {
-					await ytAddVideoToPlaylist(
-						accessToken,
-						playlistExternalId,
-						track.externalId,
-					);
-				} catch (e) {
-					errors.push(e);
-					console.error(`YouTube: failed to add video ${track.externalId}`, e);
-				}
-			}),
-		),
-	);
-	if (errors.length > 0) {
+
+	for (const track of tracks) {
+		try {
+			await ytAddVideoToPlaylist(
+				accessToken,
+				playlistExternalId,
+				track.externalId,
+			);
+		} catch (e) {
+			errors.push(e);
+			console.error(
+				`YouTube: failed to add video ${track.externalId}: ${formatApiError(e)}`,
+			);
+		}
+	}
+
+	if (errors.length === tracks.length && tracks.length > 0) {
 		throw new Error(
-			`Failed to add ${errors.length}/${tracks.length} tracks to YouTube playlist`,
+			`Failed to add any of the ${tracks.length} tracks to the YouTube playlist`,
+		);
+	}
+	if (errors.length > 0) {
+		console.warn(
+			`YouTube: added ${tracks.length - errors.length}/${tracks.length} tracks; ${errors.length} failed`,
 		);
 	}
 }
@@ -104,20 +111,17 @@ async function removeTracksFromPlaylist(
 		pageToken = nextPageToken;
 	} while (pageToken && itemIdsToDelete.length < videoIds.size);
 
-	const limit = pLimit(ADD_TRACK_CONCURRENCY);
 	const errors: unknown[] = [];
-	await Promise.all(
-		itemIdsToDelete.map((itemId) =>
-			limit(async () => {
-				try {
-					await ytDeletePlaylistItem(accessToken, itemId);
-				} catch (e) {
-					errors.push(e);
-					console.error(`YouTube: failed to remove item ${itemId}`, e);
-				}
-			}),
-		),
-	);
+	for (const itemId of itemIdsToDelete) {
+		try {
+			await ytDeletePlaylistItem(accessToken, itemId);
+		} catch (e) {
+			errors.push(e);
+			console.error(
+				`YouTube: failed to remove item ${itemId}: ${formatApiError(e)}`,
+			);
+		}
+	}
 	if (errors.length > 0) {
 		throw new Error(
 			`Failed to remove ${errors.length}/${itemIdsToDelete.length} tracks from YouTube playlist`,
@@ -152,8 +156,8 @@ async function getArtistDiscographyTracks(
 			tracks.push({
 				provider: 'youtube',
 				externalId: v.videoId,
-				name: v.title,
-				artistName: v.channelTitle,
+				name: normalizeTrackName(v.title),
+				artistName: normalizeArtistName(v.channelTitle),
 				imageUrl: v.thumbnailUrl,
 			});
 		}
@@ -189,8 +193,8 @@ async function getAllTracksInPlaylist(
 			tracks.push({
 				provider: 'youtube',
 				externalId: item.videoId,
-				name: item.title,
-				artistName: item.channelTitle,
+				name: normalizeTrackName(item.title),
+				artistName: normalizeArtistName(item.channelTitle),
 				imageUrl: item.thumbnailUrl,
 			});
 		}

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useAuth } from '@/app/context/authContext';
-import { openYoutubeConnectPopup } from '@/app/lib/clientUtils';
+import { consumeYoutubeConnectRedirect } from '@/app/lib/clientUtils';
 
 type YTStatus = {
 	connected: boolean;
@@ -37,17 +37,26 @@ const ConnectYoutube = () => {
 		refreshStatus();
 	}, [refreshStatus]);
 
-	const handleConnect = async () => {
-		if (!userId) return;
-		setLoading(true);
-		setError(null);
-		const connected = await openYoutubeConnectPopup(userId);
-		if (connected) {
-			await refreshStatus();
-		} else {
-			setError('YouTube connection failed. Please try again.');
+	useEffect(() => {
+		const result = consumeYoutubeConnectRedirect();
+		if (!result) return;
+
+		if (result.status !== 'connected') {
+			console.error('[YouTube connect] failed:', result.reason);
+			setError(
+				`YouTube connection failed${result.reason ? `: ${result.reason}` : ''}. Please try again.`,
+			);
+			return;
 		}
-		setLoading(false);
+
+		refreshStatus();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	const handleConnect = () => {
+		if (!userId) return;
+		setError(null);
+		window.location.href = `/api/youtube/connect?userId=${encodeURIComponent(userId)}`;
 	};
 
 	const handleDisconnect = async () => {
@@ -71,7 +80,7 @@ const ConnectYoutube = () => {
 	if (!userId) return null;
 
 	return (
-		<div className='flex flex-col gap-2 rounded-2xl border border-gray/40 bg-lightest px-5 py-4 shadow-sm'>
+		<div className='flex flex-col gap-2 rounded-2xl border border-gray/40 bg-lightest px-5 py-4 shadow-sm min-w-80 max-w-2xl'>
 			<h3 className='text-lg font-semibold text-fbase'>
 				YouTube Music connection
 			</h3>
@@ -97,7 +106,7 @@ const ConnectYoutube = () => {
 					onClick={handleConnect}
 					disabled={loading}
 					className='self-start rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-lightest transition-opacity hover:opacity-90 disabled:opacity-50'>
-					{loading ? 'Connecting…' : 'Connect YouTube Music'}
+					Connect YouTube Music
 				</button>
 			)}
 		</div>

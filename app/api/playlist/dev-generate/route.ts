@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     artistId,
     artistName,
     provider,
+    youtubeGuestCredentials,
   } = await req.json();
 
   const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
 				userId,
 				resolvedProvider,
 				req.signal,
+				youtubeGuestCredentials,
 			)
 		: await generateSeedPlaylist(
 				seeds,
@@ -33,6 +35,7 @@ export async function POST(req: Request) {
 				userId,
 				resolvedProvider,
 				req.signal,
+				youtubeGuestCredentials,
 			);
 
   return NextResponse.json(result);

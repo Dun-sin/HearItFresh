@@ -11,9 +11,12 @@ import {
 
 import React, { useRef, useState, useEffect } from 'react';
 import SubmitButtionContainer from './SubmitButtonContainer';
+import ConnectYoutubePrompt from './ConnectYoutubePrompt';
 import {
 	addToUrl,
-	openYoutubeConnectPopup,
+	consumeYoutubeConnectRedirect,
+	savePendingPlaylistLink,
+	takePendingPlaylistLink,
 	type YoutubeGuestCredentials,
 } from '@/app/lib/clientUtils';
 import { toast } from 'react-toastify';
@@ -57,10 +60,7 @@ const SubmitButton = () => {
 		clearSeeds,
 	} = useSeedSongs();
 
-	const isGuest = !user?.user_id;
-	const failedMessage = isGuest
-		? "We couldn't create your playlist. Please sign in and try again."
-		: "We couldn't create your playlist. Please try again.";
+	const failedMessage = "We couldn't create your playlist. Please try again.";
 
 	const abortedRef = useRef(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -68,13 +68,42 @@ const SubmitButton = () => {
 	const activeGeneratedPlaylistIdRef = useRef<string | null>(null);
 	const activeEventIdRef = useRef<string | null>(null);
 	const inngestStartedRef = useRef(false);
+	const cancellationIdRef = useRef<string | null>(null);
 	const youtubeGuestCredentialsRef = useRef<YoutubeGuestCredentials | null>(
+		null,
+	);
+	const connectPromptResolveRef = useRef<((proceed: boolean) => void) | null>(
 		null,
 	);
 
 	// Terminal state flags
 	const [failed, setFailed] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [showConnectPrompt, setShowConnectPrompt] = useState(false);
+
+	useEffect(() => {
+		const result = consumeYoutubeConnectRedirect();
+		if (!result) return;
+
+		if (result.status !== 'connected') {
+			console.error('[YouTube connect] failed:', result.reason);
+			setErrorMessages({
+				...errorMessages,
+				error: `YouTube connection failed${result.reason ? `: ${result.reason}` : ''}. Please try again.`,
+			});
+			return;
+		}
+
+		youtubeGuestCredentialsRef.current = result.guestCredentials ?? null;
+
+		const pendingLink = takePendingPlaylistLink();
+		if (pendingLink) {
+			if (spotifyPlaylist.current) spotifyPlaylist.current.value = pendingLink;
+			setLoading(true);
+			handleIfItsAPlaylistLink(pendingLink);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	useEffect(() => {
 		if (!user?.user_id) return;
@@ -208,6 +237,10 @@ const SubmitButton = () => {
 		activeGeneratedPlaylistIdRef.current = null;
 		activeEventIdRef.current = null;
 
+		setFailed(false);
+		setErrorMessage(null);
+		setErrorMessages({ ...errorMessages, error: null });
+
 		setButtonClicked(true);
 		setLoading(true);
 
@@ -222,15 +255,16 @@ const SubmitButton = () => {
 					: 'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
 			);
 
-			if (process.env.NODE_ENV === 'production') {
-				// Inngest path
-				inngestStartedRef.current = true;
-				const rawLink = spotifyPlaylist.current?.value ?? '';
-				const sourcePlaylistId = rawLink
-					? provider === 'youtube'
-						? extractYoutubePlaylistId(rawLink)
-						: extractPlaylistId(rawLink)
-					: undefined;
+			// if (process.env.NODE_ENV === 'production') {
+			// Inngest path
+			inngestStartedRef.current = true;
+			cancellationIdRef.current = crypto.randomUUID();
+			const rawLink = spotifyPlaylist.current?.value ?? '';
+			const sourcePlaylistId = rawLink
+				? provider === 'youtube'
+					? extractYoutubePlaylistId(rawLink)
+					: extractPlaylistId(rawLink)
+				: undefined;
 
 			const payload = {
 				seeds: selectedSongsData,
@@ -249,6 +283,7 @@ const SubmitButton = () => {
 						: undefined,
 				provider,
 				sourcePlaylistId,
+				cancellationId: cancellationIdRef.current,
 			};
 			const result = await fetch('/api/playlist/generate', {
 				method: 'POST',
@@ -477,31 +512,42 @@ const SubmitButton = () => {
 		setLoading(false);
 		setButtonClicked(false);
 		setLoadingMessage(null);
-		const generatedPlaylistId = activeGeneratedPlaylistIdRef.current;
+		const cancellationId = cancellationIdRef.current;
 		abortControllerRef.current?.abort();
 		abortControllerRef.current = null;
 		activeRunIdRef.current = null;
 		activeGeneratedPlaylistIdRef.current = null;
 		activeEventIdRef.current = null;
 
-		if (generatedPlaylistId && inngestStartedRef.current) {
+		if (cancellationId && inngestStartedRef.current) {
 			try {
 				await fetch('/api/playlist/cancel', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ generatedPlaylistId }),
+					body: JSON.stringify({ cancellationId }),
 				});
-				console.log(
-					'[handleCancel] Cancelled Inngest run for generatedPlaylistId:',
-					generatedPlaylistId,
-				);
 			} catch (e) {
 				console.warn('[handleCancel] Failed to cancel Inngest run:', e);
 			}
 		}
+		cancellationIdRef.current = null;
 		setFailed(false);
 		setErrorMessage(null);
 		toast.info('Generation cancelled.');
+	};
+
+	const handleConnectPromptConnect = () => {
+		setShowConnectPrompt(false);
+		const qs = user?.user_id
+			? `?userId=${encodeURIComponent(user.user_id)}`
+			: '';
+		window.location.href = `/api/youtube/connect${qs}`;
+	};
+
+	const handleConnectPromptCancel = () => {
+		setShowConnectPrompt(false);
+		connectPromptResolveRef.current?.(false);
+		connectPromptResolveRef.current = null;
 	};
 
 	const createSpotifyPlaylist = async (link: string, name: string) => {
@@ -563,34 +609,29 @@ const SubmitButton = () => {
 		});
 
 		if (detected.provider === 'youtube') {
-			youtubeGuestCredentialsRef.current = null;
+			const hasGuestCredentials =
+				!user?.user_id && Boolean(youtubeGuestCredentialsRef.current);
 
-			const alreadyConnected = user?.user_id
-				? await fetch(
-						`/api/youtube/status?userId=${encodeURIComponent(user.user_id)}`,
-					)
-						.then((r) => r.json())
-						.then((s) => Boolean(s.connected))
-				: false;
+			const alreadyConnected = hasGuestCredentials
+				? true
+				: user?.user_id
+					? await fetch(
+							`/api/youtube/status?userId=${encodeURIComponent(user.user_id)}`,
+						)
+							.then((r) => r.json())
+							.then((s) => Boolean(s.connected))
+					: false;
 
 			if (!alreadyConnected) {
-				setLoadingMessage('Waiting for YouTube authorization...');
-				const result = await openYoutubeConnectPopup(user?.user_id);
-				if (
-					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
-					abortedRef.current
-				)
-					return;
-				if (!result.connected) {
-					setErrorMessages({
-						...errorMessages,
-						error:
-							'YouTube authorization was cancelled or failed. Please try again.',
-					});
+				savePendingPlaylistLink(link);
+				const proceed = await new Promise<boolean>((resolve) => {
+					connectPromptResolveRef.current = resolve;
+					setShowConnectPrompt(true);
+				});
+				if (!proceed) {
 					setLoading(false);
 					return;
 				}
-				youtubeGuestCredentialsRef.current = result.guestCredentials ?? null;
 			}
 		}
 
@@ -708,21 +749,28 @@ const SubmitButton = () => {
 	// when a playlist has been uploaded and fewer than 5 songs
 	// are selected (0-4), the button should be disabled and greyed out.
 	// 5+ seeds reverts to the normal green generate button.
-	const isLowSeedCount =
-		extractedSongs.length > 0 && selectedSeedIds.size < 5;
+	const isLowSeedCount = extractedSongs.length > 0 && selectedSeedIds.size < 5;
 
 	const btnClass = isLowSeedCount ? 'bg-gray-400 text-lightest' : undefined;
 
-		return (
-		<SubmitButtionContainer
-			handleSubmit={handleSubmit}
-			onCancel={handleCancel}
-			failed={failed}
-			errorMessage={errorMessage}
-			canRetry={Boolean(user?.user_id)}
-			btnClass={btnClass}
-			disabled={isLowSeedCount}
-		/>
+	return (
+		<>
+			<SubmitButtionContainer
+				handleSubmit={handleSubmit}
+				onCancel={handleCancel}
+				failed={failed}
+				errorMessage={errorMessage}
+				canRetry={Boolean(user?.user_id)}
+				btnClass={btnClass}
+				disabled={isLowSeedCount}
+			/>
+			{showConnectPrompt && (
+				<ConnectYoutubePrompt
+					onConnect={handleConnectPromptConnect}
+					onCancel={handleConnectPromptCancel}
+				/>
+			)}
+		</>
 	);
 };
 

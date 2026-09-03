@@ -12,10 +12,11 @@ const Header = () => {
 	const { isDarkMode, toggleDarkMode } = useTheme();
 	const {
 		isLoggedIn,
-
+		isGuest,
 		user,
 
 		logOut,
+		exitGuestMode,
 	} = useAuth();
 
 	return (
@@ -43,6 +44,13 @@ const Header = () => {
 						className={`text-brand underline underline-offset-1 text-fsm sm:text-fbase`}
 						onClick={logOut}>
 						SignOut
+					</button>
+				)}
+				{!isLoggedIn && isGuest && (
+					<button
+						className={`text-brand underline underline-offset-1 text-fsm sm:text-fbase`}
+						onClick={exitGuestMode}>
+						Sign In
 					</button>
 				)}
 				<button

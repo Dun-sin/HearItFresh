@@ -55,8 +55,10 @@ export function verifyYoutubeState(state: string): YoutubeStateResult {
 			return { ok: false };
 		}
 
+		// `< 0`, not `<= 0`: a guest's payload has no subject, so it's
+		// `.<expiresAt>` and the separator legitimately sits at index 0.
 		const payloadLastDot = payload.lastIndexOf('.');
-		if (payloadLastDot <= 0) return { ok: false };
+		if (payloadLastDot < 0) return { ok: false };
 		const userId = payload.slice(0, payloadLastDot);
 		const expiresAt = Number(payload.slice(payloadLastDot + 1));
 		if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {

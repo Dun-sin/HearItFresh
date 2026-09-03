@@ -23,6 +23,9 @@ import { shuffle, sleep } from './utils';
  */
 export type AlbumLookupArtist = string | ResolvedSpotifyArtist;
 
+export const YOUTUBE_QUOTA_EXHAUSTED_ERROR =
+	"YouTube's daily search limit was reached, so we couldn't match any songs. Try a Spotify playlist instead, or come back tomorrow.";
+
 export const SPOTIFY_PUBLIC_PLAYLIST_ERROR =
 	'Spotify could not access this playlist. Please make the playlist public, then try again.';
 

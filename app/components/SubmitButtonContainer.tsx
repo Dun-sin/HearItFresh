@@ -48,13 +48,11 @@ const SubmitButtionContainer = ({
 				<p className='text-sm text-red-400 text-center'>
 					{errorMessage}
 				</p>
-				{canRetry && (
-					<button
-						className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
-						onClick={handleSubmit}>
-						Try Again
-					</button>
-				)}
+				<button
+					className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
+					onClick={handleSubmit}>
+					{canRetry ? 'Try Again' : (btnText ?? 'Generate Playlist')}
+				</button>
 			</div>
 		);
 	}

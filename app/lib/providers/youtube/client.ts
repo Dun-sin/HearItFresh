@@ -1,11 +1,20 @@
 import axios from 'axios';
 import { NON_CANONICAL_RELEASE_KEYWORDS } from '../../utils';
+import { axiosErrors, withRetry } from '../../retry';
 
 const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
 
 const authHeader = (accessToken: string) => ({
 	Authorization: `Bearer ${accessToken}`,
 });
+
+// 409: concurrent writes to one playlist. 429: rate limit.
+const retryYoutube = <T>(label: string, fn: () => Promise<T>) =>
+	withRetry(fn, {
+		errors: axiosErrors,
+		label: `YouTube ${label}`,
+		retryOn: [409, 429, 500, 502, 503, 504],
+	});
 
 const buildQuery = (params: Record<string, string>) => {
 	const usp = new URLSearchParams();
@@ -52,20 +61,22 @@ export async function addVideoToPlaylist(
 	playlistId: string,
 	videoId: string,
 ): Promise<void> {
-	await axios.post(
-		`${YOUTUBE_API}/playlistItems?part=snippet`,
-		{
-			snippet: {
-				playlistId,
-				resourceId: { kind: 'youtube#video', videoId },
+	await retryYoutube(`add video ${videoId}`, () =>
+		axios.post(
+			`${YOUTUBE_API}/playlistItems?part=snippet`,
+			{
+				snippet: {
+					playlistId,
+					resourceId: { kind: 'youtube#video', videoId },
+				},
 			},
-		},
-		{
-			headers: {
-				...authHeader(accessToken),
-				'Content-Type': 'application/json',
+			{
+				headers: {
+					...authHeader(accessToken),
+					'Content-Type': 'application/json',
+				},
 			},
-		},
+		),
 	);
 }
 
@@ -102,9 +113,11 @@ export async function searchVideo(
 		maxResults: '10',
 		q: query,
 	});
-	const res = await axios.get(`${YOUTUBE_API}/search?${qs}`, {
-		headers: authHeader(accessToken),
-	});
+	const res = await retryYoutube(`search "${query}"`, () =>
+		axios.get(`${YOUTUBE_API}/search?${qs}`, {
+			headers: authHeader(accessToken),
+		}),
+	);
 	const items = (res.data?.items ?? []) as any[];
 	if (items.length === 0) return null;
 
@@ -255,8 +268,10 @@ export async function deletePlaylistItem(
 	accessToken: string,
 	playlistItemId: string,
 ): Promise<void> {
-	await axios.delete(
-		`${YOUTUBE_API}/playlistItems?${buildQuery({ id: playlistItemId })}`,
-		{ headers: authHeader(accessToken) },
+	await retryYoutube(`remove item ${playlistItemId}`, () =>
+		axios.delete(
+			`${YOUTUBE_API}/playlistItems?${buildQuery({ id: playlistItemId })}`,
+			{ headers: authHeader(accessToken) },
+		),
 	);
 }

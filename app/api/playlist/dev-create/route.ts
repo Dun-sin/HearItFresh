@@ -1,18 +1,26 @@
 import { NextResponse } from 'next/server';
 import { getProvider, isProviderName } from '@/app/lib/providers';
+import type { ProviderAuthCtx } from '@/app/lib/providers/types';
 
 export async function POST(req: Request) {
 	try {
-		const { provider, tracks, playlistName, description, userId } =
-			await req.json();
+		const {
+			provider,
+			tracks,
+			playlistName,
+			description,
+			userId,
+			youtubeGuestCredentials,
+		} = await req.json();
 
 		const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
 		const musicProvider = getProvider(resolvedProvider);
+		const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 
 		const playlistInfo = await musicProvider.createPlaylist(
 			playlistName,
 			description,
-			{ userId },
+			authCtx,
 		);
 
 		if ('isError' in playlistInfo) {
@@ -22,9 +30,11 @@ export async function POST(req: Request) {
 			);
 		}
 
-		await musicProvider.addTracksToPlaylist(tracks, playlistInfo.externalId, {
-			userId,
-		});
+		await musicProvider.addTracksToPlaylist(
+			tracks,
+			playlistInfo.externalId,
+			authCtx,
+		);
 
 		return NextResponse.json({
 			link: playlistInfo.link,

@@ -14,6 +14,7 @@ export async function POST(req: Request) {
 		artistImage,
 		provider,
 		youtubeGuestCredentials,
+		cancellationId,
 	} = await req.json();
 
 	const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
 				generatedPlaylistId: null,
 				persistResult: false,
 				youtubeGuestCredentials,
+				cancellationId,
 			},
 		});
 
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
 			provider: resolvedProvider,
 			generatedPlaylistId: dbRecord.id,
 			persistResult: true,
+			cancellationId,
 		};
 		const { ids } = await inngest.send({
 			name: 'playlist/generate',

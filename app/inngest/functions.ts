@@ -15,7 +15,7 @@ export const generatePlaylist = inngest.createFunction(
 		cancelOn: [
 			{
 				event: 'playlist/cancel',
-				match: 'data.generatedPlaylistId',
+				match: 'data.cancellationId',
 			},
 		],
 	},
@@ -85,7 +85,7 @@ export const generatePlaylist = inngest.createFunction(
 			);
 		});
 
-		if (result.error || !result.tracks?.length)
+		if (!result.tracks?.length)
 			throw new Error(result.error || 'Failed to generate tracks');
 
 		const playlistInfo = await step.run('create-playlist', async () => {

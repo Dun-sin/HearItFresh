@@ -6,40 +6,35 @@ import {
 } from '@/app/lib/providers/youtube/auth';
 import { encrypt } from '@/app/lib/utils';
 
-type PopupPayload =
-	| { status: 'error' | 'no_refresh' }
-	| { status: 'connected'; userId: string }
-	| {
-			status: 'connected';
-			guestCredentials: { accessToken: string; refreshToken: string; expiresAt: string };
-	  };
-
-function renderPopupResult(origin: string, payload: PopupPayload) {
-	const html = `<!doctype html><html><body>
-<script>
-  if (window.opener) {
-    window.opener.postMessage(Object.assign({ type: 'youtube-oauth' }, ${JSON.stringify(payload)}), ${JSON.stringify(origin)});
-  }
-  // Give the postMessage task time to reach the opener before this window
-  // tears down — closing immediately can race the message delivery.
-  setTimeout(function () { window.close(); }, 150);
-</script>
-</body></html>`;
-	return new NextResponse(html, {
-		headers: { 'Content-Type': 'text/html' },
-	});
+function fail(origin: string, status: 'error' | 'no_refresh', reason: string) {
+	console.error(`[youtube/callback] ${status}: ${reason}`);
+	return NextResponse.redirect(
+		`${origin}/?youtube=${status}&reason=${encodeURIComponent(reason)}`,
+	);
 }
 
 export async function GET(req: Request) {
 	const url = new URL(req.url);
 	const code = url.searchParams.get('code');
 	const rawState = url.searchParams.get('state');
+	const googleError = url.searchParams.get('error');
 	const origin = url.origin;
 
+	if (googleError) {
+		return fail(origin, 'error', `Google returned error=${googleError}`);
+	}
 	const stateResult = rawState ? verifyYoutubeState(rawState) : { ok: false as const };
 
-	if (!code || !stateResult.ok) {
-		return renderPopupResult(origin, { status: 'error' });
+	if (!stateResult.ok) {
+		return fail(
+			origin,
+			'error',
+			rawState ? 'state signature invalid or expired' : 'missing state param',
+		);
+	}
+
+	if (!code) {
+		return fail(origin, 'error', 'missing code param');
 	}
 
 	const redirectUri = `${origin}/api/youtube/callback`;
@@ -60,7 +55,11 @@ export async function GET(req: Request) {
 		const { access_token, refresh_token, expires_in, scope } = res.data;
 
 		if (!refresh_token) {
-			return renderPopupResult(origin, { status: 'no_refresh' });
+			return fail(
+				origin,
+				'no_refresh',
+				'Google did not return a refresh_token (likely already consented without prompt=consent, or offline access not granted)',
+			);
 		}
 
 		const expiresAt = new Date(Date.now() + (expires_in ?? 3600) * 1000);
@@ -73,22 +72,21 @@ export async function GET(req: Request) {
 				expiresAt,
 				scope,
 			});
-			return renderPopupResult(origin, {
-				status: 'connected',
-				userId: stateResult.userId,
-			});
+			return NextResponse.redirect(`${origin}/?youtube=connected`);
 		}
 
-		return renderPopupResult(origin, {
-			status: 'connected',
-			guestCredentials: {
-				accessToken: access_token,
-				refreshToken: encrypt(refresh_token),
-				expiresAt: expiresAt.toISOString(),
-			},
+		const fragment = new URLSearchParams({
+			at: access_token,
+			rt: encrypt(refresh_token),
+			exp: expiresAt.toISOString(),
 		});
-	} catch (error) {
-		console.error('YouTube connect callback failed', error);
-		return renderPopupResult(origin, { status: 'error' });
+		return NextResponse.redirect(`${origin}/?youtube=connected#${fragment.toString()}`);
+	} catch (error: any) {
+		const googleErrorBody = error?.response?.data;
+		console.error('YouTube token exchange failed:', googleErrorBody || error);
+		const reason = googleErrorBody
+			? `${googleErrorBody.error}${googleErrorBody.error_description ? `: ${googleErrorBody.error_description}` : ''}`
+			: error?.message || 'unknown error during token exchange';
+		return fail(origin, 'error', reason);
 	}
 }

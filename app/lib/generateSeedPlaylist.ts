@@ -3,17 +3,24 @@
 import {
 	addGeneratedSongsForUser,
 	cacheYoutubeIdForSpotifyId,
+	filterUnclaimedYoutubeIds,
+	getCachedYoutubeIds,
 	findSimilarSongs,
 	getSongEmbeddings,
 	getUserGeneratedSongIds,
 	decodeGeneratedSongId,
 } from './db';
-import { calculateCosineSimilarity } from './utils';
+import {
+	calculateCosineSimilarity,
+	formatApiError,
+	DB_SIMILAR_SONGS_LIMIT,
+} from './utils';
 import {
 	getAllTracks,
 	getEveryAlbum,
 	relatedArists,
 	artistNameOf,
+	YOUTUBE_QUOTA_EXHAUSTED_ERROR,
 } from './helpers';
 import { getProvider } from './providers';
 import type {
@@ -33,6 +40,9 @@ type CandidateTrack = {
 	artistName: string;
 	albumName?: string;
 };
+
+type ResolvedRefs = { refs: ProviderTrackRef[]; quotaExhausted: boolean };
+
 
 async function getAndParseSeedEmbeddings(
 	seedSpotifyIds: string[],
@@ -108,7 +118,9 @@ async function scoreAndFilterTracks(
 						maxScore,
 					};
 				} catch (e) {
-					console.error(`✗ Error processing "${track.name}":`, e);
+					console.error(
+						`✗ Error processing "${track.name}": ${formatApiError(e)}`,
+					);
 					return null;
 				}
 			}),
@@ -136,41 +148,80 @@ async function resolveSpotifyTracksToRefs(
 	candidates: CandidateTrack[],
 	provider: ProviderName,
 	authCtx: ProviderAuthCtx,
-): Promise<ProviderTrackRef[]> {
+): Promise<ResolvedRefs> {
 	if (provider === 'spotify') {
-		return candidates.map((c) => ({
-			provider: 'spotify',
-			externalId: c.spotifyId,
-		}));
+		return {
+			refs: candidates.map((c) => ({
+				provider: 'spotify',
+				externalId: c.spotifyId,
+			})),
+			quotaExhausted: false,
+		};
 	}
 
 	const youtube = getProvider('youtube');
-	if (!youtube.searchTrackVideo) return [];
+	if (!youtube.searchTrackVideo) return { refs: [], quotaExhausted: false };
 
-	const limit = pLimit(5);
 	const searchTrackVideo = youtube.searchTrackVideo!;
-	const refs = await Promise.all(
-		candidates.map((c) =>
+
+	const cached = await getCachedYoutubeIds(candidates.map((c) => c.spotifyId));
+	const needsSearch = candidates.filter((c) => !cached.has(c.spotifyId));
+
+	const limit = pLimit(8);
+	const searched = new Map<string, string>();
+
+	let quotaExhausted = false;
+
+	await Promise.all(
+		needsSearch.map((c) =>
 			limit(async () => {
-				const videoId = await searchTrackVideo(
-					{
-						name: c.name,
-						artistName: c.artistName,
-						albumName: c.albumName,
-					},
-					authCtx,
-				);
-				if (!videoId) return null;
-				await cacheYoutubeIdForSpotifyId(c.spotifyId, videoId);
-				const ref: ProviderTrackRef = {
-					provider: 'youtube',
-					externalId: videoId,
-				};
-				return ref;
+				if (quotaExhausted) return;
+				try {
+					const videoId = await searchTrackVideo(
+						{ name: c.name, artistName: c.artistName, albumName: c.albumName },
+						authCtx,
+					);
+					if (videoId) searched.set(c.spotifyId, videoId);
+				} catch (e: any) {
+					const status = e?.response?.status;
+					if (status === 403 || status === 429) {
+						quotaExhausted = true;
+						console.warn(
+							`YouTube search quota/rate limit reached (${status}) — continuing with ${cached.size + searched.size} resolved tracks`,
+						);
+						return;
+					}
+					console.warn(
+						`YouTube: search failed for "${c.name}": ${formatApiError(e)}`,
+					);
+				}
 			}),
 		),
 	);
-	return refs.filter((r): r is ProviderTrackRef => r !== null);
+
+	// A video already claimed by a different song means this match is wrong —
+	// search landed on someone else's track — so drop it rather than repeat it.
+	const unclaimed = await filterUnclaimedYoutubeIds([
+		...new Set(searched.values()),
+	]);
+
+	const seenVideoIds = new Set<string>();
+	const refs: ProviderTrackRef[] = [];
+
+	for (const candidate of candidates) {
+		const searchedId = searched.get(candidate.spotifyId);
+		const videoId = cached.get(candidate.spotifyId) ?? searchedId;
+		if (!videoId || seenVideoIds.has(videoId)) continue;
+		if (searchedId && !unclaimed.has(searchedId)) continue;
+		seenVideoIds.add(videoId);
+
+		if (searchedId) {
+			await cacheYoutubeIdForSpotifyId(candidate.spotifyId, videoId);
+		}
+		refs.push({ provider: 'youtube', externalId: videoId });
+	}
+
+	return { refs, quotaExhausted };
 }
 
 export async function generateSeedPlaylist(
@@ -228,7 +279,10 @@ export async function generateSeedPlaylist(
 		);
 
 		throwIfAborted();
-		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds, provider);
+		const seedEmbeddings = await getAndParseSeedEmbeddings(
+			seedSpotifyIds,
+			provider,
+		);
 
 		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
 			return {
@@ -246,7 +300,7 @@ export async function generateSeedPlaylist(
 			const dbSimilar = await findSimilarSongs(
 				seedEmbeddings,
 				excludeIds,
-				24,
+				DB_SIMILAR_SONGS_LIMIT,
 				provider,
 			);
 			throwIfAborted();
@@ -268,6 +322,7 @@ export async function generateSeedPlaylist(
 			return { tracks: dbMatchesRefs };
 		}
 
+		let hitQuotaLimit = false;
 		const accumulatedRefs = [...dbMatchesRefs];
 		const checkedTrackIds = new Set<string>(
 			dbMatchesRefs.map((r) => r.externalId),
@@ -281,69 +336,73 @@ export async function generateSeedPlaylist(
 			if (accumulatedRefs.length >= 80) break;
 			throwIfAborted();
 
-			const targetArtists =
-				seeds.length > 0
-					? Array.from(new Set(seeds.flatMap((s) => s.artist)))
-					: artistNames;
+			try {
+				const targetArtists =
+					seeds.length > 0
+						? Array.from(new Set(seeds.flatMap((s) => s.artist)))
+						: artistNames;
 
-			const finalList = await relatedArists(
-				targetArtists,
-				options,
-				signal,
-				usedArtistNames,
-			);
-			throwIfAborted();
+				const finalList = await relatedArists(
+					targetArtists,
+					options,
+					signal,
+					usedArtistNames,
+				);
+				throwIfAborted();
 
-			usedArtistNames.push(...finalList.map(artistNameOf));
+				usedArtistNames.push(...finalList.map(artistNameOf));
 
-			const albums = await getEveryAlbum(finalList, signal);
-			throwIfAborted();
+				const albums = await getEveryAlbum(finalList, signal);
+				throwIfAborted();
 
-			const aiTracks = (await getAllTracks(
-				albums as string[],
-				2,
-				true,
-				signal,
-			)) as any[];
+				const aiTracks = (await getAllTracks(
+					albums as string[],
+					2,
+					true,
+					signal,
+				)) as any[];
 
-			if (!aiTracks || aiTracks.length === 0) continue;
+				if (!aiTracks || aiTracks.length === 0) continue;
 
-			const newTracks = aiTracks
-				.filter(
-					(t: any) =>
-						!checkedTrackIds.has(t.id) &&
-						!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
-				)
-				.map(
-					(t: any): CandidateTrack => ({
+				const newTracks = aiTracks
+					.filter(
+						(t: any) =>
+							!checkedTrackIds.has(t.id) &&
+							!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
+					)
+					.map((t: any): CandidateTrack => ({
 						spotifyId: t.id,
 						name: t.name,
 						artistName: t.artistName,
 						albumName: t.albumName,
-					}),
+					}));
+
+				const pLimitInstance = pLimit(15);
+				const acceptedTracks = await scoreAndFilterTracks(
+					newTracks,
+					seedEmbeddings,
+					checkedTrackIds,
+					pLimitInstance,
+					signal,
 				);
+				throwIfAborted();
 
-			const pLimitInstance = pLimit(15);
-			const acceptedTracks = await scoreAndFilterTracks(
-				newTracks,
-				seedEmbeddings,
-				checkedTrackIds,
-				pLimitInstance,
-				signal,
-			);
-			throwIfAborted();
+				const { refs: newRefs, quotaExhausted } =
+					await resolveSpotifyTracksToRefs(acceptedTracks, provider, authCtx);
+				if (quotaExhausted) hitQuotaLimit = true;
 
-			const newRefs = await resolveSpotifyTracksToRefs(
-				acceptedTracks,
-				provider,
-				authCtx,
-			);
-
-			accumulatedRefs.push(...newRefs);
-			newRefs.forEach((r) => checkedTrackIds.add(r.externalId));
-			acceptedTracks.forEach((t) =>
-				checkedTrackTitles.add(titleKey(t.name, t.artistName)),
-			);
+				accumulatedRefs.push(...newRefs);
+				newRefs.forEach((r) => checkedTrackIds.add(r.externalId));
+				acceptedTracks.forEach((t) =>
+					checkedTrackTitles.add(titleKey(t.name, t.artistName)),
+				);
+			} catch (e) {
+				if (signal?.aborted) throw e;
+				console.warn(
+					`Expansion attempt ${attempt + 1} failed, keeping ${accumulatedRefs.length} tracks: ${formatApiError(e)}`,
+				);
+				break;
+			}
 		}
 
 		const finalTracks = [...accumulatedRefs].slice(0, 100);
@@ -356,9 +415,13 @@ export async function generateSeedPlaylist(
 			);
 		}
 
+		if (hitQuotaLimit && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
+			return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };
+		}
+
 		return { tracks: finalTracks };
 	} catch (error: any) {
-		console.error('Error generating seed playlist:', error);
+		console.error('Error generating seed playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }
@@ -411,7 +474,10 @@ export async function generateArtistPlaylist(
 		);
 
 		throwIfAborted();
-		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds, provider);
+		const seedEmbeddings = await getAndParseSeedEmbeddings(
+			seedSpotifyIds,
+			provider,
+		);
 
 		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
 			return {
@@ -465,11 +531,8 @@ export async function generateArtistPlaylist(
 		);
 		throwIfAborted();
 
-		const finalRefs = await resolveSpotifyTracksToRefs(
-			acceptedTracks,
-			provider,
-			authCtx,
-		);
+		const { refs: finalRefs, quotaExhausted } =
+			await resolveSpotifyTracksToRefs(acceptedTracks, provider, authCtx);
 		const finalTracks = finalRefs.slice(0, 100);
 
 		if (userId) {
@@ -480,11 +543,16 @@ export async function generateArtistPlaylist(
 			);
 		}
 
+		if (quotaExhausted && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
+			return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };
+		}
+
 		return { tracks: finalTracks };
 	} catch (error: any) {
-		console.error('Error generating artist playlist:', error);
+		console.error('Error generating artist playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }
 
 // TODO: use the same algorithm for the songs coming from the db  - they should be scored and sorted as well
+// TODO: split this file into two based on the purpose first if it's the broad path or specific artist part and then make the thngs they share in common into it's own file

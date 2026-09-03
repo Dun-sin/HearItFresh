@@ -3,7 +3,17 @@ import crypto from 'crypto-js';
 import { LRCLibResult } from '../types';
 
 const key = process.env.SECRET_KEY as string;
-export type PlaylistOutput = { link: string; name: string };
+export type PlaylistOutput = {
+	link: string;
+	name: string;
+};
+
+/**
+ * How many similar songs the embedding search pulls from our own DB. Also the
+ * floor for judging a provider-side failure: land on this or fewer and the
+ * provider contributed nothing, so there's no playlist worth returning.
+ */
+export const DB_SIMILAR_SONGS_LIMIT = 24;
 export function shuffle<T>(array: T[]): T[] {
 	const arr = [...array];
 	for (let i = arr.length - 1; i > 0; i--) {
@@ -123,7 +133,10 @@ function extractPlaylistOutput(
 	if ('link' in value && 'name' in value) {
 		const link = String((value as any).link || '');
 		const name = String((value as any).name || '');
-		return link && name ? { link, name } : null;
+		const warning = (value as any).warning;
+		return link && name
+			? { link, name, ...(warning ? { warning: String(warning) } : {}) }
+			: null;
 	}
 
 	for (const key of ['output', 'result', 'data', 'body']) {
@@ -147,6 +160,14 @@ function safeParseJson(value: string) {
 	} catch {
 		return null;
 	}
+}
+
+export function formatApiError(err: any): string {
+	const status = err?.response?.status;
+	const data = err?.response?.data;
+	const message = data?.error?.message ?? data?.error ?? err?.message;
+	const text = typeof message === 'string' ? message : JSON.stringify(message);
+	return status ? `${status} ${text ?? ''}`.trim() : (text ?? String(err));
 }
 
 export const encrypt = (text: string): string => {

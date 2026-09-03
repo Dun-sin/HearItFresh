@@ -12,6 +12,18 @@ function idColumn(provider: ProviderName): 'spotifyId' | 'youtubeId' {
 	return provider === 'youtube' ? 'youtubeId' : 'spotifyId';
 }
 
+/**
+ * Guard for ids that get interpolated straight into the raw SQL below (the
+ * vector queries can't parameterize these lists). Must allow `-` and `_`:
+ * YouTube video ids are base64url, so roughly a third of them contain one,
+ * and the old `[a-zA-Z0-9]`-only guard silently dropped those from every
+ * embedding lookup — invisible on the Spotify path, whose ids are base62.
+ * Still injection-safe: no quotes, semicolons, or backslashes get through.
+ */
+function isSafeExternalId(id: string): boolean {
+	return /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
 
 export const encodeGeneratedSongId = (
 	provider: ProviderName,
@@ -331,6 +343,40 @@ export async function addSong(
 	return await prisma.song.create({ data });
 }
 
+export async function getCachedYoutubeIds(
+	spotifyIds: string[],
+): Promise<Map<string, string>> {
+	const safeIds = spotifyIds.filter((id) => isSafeExternalId(id));
+	if (safeIds.length === 0) return new Map();
+
+	const rows = await prisma.song.findMany({
+		where: { spotifyId: { in: safeIds }, youtubeId: { not: null } },
+		select: { spotifyId: true, youtubeId: true },
+	});
+
+	return new Map(
+		rows
+			.filter((r) => r.spotifyId && r.youtubeId)
+			.map((r) => [r.spotifyId as string, r.youtubeId as string]),
+	);
+}
+
+/** Of the given video ids, the ones no Song row has claimed yet. */
+export async function filterUnclaimedYoutubeIds(
+	youtubeIds: string[],
+): Promise<Set<string>> {
+	const safeIds = youtubeIds.filter((id) => isSafeExternalId(id));
+	if (safeIds.length === 0) return new Set();
+
+	const taken = await prisma.song.findMany({
+		where: { youtubeId: { in: safeIds } },
+		select: { youtubeId: true },
+	});
+
+	const takenIds = new Set(taken.map((r) => r.youtubeId));
+	return new Set(safeIds.filter((id) => !takenIds.has(id)));
+}
+
 export async function cacheYoutubeIdForSpotifyId(
 	spotifyId: string,
 	youtubeId: string,
@@ -340,7 +386,13 @@ export async function cacheYoutubeIdForSpotifyId(
 			where: { spotifyId, youtubeId: null },
 			data: { youtubeId },
 		});
-	} catch (e) {
+	} catch (e: any) {
+		if (e?.code === 'P2002') {
+			console.log(
+				`youtubeId ${youtubeId} is already cached for another song; skipping for ${spotifyId}`,
+			);
+			return;
+		}
 		console.error('Failed to cache youtubeId for song', spotifyId, e);
 	}
 }
@@ -376,7 +428,7 @@ export async function findSimilarSongs(
 	const centroid = getCentroid(seedEmbeddings);
 
 	// 1. Build the safe exclusion list
-	const safeExcludes = excludeIds.filter((id) => /^[a-zA-Z0-9]+$/.test(id));
+	const safeExcludes = excludeIds.filter((id) => isSafeExternalId(id));
 	const excludeClause =
 		safeExcludes.length > 0
 			? `AND "${col}" NOT IN (${safeExcludes.map((id) => `'${id}'`).join(',')})`
@@ -404,7 +456,7 @@ export async function getSongEmbeddings(
 	provider: ProviderName = 'spotify',
 ): Promise<{ embedding: string | number[] }[]> {
 	const col = idColumn(provider);
-	const safeIds = ids.filter((id) => /^[a-zA-Z0-9]+$/.test(id));
+	const safeIds = ids.filter((id) => isSafeExternalId(id));
 	if (safeIds.length === 0) return [];
 
 	const list = safeIds.map((id) => `'${id}'`).join(',');
@@ -459,6 +511,9 @@ export async function removeYoutubeConnection(userId: string) {
 	await prisma.youtubeConnection.deleteMany({ where: { userId } });
 }
 
+// TODO: callers run this during track selection, before the playlist is
+// actually created — a failed/cancelled run still burns these songs from the
+// user's future recommendations. Move it after add-tracks-to-playlist succeeds.
 export async function addGeneratedSongsForUser(
 	userId: string,
 	ids: string[],

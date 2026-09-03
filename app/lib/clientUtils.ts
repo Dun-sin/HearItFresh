@@ -1,5 +1,7 @@
 'use client';
 
+const PENDING_PLAYLIST_LINK_KEY = 'hif_pending_playlist_link';
+
 export const addToUrl = (key: string, value: string) => {
   if (typeof window === 'undefined') {
 		return;
@@ -33,49 +35,52 @@ export type YoutubeGuestCredentials = {
 	expiresAt: string;
 };
 
-export type YoutubeConnectResult = {
-	connected: boolean;
-	guestCredentials?: YoutubeGuestCredentials;
-};
+export function savePendingPlaylistLink(link: string) {
+	if (typeof window === 'undefined') return;
+	window.sessionStorage.setItem(PENDING_PLAYLIST_LINK_KEY, link);
+}
+
+export function takePendingPlaylistLink(): string | null {
+	if (typeof window === 'undefined') return null;
+	const link = window.sessionStorage.getItem(PENDING_PLAYLIST_LINK_KEY);
+	window.sessionStorage.removeItem(PENDING_PLAYLIST_LINK_KEY);
+	return link;
+}
+
+export type YoutubeConnectRedirectResult =
+	| { status: 'connected'; guestCredentials?: YoutubeGuestCredentials }
+	| { status: 'error' | 'no_refresh'; reason?: string };
 
 
-export function openYoutubeConnectPopup(
-	userId?: string | null,
-): Promise<YoutubeConnectResult> {
-	return new Promise((resolve) => {
-		const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
-		const popup = window.open(
-			`/api/youtube/connect${qs}`,
-			'youtube-connect',
-			'width=500,height=650',
-		);
+export function consumeYoutubeConnectRedirect(): YoutubeConnectRedirectResult | null {
+	if (typeof window === 'undefined') return null;
 
-		if (!popup) {
-			resolve({ connected: false });
-			return;
-		}
+	const params = new URLSearchParams(window.location.search);
+	const outcome = params.get('youtube');
+	if (!outcome) return null;
 
-		let settled = false;
-		const finish = (result: YoutubeConnectResult) => {
-			if (settled) return;
-			settled = true;
-			window.removeEventListener('message', onMessage);
-			clearInterval(pollClosed);
-			resolve(result);
+	const reason = params.get('reason') ?? undefined;
+
+	const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+	const accessToken = hash.get('at');
+	const refreshToken = hash.get('rt');
+	const expiresAt = hash.get('exp');
+
+	const url = new URL(window.location.href);
+	url.searchParams.delete('youtube');
+	url.searchParams.delete('reason');
+	url.hash = '';
+	window.history.replaceState({}, '', url.toString());
+
+	if (outcome === 'error' || outcome === 'no_refresh') {
+		return { status: outcome, reason };
+	}
+
+	if (accessToken && refreshToken && expiresAt) {
+		return {
+			status: 'connected',
+			guestCredentials: { accessToken, refreshToken, expiresAt },
 		};
-
-		const onMessage = (event: MessageEvent) => {
-			if (event.origin !== window.location.origin) return;
-			if (event.data?.type !== 'youtube-oauth') return;
-			finish({
-				connected: event.data.status === 'connected',
-				guestCredentials: event.data.guestCredentials,
-			});
-		};
-		window.addEventListener('message', onMessage);
-
-		const pollClosed = setInterval(() => {
-			if (popup.closed) finish({ connected: false });
-		}, 500);
-	});
+	}
+	return { status: 'connected' };
 }
