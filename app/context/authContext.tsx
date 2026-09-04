@@ -4,9 +4,12 @@ import React, {
 	ReactNode,
 	createContext,
 	useContext,
+	useEffect,
 	useMemo,
 	useState,
 } from 'react';
+
+const GUEST_MODE_KEY = 'hif_guest_mode';
 
 interface User {
 	display_name: string;
@@ -21,12 +24,14 @@ interface AuthProviderProps {
 interface AuthContextProps {
 	isLoggedIn: boolean;
 	isGuest: boolean;
+	isAuthHydrated: boolean;
 	isAuthInProgress: boolean;
 	user: User | null;
   accessToken: string | null;
 	logIn: () => void;
 	logOut: () => void;
 	continueAsGuest: () => void;
+	exitGuestMode: () => void;
 	authInProgress: (state: boolean) => void;
 	setUserData: (data: User | null) => void;
   setAccessToken: (token: string | null) => void;
@@ -40,6 +45,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
 	const [isAuthInProgress, setAuthInProgress] = useState(false);
+	const [isAuthHydrated, setAuthHydrated] = useState(false);
+
+	useEffect(() => {
+		try {
+			if (localStorage.getItem(GUEST_MODE_KEY) === 'true') setIsGuest(true);
+		} catch {
+		}
+		setAuthHydrated(true);
+	}, []);
 
 	const logOut = () => {
 		setLoggedIn(false);
@@ -53,11 +67,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		setIsGuest(false);
 		setLoggedIn(true);
 		setAuthInProgress(false);
+		try {
+			localStorage.removeItem(GUEST_MODE_KEY);
+		} catch {}
 	};
 
 	const continueAsGuest = () => {
 		setIsGuest(true);
 		setAuthInProgress(false);
+		try {
+			localStorage.setItem(GUEST_MODE_KEY, 'true');
+		} catch {}
+	};
+
+	/**
+	 * Drops guest mode so the login screen comes back — this is the only way
+	 * out for someone who picked "continue without logging in", since that
+	 * choice now survives a reload.
+	 */
+	const exitGuestMode = () => {
+		setIsGuest(false);
+		try {
+			localStorage.removeItem(GUEST_MODE_KEY);
+		} catch {}
 	};
 
 	const authInProgress = (state: boolean) => setAuthInProgress(state);
@@ -69,17 +101,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		() => ({
 			isLoggedIn,
 			isGuest,
+			isAuthHydrated,
 			isAuthInProgress,
 			user,
       accessToken,
 			logOut,
 			logIn,
 			continueAsGuest,
+			exitGuestMode,
 			authInProgress,
 			setUserData,
       setAccessToken,
 		}),
-    [isLoggedIn, isGuest, isAuthInProgress, user, accessToken],
+    [isLoggedIn, isGuest, isAuthHydrated, isAuthInProgress, user, accessToken],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

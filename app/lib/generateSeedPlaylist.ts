@@ -48,7 +48,7 @@ async function scoreAndFilterTracks(
 	signal?: AbortSignal,
 ): Promise<{ uri: string; name: string; artist: string }[]> {
 	const THRESHOLD = 0.8;
-	const CUTOFF = THRESHOLD - 0.25;
+	const CUTOFF = THRESHOLD - 0.15;
 	const CUTOFF_EPSILON = 0.02;
 	const needed = 100 - accumulatedUris.length + 20;
 

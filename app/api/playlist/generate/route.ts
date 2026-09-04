@@ -11,6 +11,7 @@ export async function POST(req: Request) {
 		artistId,
 		artistName,
 		artistImage,
+		cancellationId,
 	} = await req.json();
 
 	const isGuest = !userId;
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
 				artistImage,
 				generatedPlaylistId: null,
 				persistResult: false,
+				cancellationId,
 			},
 		});
 
@@ -70,6 +72,7 @@ export async function POST(req: Request) {
 			artistImage,
 			generatedPlaylistId: dbRecord.id,
 			persistResult: true,
+			cancellationId,
 		};
 		const { ids } = await inngest.send({
 			name: 'playlist/generate',

@@ -75,3 +75,10 @@ export type LRCLibResult = {
 	artistName?: string;
 	trackName?: string;
 };
+export type GuestGeneration = {
+	runId: string | null;
+	eventId: string | null;
+	link?: string | null;
+	name?: string | null;
+	startedAt: number;
+};

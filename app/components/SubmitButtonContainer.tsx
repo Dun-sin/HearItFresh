@@ -1,5 +1,6 @@
 'use client';
 
+import GenerationCountdown from './GenerationCountdown';
 import Loading from './Loading';
 import React from 'react';
 import { useGeneralState } from '@/app/context/generalStateContext';
@@ -8,21 +9,27 @@ import { useLoading } from '@/app/context/loadingContext';
 const SubmitButtionContainer = ({
 	handleSubmit,
 	onCancel,
+	onReset,
 	failed,
 	errorMessage,
 	canRetry,
 	btnText,
 	btnClass,
 	disabled,
+	startedAt,
+	artistName,
 }: {
 	handleSubmit: () => void;
 	onCancel?: () => void;
+	onReset?: () => void;
 	failed?: boolean;
 	errorMessage?: string | null;
 	canRetry?: boolean;
 	btnText?: string;
 	btnClass?: string;
 	disabled?: boolean;
+	startedAt?: number | null;
+	artistName?: string | null;
 }) => {
 	const { loading, loadingMessage } = useLoading();
 	const { buttonClick } = useGeneralState();
@@ -30,7 +37,11 @@ const SubmitButtionContainer = ({
 	if (loading) {
 		return (
 			<div className='flex flex-col items-center gap-3 w-full'>
-				<Loading loadingMessage={loadingMessage as string} />
+				{startedAt ? (
+					<GenerationCountdown startedAt={startedAt} artistName={artistName} />
+				) : (
+					<Loading loadingMessage={loadingMessage as string} />
+				)}
 				{onCancel && (
 					<button
 						onClick={onCancel}
@@ -45,14 +56,18 @@ const SubmitButtionContainer = ({
 	if (failed) {
 		return (
 			<div className='flex flex-col items-center gap-3 w-full'>
-				<p className='text-sm text-red-400 text-center'>
-					{errorMessage}
-				</p>
-				{canRetry && (
+				<p className='text-sm text-red-400 text-center'>{errorMessage}</p>
+				{canRetry ? (
 					<button
 						className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
 						onClick={handleSubmit}>
 						Try Again
+					</button>
+				) : (
+					<button
+						className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
+						onClick={onReset}>
+						Start a New Generation
 					</button>
 				)}
 			</div>

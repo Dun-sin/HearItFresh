@@ -17,7 +17,7 @@ export const generatePlaylist = inngest.createFunction(
 		cancelOn: [
 			{
 				event: 'playlist/cancel',
-				match: 'data.generatedPlaylistId',
+				match: 'data.cancellationId',
 			},
 		],
 	},

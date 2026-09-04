@@ -12,6 +12,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
     isAuthInProgress,
     isLoggedIn,
     isGuest,
+    isAuthHydrated,
     authInProgress,
     logIn,
     continueAsGuest,
@@ -137,6 +138,7 @@ const ConnectSpotify = ({ authUrl }: { authUrl: string }) => {
   useRefreshToken(expires, refreshAccessToken);
 
   return (
+		isAuthHydrated &&
 		!isLoggedIn &&
 		!isGuest && (
 			<div className='absolute top-0 w-full h-full flex items-center justify-center backdrop-blur-sm bg-lightest/65 flex-col gap-4'>
