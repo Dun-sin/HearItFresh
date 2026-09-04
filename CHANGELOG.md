@@ -1,3 +1,10 @@
+# [1.42.0](https://github.com/Dun-sin/HearItFresh/compare/v1.41.0...v1.42.0) (2026-09-04)
+
+
+### Features
+
+* **ui:** implement resumable playlist generation and countdown timer ([40075e0](https://github.com/Dun-sin/HearItFresh/commit/40075e05ea4b9d3d0f6d3c6bce160d24b1e3416a))
+
 # [1.41.0](https://github.com/Dun-sin/HearItFresh/compare/v1.40.0...v1.41.0) (2026-08-30)
 
 
