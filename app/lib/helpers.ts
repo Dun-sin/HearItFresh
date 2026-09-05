@@ -379,11 +379,12 @@ export async function relatedArists(
 		...artistNames.map((n) => n.toLowerCase()),
 		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
 	]);
+	const maxAmountOfArtists = 80;
 
-	while (finalList.length < 65 && workingLists.length > 0) {
+	while (finalList.length < maxAmountOfArtists && workingLists.length > 0) {
 		// Iterate in reverse so we can safely splice exhausted lists out
 		for (let i = workingLists.length - 1; i >= 0; i--) {
-			if (finalList.length >= 65) break;
+			if (finalList.length >= maxAmountOfArtists) break;
 
 			const pool = workingLists[i];
 			// Find a valid candidate at a random position within this seed's remaining list

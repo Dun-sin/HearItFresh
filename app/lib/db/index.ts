@@ -1,7 +1,7 @@
 "use server";
 
 import { SpotifyTrack, HistoryKind } from '@/app/types';
-import { getCentroid } from '../utils';
+import { getCentroid, compareGeneratedPlaylists } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
 import { getDummyAccessToken } from '../spotify-dummy-auth';
@@ -208,27 +208,7 @@ export async function getUserHistory(
 				const sourcePlaylistDetails = sourcePlaylistById.get(sourcePlaylistId);
 				const generated = playlistsBySource.get(sourcePlaylistId) ?? [];
 
-				const sortedGenerated = [...generated].sort((a, b) => {
-					const statusRank = (status?: string) => {
-						const normalized = status?.toLowerCase();
-						if (normalized === 'completed') return 0;
-						if (normalized === 'pending' || normalized === 'running')
-							return 1;
-						if (normalized === 'failed' || normalized === 'cancelled')
-							return 2;
-						return 3;
-					};
-
-					const statusDelta =
-						statusRank(a.status) - statusRank(b.status);
-					if (statusDelta !== 0) return statusDelta;
-
-					const aTime =
-						(a.completedAt ?? a.createdAt)?.getTime?.() ?? 0;
-					const bTime =
-						(b.completedAt ?? b.createdAt)?.getTime?.() ?? 0;
-					return bTime - aTime;
-				});
+				const sortedGenerated = [...generated].sort(compareGeneratedPlaylists);
 
 			const isArtistEntry = sortedGenerated.some((playlist: any) =>
 				Boolean(
@@ -349,6 +329,7 @@ export async function findSimilarSongs(
 	return await prisma.$queryRawUnsafe(
 		`
     SELECT id, title, artist, album, "spotifyId",
+           embedding::text AS embedding,
            embedding <=> $1::vector AS distance
     FROM "Song"
     WHERE embedding IS NOT NULL

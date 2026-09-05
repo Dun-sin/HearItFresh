@@ -3,7 +3,7 @@ import { formatRelativeTime } from '@/app/lib/utils';
 
 import DeleteButton from './DeleteButton';
 import { useAuth } from '@/app/context/authContext';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useInput } from '@/app/context/inputContext';
 import {
 	GeneratedPlaylistHistory,
@@ -38,7 +38,8 @@ const HistoryCard = ({
 	const [isExpanded, setIsExpanded] = useState(false);
 	const playlistId = sourcePlaylist?.id ?? text;
 	const playlistName = sourcePlaylist?.name ?? text;
-	const playlistArt = sourcePlaylist?.imageUrl ?? fallbackPlaylistArtwork(playlistName);
+	const playlistArt =
+		sourcePlaylist?.imageUrl ?? fallbackPlaylistArtwork(playlistName);
 	const playlistTrackCount = sourcePlaylist?.totalTracks;
 	useEffect(() => {
 		if (spotifyPlaylist.current) {
@@ -46,27 +47,8 @@ const HistoryCard = ({
 		}
 	}, [playlistId, spotifyPlaylist]);
 
-	const sortedGeneratedPlaylists = useMemo(() => {
-		const items = [...(generatedPlaylists ?? [])];
-		return items.sort((a, b) => {
-			const statusRank = (status?: string) => {
-				const normalized = status?.toLowerCase();
-				if (normalized === 'completed') return 0;
-				if (normalized === 'pending' || normalized === 'running') return 1;
-				if (normalized === 'failed' || normalized === 'cancelled') return 2;
-				return 3;
-			};
-
-			const rankDelta = statusRank(a.status) - statusRank(b.status);
-			if (rankDelta !== 0) return rankDelta;
-
-			const aDate = new Date(a.completedAt ?? a.createdAt).getTime();
-			const bDate = new Date(b.completedAt ?? b.createdAt).getTime();
-			return bDate - aDate;
-		});
-	}, [generatedPlaylists]);
-
-	const hasGeneratedPlaylists = sortedGeneratedPlaylists.length > 0;
+	const items = generatedPlaylists ?? [];
+	const hasGeneratedPlaylists = items.length > 0;
 
 	return (
 		user && (
@@ -126,7 +108,7 @@ const HistoryCard = ({
 					<div className='space-y-4'>
 						{hasGeneratedPlaylists && (
 							<div className='divide-y divide-gray/30 overflow-hidden rounded-2xl border border-gray/20'>
-								{sortedGeneratedPlaylists.map((playlist) => (
+								{items.map((playlist) => (
 									<GeneratedPlaylistBlock
 										key={playlist.id}
 										playlist={playlist}

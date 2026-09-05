@@ -20,38 +20,86 @@ import { processSong } from './processSong';
 import { setAccessToken } from './spotifyApi';
 import { getDummyAccessToken } from './spotify-dummy-auth';
 
+const THRESHOLD = 0.8;
+const CUTOFF = 0.55;
+const HIT_BONUS = 0.02;
+const PLAYLIST_SIZE = 100;
+
+type ScoredTrack = {
+	uri: string;
+	name: string;
+	artist: string;
+	hitRatio: number;
+	maxScore: number;
+};
+
+function parseEmbedding(value: unknown): number[] | null {
+	if (Array.isArray(value)) return value;
+	if (typeof value !== 'string') return null;
+
+	try {
+		const parsed = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+function scoreAgainstSeeds(emb: number[], seedEmbeddings: number[][]) {
+	const scores = seedEmbeddings.map((seedEmb) =>
+		calculateCosineSimilarity(emb, seedEmb),
+	);
+
+	return {
+		maxScore: Math.max(...scores),
+		hitRatio: scores.filter((s) => s >= THRESHOLD).length / scores.length,
+	};
+}
+
+// strength of the single best match leads; matching several seeds is only a nudge
+const rankOf = (t: { maxScore: number; hitRatio: number }) =>
+	t.maxScore + HIT_BONUS * t.hitRatio;
+
+const byRankDesc = (a: ScoredTrack, b: ScoredTrack) => rankOf(b) - rankOf(a);
+
 async function getAndParseSeedEmbeddings(
 	seedSpotifyIds: string[],
 ): Promise<number[][]> {
 	const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
 
 	return rawEmbeddings
-		.map((row: any) => {
-			if (typeof row.embedding === 'string') {
-				try {
-					return JSON.parse(row.embedding);
-				} catch (e) {
-					return null;
-				}
-			}
-			if (Array.isArray(row.embedding)) return row.embedding;
-			return null;
-		})
+		.map((row: any) => parseEmbedding(row.embedding))
 		.filter(Boolean) as number[][];
 }
 
-async function scoreAndFilterTracks(
+function scoreDbMatches(
+	dbSimilar: any[],
+	seedEmbeddings: number[][],
+): ScoredTrack[] {
+	return dbSimilar
+		.map((song: any) => {
+			const emb = parseEmbedding(song.embedding);
+			if (!emb) return null;
+
+			const scored = scoreAgainstSeeds(emb, seedEmbeddings);
+			if (scored.maxScore < CUTOFF) return null;
+
+			return {
+				uri: `spotify:track:${song.spotifyId}`,
+				name: song.title,
+				artist: song.artist,
+				...scored,
+			};
+		})
+		.filter(Boolean) as ScoredTrack[];
+}
+
+async function scoreTracks(
 	newTracks: any[],
 	seedEmbeddings: number[][],
-	accumulatedUris: string[],
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
-): Promise<{ uri: string; name: string; artist: string }[]> {
-	const THRESHOLD = 0.8;
-	const CUTOFF = THRESHOLD - 0.15;
-	const CUTOFF_EPSILON = 0.02;
-	const needed = 100 - accumulatedUris.length + 20;
-
+): Promise<ScoredTrack[]> {
 	const scoredTracks = await Promise.all(
 		newTracks.map((track) =>
 			pLimitInstance(async () => {
@@ -72,21 +120,16 @@ async function scoreAndFilterTracks(
 						return null;
 					}
 
-					const scores = seedEmbeddings.map((seedEmb) =>
-						calculateCosineSimilarity(emb, seedEmb),
-					);
-
-					const maxScore = Math.max(...scores);
-					if (maxScore < CUTOFF - CUTOFF_EPSILON) {
+					const scored = scoreAgainstSeeds(emb, seedEmbeddings);
+					if (scored.maxScore < CUTOFF) {
 						return null;
 					}
-					const thresholdHits = scores.filter((s) => s >= THRESHOLD).length;
+
 					return {
 						uri: track.uri,
 						name: track.name,
 						artist: track.artistName,
-						thresholdHits,
-						maxScore,
+						...scored,
 					};
 				} catch (e) {
 					console.error(`✗ Error processing "${track.name}":`, e);
@@ -97,27 +140,14 @@ async function scoreAndFilterTracks(
 	);
 
 	const validScored = scoredTracks.filter(
-		(
-			t,
-		): t is {
-			uri: string;
-			name: string;
-			artist: string;
-			thresholdHits: number;
-			maxScore: number;
-		} => t !== null,
+		(t): t is ScoredTrack => t !== null,
 	);
 
 	console.log(
 		`[Scoring Summary] ${validScored.length}/${newTracks.length} tracks passed cutoff`,
 	);
 
-	const sortedScored = validScored.sort(
-		(a, b) => b.thresholdHits - a.thresholdHits || b.maxScore - a.maxScore,
-	);
-	const newTracksAccepted = sortedScored.slice(0, needed);
-
-	return newTracksAccepted;
+	return validScored;
 }
 
 export async function generateSeedPlaylist(
@@ -172,40 +202,42 @@ export async function generateSeedPlaylist(
 			};
 		}
 
-		let dbMatchesUris: string[] = [];
-		let remainingNeeded = 100;
+		let dbScored: ScoredTrack[] = [];
 
 		if (seedEmbeddings.length > 0) {
 			const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
 			const dbSimilar = await findSimilarSongs(seedEmbeddings, excludeIds, 24);
 			throwIfAborted();
-			dbMatchesUris = dbSimilar.map(
-				(song: any) => `spotify:track:${song.spotifyId}`,
-			);
-			remainingNeeded = 100 - dbMatchesUris.length;
+			dbScored = scoreDbMatches(dbSimilar, seedEmbeddings);
 		}
 
-		if (remainingNeeded <= 10) {
+		if (PLAYLIST_SIZE - dbScored.length <= 10) {
+			const ranked = [...dbScored].sort(byRankDesc).slice(0, PLAYLIST_SIZE);
+			const dbTracks = ranked.map((t) => t.uri);
+
 			if (userId) {
-				const generatedSpotifyIds = dbMatchesUris.map((uri) =>
+				const generatedSpotifyIds = dbTracks.map((uri) =>
 					uri.replace('spotify:track:', ''),
 				);
 				await addGeneratedSongsForUser(userId, generatedSpotifyIds);
 			}
-			return { tracks: dbMatchesUris };
+			return { tracks: dbTracks };
 		}
 
-		const accumulatedUris = [...dbMatchesUris];
-		const checkedTrackIds = new Set<string>(
-			dbMatchesUris.map((uri) => uri.replace('spotify:track:', '')),
-		);
-		const checkedTrackTitles = new Set<string>();
 		const titleKey = (title: string, artist: string) =>
 			title.toLowerCase().trim() + '|' + artist.toLowerCase().trim();
+
+		const candidates: ScoredTrack[] = [...dbScored];
+		const checkedTrackIds = new Set<string>(
+			dbScored.map((t) => t.uri.replace('spotify:track:', '')),
+		);
+		const checkedTrackTitles = new Set<string>(
+			dbScored.map((t) => titleKey(t.name ?? '', t.artist ?? '')),
+		);
 		const usedArtistNames: string[] = [];
 
 		for (let attempt = 0; attempt < 2; attempt++) {
-			if (accumulatedUris.length >= 80) break;
+			if (candidates.length >= PLAYLIST_SIZE) break;
 			throwIfAborted();
 
 			const targetArtists =
@@ -242,25 +274,24 @@ export async function generateSeedPlaylist(
 			);
 
 			const pLimitInstance = pLimit(15);
-			const acceptedTracks = await scoreAndFilterTracks(
+			const acceptedTracks = await scoreTracks(
 				newTracks,
 				seedEmbeddings,
-				accumulatedUris,
 				pLimitInstance,
 				signal,
 			);
 			throwIfAborted();
-			const newUris = acceptedTracks.map((t) => t.uri);
-			accumulatedUris.push(...newUris);
-			newUris.forEach((uri) =>
-				checkedTrackIds.add(uri.replace('spotify:track:', '')),
-			);
-			acceptedTracks.forEach((t) =>
-				checkedTrackTitles.add(titleKey(t.name, t.artist)),
-			);
+			candidates.push(...acceptedTracks);
+			acceptedTracks.forEach((t) => {
+				checkedTrackIds.add(t.uri.replace('spotify:track:', ''));
+				checkedTrackTitles.add(titleKey(t.name, t.artist));
+			});
 		}
 
-		const finalTracks = [...accumulatedUris].slice(0, 100);
+		const finalTracks = [...candidates]
+			.sort(byRankDesc)
+			.slice(0, PLAYLIST_SIZE)
+			.map((t) => t.uri);
 
 		if (userId) {
 			const generatedSpotifyIds = finalTracks.map((uri) =>
@@ -348,16 +379,18 @@ export async function generateArtistPlaylist(
 			return !excluded;
 		});
 		const pLimitInstance = pLimit(15);
-		const acceptedTracks = await scoreAndFilterTracks(
+		const acceptedTracks = await scoreTracks(
 			newTracks,
 			seedEmbeddings,
-			[],
 			pLimitInstance,
 			signal,
 		);
 		throwIfAborted();
 
-		const finalTracks = acceptedTracks.map((t) => t.uri).slice(0, 100);
+		const finalTracks = [...acceptedTracks]
+			.sort(byRankDesc)
+			.slice(0, PLAYLIST_SIZE)
+			.map((t) => t.uri);
 
 		if (userId) {
 			const generatedSpotifyIds = finalTracks.map((uri) =>
@@ -372,5 +405,3 @@ export async function generateArtistPlaylist(
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }
-
-// TODO: use the same algorithm for the songs coming from the db  - they should be scored and sorted as well

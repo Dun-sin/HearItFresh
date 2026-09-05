@@ -3,6 +3,29 @@ import crypto from 'crypto-js';
 import { LRCLibResult } from '../types';
 
 const key = process.env.SECRET_KEY as string;
+
+const STATUS_RANK: Record<string, number> = {
+	completed: 0,
+	pending: 1,
+	running: 1,
+	scheduled: 1,
+	failed: 2,
+	cancelled: 2,
+	canceled: 2,
+};
+
+function statusRank(status?: string) {
+	return STATUS_RANK[status?.toLowerCase() ?? ''] ?? 3;
+}
+
+function timeOf(value?: Date | string | null) {
+	if (!value) return 0;
+
+	const time =
+		value instanceof Date ? value.getTime() : new Date(value).getTime();
+	return Number.isNaN(time) ? 0 : time;
+}
+
 export type PlaylistOutput = { link: string; name: string };
 export function shuffle<T>(array: T[]): T[] {
 	const arr = [...array];
@@ -101,6 +124,26 @@ export function normalizeStatus(status?: string) {
 	if (lowerStatus === 'scheduled') return 'Scheduled';
 
 	return status;
+}
+
+/**
+ * Orders a user's generated playlists for display: finished ones first (they
+ * have a link to open), then in-flight, then failures, newest first within each
+ * group. Shared so the server query and the history card cannot disagree.
+ */
+export function compareGeneratedPlaylists<
+	T extends {
+		status?: string;
+		completedAt?: Date | string | null;
+		createdAt?: Date | string | null;
+	},
+>(a: T, b: T) {
+	const rankDelta = statusRank(a.status) - statusRank(b.status);
+	if (rankDelta !== 0) return rankDelta;
+
+	return (
+		timeOf(b.completedAt ?? b.createdAt) - timeOf(a.completedAt ?? a.createdAt)
+	);
 }
 
 export function normalizeOutput(output: unknown): PlaylistOutput | null {
