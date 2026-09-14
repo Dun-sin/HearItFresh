@@ -1,3 +1,10 @@
+# [1.43.0](https://github.com/Dun-sin/HearItFresh/compare/v1.42.0...v1.43.0) (2026-09-14)
+
+
+### Features
+
+* **ui:** implement seed reuse functionality in history ([7571641](https://github.com/Dun-sin/HearItFresh/commit/75716413baf42b168653fd43ef286925796ccfea))
+
 # [1.42.0](https://github.com/Dun-sin/HearItFresh/compare/v1.41.0...v1.42.0) (2026-09-04)
 
 
