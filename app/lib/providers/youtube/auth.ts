@@ -179,6 +179,20 @@ export async function upsertYoutubeConnection(params: {
 }
 
 export async function deleteYoutubeConnection(userId: string): Promise<void> {
+	const conn = await findYoutubeConnection(userId);
+
+	if (conn) {
+		try {
+			await axios.post(
+				'https://oauth2.googleapis.com/revoke',
+				new URLSearchParams({ token: decrypt(conn.refreshToken) }),
+				{
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				},
+			);
+		} catch {}
+	}
+
 	await removeYoutubeConnection(userId);
 }
 

@@ -3,10 +3,13 @@
 import { Icon } from '@iconify/react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState } from 'react';
 
 import { useAuth } from '../context/authContext';
 
 import { useTheme } from '../context/themeContext';
+
+import Settings from './Settings';
 
 const Header = () => {
 	const { isDarkMode, toggleDarkMode } = useTheme();
@@ -15,9 +18,9 @@ const Header = () => {
 		isGuest,
 		user,
 
-		logOut,
 		exitGuestMode,
 	} = useAuth();
+	const [showSettings, setShowSettings] = useState(false);
 
 	return (
 		<section className={`flex items-center justify-between px-6 w-full`}>
@@ -39,11 +42,16 @@ const Header = () => {
 			</section>
 
 			<section className='flex items-center gap-2 sm:gap-5 '>
-				{isLoggedIn && (
+				{(isLoggedIn || isGuest) && (
 					<button
-						className={`text-brand underline underline-offset-1 text-fsm sm:text-fbase`}
-						onClick={logOut}>
-						SignOut
+						aria-label='Settings'
+						title='Settings'
+						className='text-xl cursor-pointer text-brand transition-opacity hover:opacity-75'
+						onClick={() => setShowSettings(true)}>
+						<Icon
+							icon='ic:outline-settings'
+							className='w-5 h-5 sm:w-6 sm:h-6'
+						/>
 					</button>
 				)}
 				{!isLoggedIn && isGuest && (
@@ -84,6 +92,8 @@ const Header = () => {
 					</div>
 				)}
 			</section>
+
+			{showSettings && <Settings onClose={() => setShowSettings(false)} />}
 		</section>
 	);
 };

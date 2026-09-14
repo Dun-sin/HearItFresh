@@ -255,7 +255,7 @@ const SubmitButton = () => {
 					: 'Analyzing your selected songs & generating a playlist! Please do not leave the page, this might take a minute...',
 			);
 
-			// if (process.env.NODE_ENV === 'production') {
+			if (process.env.NODE_ENV === 'production') {
 			// Inngest path
 			inngestStartedRef.current = true;
 			cancellationIdRef.current = crypto.randomUUID();
