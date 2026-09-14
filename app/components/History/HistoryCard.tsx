@@ -1,10 +1,9 @@
-import { addPlaylistFullLinkFromID } from '@/app/lib/helpers';
 import { formatRelativeTime } from '@/app/lib/utils';
 
 import DeleteButton from './DeleteButton';
 import { useAuth } from '@/app/context/authContext';
-import { useEffect, useState } from 'react';
-import { useInput } from '@/app/context/inputContext';
+import { useState } from 'react';
+import useReuseSeeds from '@/app/hooks/useReuseSeeds';
 import {
 	GeneratedPlaylistHistory,
 	SeedTrackHistory,
@@ -33,19 +32,14 @@ const HistoryCard = ({
 	onRetry,
 	isRetrying,
 }: HistoryCardType) => {
-	const { spotifyPlaylist } = useInput();
 	const { user } = useAuth();
+	const { reuseSeeds, isReuseDisabled } = useReuseSeeds();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const playlistId = sourcePlaylist?.id ?? text;
 	const playlistName = sourcePlaylist?.name ?? text;
 	const playlistArt =
 		sourcePlaylist?.imageUrl ?? fallbackPlaylistArtwork(playlistName);
 	const playlistTrackCount = sourcePlaylist?.totalTracks;
-	useEffect(() => {
-		if (spotifyPlaylist.current) {
-			spotifyPlaylist.current.value = addPlaylistFullLinkFromID(playlistId);
-		}
-	}, [playlistId, spotifyPlaylist]);
 
 	const items = generatedPlaylists ?? [];
 	const hasGeneratedPlaylists = items.length > 0;
@@ -112,6 +106,10 @@ const HistoryCard = ({
 									<GeneratedPlaylistBlock
 										key={playlist.id}
 										playlist={playlist}
+										onReuseSeeds={() =>
+											reuseSeeds(playlistId, playlist.seeds ?? [])
+										}
+										isReuseDisabled={isReuseDisabled}
 									/>
 								))}
 							</div>
@@ -129,8 +127,12 @@ export default HistoryCard;
 
 const GeneratedPlaylistBlock = ({
 	playlist,
+	onReuseSeeds,
+	isReuseDisabled,
 }: {
 	playlist: GeneratedPlaylistHistory;
+	onReuseSeeds: () => void;
+	isReuseDisabled: boolean;
 }) => {
 	const artistInfo = getArtistInfo(playlist.event);
 	const hasArtistDirection = Boolean(artistInfo?.name);
@@ -221,15 +223,27 @@ const GeneratedPlaylistBlock = ({
 						optionTags.length > 0 &&
 						optionTags.map((text) => <Tag key={text} text={text} />)}
 				</div>
-				{isCompleted && playlist.playlistLink && (
-					<a
-						href={playlist.playlistLink}
-						target='_blank'
-						rel='noreferrer'
-						className='inline-flex items-center rounded-lg bg-brand px-5 py-3 font-semibold text-lightest transition-opacity hover:opacity-90'>
-						Open in Spotify
-					</a>
-				)}
+				<div className='flex flex-wrap items-center gap-3'>
+					{seedCount > 0 && (
+						<button
+							type='button'
+							onClick={onReuseSeeds}
+							disabled={isReuseDisabled}
+							className='inline-flex items-center gap-2 rounded-lg border border-brand px-5 py-3 font-semibold text-brand transition-colors hover:bg-brand hover:text-lightest disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-brand'>
+							<span className='icon-[uil--redo] text-base' />
+							Reuse seeds
+						</button>
+					)}
+					{isCompleted && playlist.playlistLink && (
+						<a
+							href={playlist.playlistLink}
+							target='_blank'
+							rel='noreferrer'
+							className='inline-flex items-center rounded-lg bg-brand px-5 py-3 font-semibold text-lightest transition-opacity hover:opacity-90'>
+							Open in Spotify
+						</a>
+					)}
+				</div>
 			</div>
 		</div>
 	);

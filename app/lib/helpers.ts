@@ -130,6 +130,21 @@ export const getPlaylistTracks = async (
 	return includeDetails ? data : data.tracks;
 };
 
+export const formatPlaylistTracks = (playlistTracks: any[]) => {
+	const tracks = playlistTracks.flat();
+	const songs = tracks.map((item: any) => ({
+		id: item.track.id as string,
+		name: item.track.name as string,
+		artist: item.track.artists.map((a: any) => a.name) as string[],
+		image: item.track.album.images[0]?.url as string | undefined,
+	}));
+	const artistNames: string[] = tracks
+		.flatMap((item: any) => item.track.artists.slice(0, 2))
+		.map((artist: any) => artist.name);
+
+	return { songs, artistNames: [...new Set(artistNames)] };
+};
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });

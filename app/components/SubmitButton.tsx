@@ -2,6 +2,7 @@
 
 import {
 	extractPlaylistId,
+	formatPlaylistTracks,
 	getPlaylistTracks,
 	isSpotifyPlaylistPermissionError,
 	isValidPlaylistLink,
@@ -738,24 +739,11 @@ const SubmitButton = () => {
 			)
 				return;
 
-			const trackArtists = playlistTracks
-				.flat()
-				.map((item: any) => item.track.artists.slice(0, 2));
-			const artistNames: string[] = trackArtists
-				.flat()
-				.map((item: any) => item.name);
-			const uniqueArtistNames = [...new Set(artistNames)];
-
 			// Phase 1: Set extracted songs into context for the UI picker
-			const formattedTracks = playlistTracks.flat().map((item: any) => ({
-				id: item.track.id,
-				name: item.track.name,
-				artist: item.track.artists.map((a: any) => a.name),
-				image: item.track.album.images[0]?.url,
-			}));
+			const { songs, artistNames } = formatPlaylistTracks(playlistTracks);
 
-			setExtractedSongs(formattedTracks);
-			setExtractedArtists(uniqueArtistNames);
+			setExtractedSongs(songs);
+			setExtractedArtists(artistNames);
 		} catch (err) {
 			if (
 				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
