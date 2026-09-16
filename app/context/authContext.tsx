@@ -9,7 +9,32 @@ import React, {
 	useState,
 } from 'react';
 
+import type { YoutubeGuestCredentials } from '../lib/clientUtils';
+
 const GUEST_MODE_KEY = 'hif_guest_mode';
+const YOUTUBE_GUEST_CREDENTIALS_KEY = 'hif_youtube_guest_credentials';
+
+const readYoutubeGuestCredentials = (): YoutubeGuestCredentials | null => {
+	try {
+		const raw = sessionStorage.getItem(YOUTUBE_GUEST_CREDENTIALS_KEY);
+		return raw ? (JSON.parse(raw) as YoutubeGuestCredentials) : null;
+	} catch {
+		return null;
+	}
+};
+
+const writeYoutubeGuestCredentials = (creds: YoutubeGuestCredentials | null) => {
+	try {
+		if (creds) {
+			sessionStorage.setItem(
+				YOUTUBE_GUEST_CREDENTIALS_KEY,
+				JSON.stringify(creds),
+			);
+		} else {
+			sessionStorage.removeItem(YOUTUBE_GUEST_CREDENTIALS_KEY);
+		}
+	} catch {}
+};
 
 interface User {
 	display_name: string;
@@ -27,14 +52,16 @@ interface AuthContextProps {
 	isAuthHydrated: boolean;
 	isAuthInProgress: boolean;
 	user: User | null;
-  accessToken: string | null;
+	accessToken: string | null;
 	logIn: () => void;
 	logOut: () => void;
 	continueAsGuest: () => void;
 	exitGuestMode: () => void;
 	authInProgress: (state: boolean) => void;
 	setUserData: (data: User | null) => void;
-  setAccessToken: (token: string | null) => void;
+	setAccessToken: (token: string | null) => void;
+	youtubeGuestCredentials: YoutubeGuestCredentials | null;
+	setYoutubeGuestCredentials: (creds: YoutubeGuestCredentials | null) => void;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -43,7 +70,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const [isLoggedIn, setLoggedIn] = useState(false);
 	const [isGuest, setIsGuest] = useState(false);
 	const [user, setUser] = useState<User | null>(null);
-  const [accessToken, setAccessTokenState] = useState<string | null>(null);
+	const [accessToken, setAccessTokenState] = useState<string | null>(null);
+	const [youtubeGuestCredentials, setYoutubeGuestCredentialsState] =
+		useState<YoutubeGuestCredentials | null>(null);
 	const [isAuthInProgress, setAuthInProgress] = useState(false);
 	const [isAuthHydrated, setAuthHydrated] = useState(false);
 
@@ -51,7 +80,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		try {
 			if (localStorage.getItem(GUEST_MODE_KEY) === 'true') setIsGuest(true);
 		} catch {
+			// Storage can be unavailable (private mode / blocked cookies) — the
+			// guest just re-picks "continue without logging in" in that case.
 		}
+		setYoutubeGuestCredentialsState(readYoutubeGuestCredentials());
 		setAuthHydrated(true);
 	}, []);
 
@@ -59,7 +91,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		setLoggedIn(false);
 		setIsGuest(false);
 		setAuthInProgress(false);
-    setAccessTokenState(null);
+		setAccessTokenState(null);
+		setYoutubeGuestCredentials(null);
 		localStorage.clear();
 	};
 
@@ -67,6 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		setIsGuest(false);
 		setLoggedIn(true);
 		setAuthInProgress(false);
+		setYoutubeGuestCredentials(null);
 		try {
 			localStorage.removeItem(GUEST_MODE_KEY);
 		} catch {}
@@ -95,7 +129,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const authInProgress = (state: boolean) => setAuthInProgress(state);
 
 	const setUserData = (data: User | null) => setUser(data);
-  const setAccessToken = (token: string | null) => setAccessTokenState(token);
+	const setAccessToken = (token: string | null) => setAccessTokenState(token);
+	const setYoutubeGuestCredentials = (creds: YoutubeGuestCredentials | null) => {
+		writeYoutubeGuestCredentials(creds);
+		setYoutubeGuestCredentialsState(creds);
+	};
 
 	const value = useMemo(
 		() => ({
@@ -104,16 +142,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 			isAuthHydrated,
 			isAuthInProgress,
 			user,
-      accessToken,
+			accessToken,
 			logOut,
 			logIn,
 			continueAsGuest,
 			exitGuestMode,
 			authInProgress,
 			setUserData,
-      setAccessToken,
+			setAccessToken,
+			youtubeGuestCredentials,
+			setYoutubeGuestCredentials,
 		}),
-    [isLoggedIn, isGuest, isAuthHydrated, isAuthInProgress, user, accessToken],
+		[
+			isLoggedIn,
+			isGuest,
+			isAuthHydrated,
+			isAuthInProgress,
+			user,
+			accessToken,
+			youtubeGuestCredentials,
+		],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

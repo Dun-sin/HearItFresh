@@ -126,7 +126,7 @@ const History = () => {
 		}
 	};
 
-	return (
+		return (
 		user && (
 			<div className='text-fbase w-full max-w-6xl mx-auto'>
 				<p className='font-bold text-fmd flex items-center gap-2'>

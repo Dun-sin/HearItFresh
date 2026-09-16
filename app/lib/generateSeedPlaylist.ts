@@ -2,18 +2,32 @@
 
 import {
 	addGeneratedSongsForUser,
+	cacheYoutubeIdForSpotifyId,
+	filterUnclaimedYoutubeIds,
+	getCachedYoutubeIds,
 	findSimilarSongs,
 	getSongEmbeddings,
-  getUserGeneratedSongIds,
+	getUserGeneratedSongIds,
+	decodeGeneratedSongId,
 } from './db';
-import { calculateCosineSimilarity } from './utils';
+import {
+	calculateCosineSimilarity,
+	formatApiError,
+	DB_SIMILAR_SONGS_LIMIT,
+} from './utils';
 import {
 	getAllTracks,
 	getEveryAlbum,
 	relatedArists,
 	artistNameOf,
+	YOUTUBE_QUOTA_EXHAUSTED_ERROR,
 } from './helpers';
-import { getArtistDiscographyTracks } from './spotify';
+import { getProvider } from './providers';
+import type {
+	ProviderAuthCtx,
+	ProviderName,
+	ProviderTrackRef,
+} from './providers/types';
 
 import pLimit from 'p-limit';
 import { processSong } from './processSong';
@@ -24,14 +38,23 @@ const THRESHOLD = 0.8;
 const CUTOFF = 0.55;
 const HIT_BONUS = 0.02;
 const PLAYLIST_SIZE = 100;
+// resolving to YouTube spends search quota, so only the best of each batch is resolved
+const RESOLVE_HEADROOM = 20;
 
-type ScoredTrack = {
-	uri: string;
+type CandidateTrack = {
+	spotifyId: string;
 	name: string;
-	artist: string;
-	hitRatio: number;
-	maxScore: number;
+	artistName: string;
+	albumName?: string;
 };
+
+type Score = { maxScore: number; hitRatio: number };
+
+type ScoredCandidate = CandidateTrack & Score;
+
+type RankedRef = ProviderTrackRef & Score;
+
+type ResolvedRefs = { refs: RankedRef[]; quotaExhausted: boolean };
 
 function parseEmbedding(value: unknown): number[] | null {
 	if (Array.isArray(value)) return value;
@@ -45,7 +68,7 @@ function parseEmbedding(value: unknown): number[] | null {
 	}
 }
 
-function scoreAgainstSeeds(emb: number[], seedEmbeddings: number[][]) {
+function scoreAgainstSeeds(emb: number[], seedEmbeddings: number[][]): Score {
 	const scores = seedEmbeddings.map((seedEmb) =>
 		calculateCosineSimilarity(emb, seedEmb),
 	);
@@ -57,15 +80,20 @@ function scoreAgainstSeeds(emb: number[], seedEmbeddings: number[][]) {
 }
 
 // strength of the single best match leads; matching several seeds is only a nudge
-const rankOf = (t: { maxScore: number; hitRatio: number }) =>
-	t.maxScore + HIT_BONUS * t.hitRatio;
+const rankOf = (t: Score) => t.maxScore + HIT_BONUS * t.hitRatio;
 
-const byRankDesc = (a: ScoredTrack, b: ScoredTrack) => rankOf(b) - rankOf(a);
+const byRankDesc = (a: Score, b: Score) => rankOf(b) - rankOf(a);
+
+const toRef = ({ provider, externalId }: RankedRef): ProviderTrackRef => ({
+	provider,
+	externalId,
+});
 
 async function getAndParseSeedEmbeddings(
 	seedSpotifyIds: string[],
+	provider: ProviderName = 'spotify',
 ): Promise<number[][]> {
-	const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds);
+	const rawEmbeddings = await getSongEmbeddings(seedSpotifyIds, provider);
 
 	return rawEmbeddings
 		.map((row: any) => parseEmbedding(row.embedding))
@@ -75,7 +103,8 @@ async function getAndParseSeedEmbeddings(
 function scoreDbMatches(
 	dbSimilar: any[],
 	seedEmbeddings: number[][],
-): ScoredTrack[] {
+	provider: ProviderName,
+): (RankedRef & { title: string; artist: string })[] {
 	return dbSimilar
 		.map((song: any) => {
 			const emb = parseEmbedding(song.embedding);
@@ -85,32 +114,39 @@ function scoreDbMatches(
 			if (scored.maxScore < CUTOFF) return null;
 
 			return {
-				uri: `spotify:track:${song.spotifyId}`,
-				name: song.title,
-				artist: song.artist,
+				provider,
+				externalId: song.externalId,
+				title: song.title ?? '',
+				artist: song.artist ?? '',
 				...scored,
 			};
 		})
-		.filter(Boolean) as ScoredTrack[];
+		.filter(Boolean) as (RankedRef & { title: string; artist: string })[];
 }
 
 async function scoreTracks(
-	newTracks: any[],
+	newTracks: CandidateTrack[],
 	seedEmbeddings: number[][],
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
-): Promise<ScoredTrack[]> {
+): Promise<ScoredCandidate[]> {
 	const scoredTracks = await Promise.all(
 		newTracks.map((track) =>
 			pLimitInstance(async () => {
 				if (signal?.aborted) return null;
 				try {
+					// Candidate tracks are always sourced from Spotify's catalog
+					// (via getEveryAlbum/getAllTracks) regardless of the target
+					// provider — only resolveSpotifyTracksToRefs maps them onto
+					// the target provider afterward — so this id is always a
+					// Spotify id.
 					const processed = await processSong(
 						{
-							id: track.id,
+							id: track.spotifyId,
 							title: track.name,
 							artist: track.artistName,
-							album: track.albumName,
+							album: track.albumName ?? 'Unknown Album',
+							provider: 'spotify',
 						},
 						signal,
 					);
@@ -125,14 +161,11 @@ async function scoreTracks(
 						return null;
 					}
 
-					return {
-						uri: track.uri,
-						name: track.name,
-						artist: track.artistName,
-						...scored,
-					};
+					return { ...track, ...scored };
 				} catch (e) {
-					console.error(`✗ Error processing "${track.name}":`, e);
+					console.error(
+						`✗ Error processing "${track.name}": ${formatApiError(e)}`,
+					);
 					return null;
 				}
 			}),
@@ -140,14 +173,98 @@ async function scoreTracks(
 	);
 
 	const validScored = scoredTracks.filter(
-		(t): t is ScoredTrack => t !== null,
+		(t): t is ScoredCandidate => t !== null,
 	);
 
 	console.log(
 		`[Scoring Summary] ${validScored.length}/${newTracks.length} tracks passed cutoff`,
 	);
 
-	return validScored;
+	return validScored.sort(byRankDesc);
+}
+
+async function resolveSpotifyTracksToRefs(
+	candidates: ScoredCandidate[],
+	provider: ProviderName,
+	authCtx: ProviderAuthCtx,
+): Promise<ResolvedRefs> {
+	const withScore = (c: ScoredCandidate, externalId: string): RankedRef => ({
+		provider,
+		externalId,
+		maxScore: c.maxScore,
+		hitRatio: c.hitRatio,
+	});
+
+	if (provider === 'spotify') {
+		return {
+			refs: candidates.map((c) => withScore(c, c.spotifyId)),
+			quotaExhausted: false,
+		};
+	}
+
+	const youtube = getProvider('youtube');
+	if (!youtube.searchTrackVideo) return { refs: [], quotaExhausted: false };
+
+	const searchTrackVideo = youtube.searchTrackVideo!;
+
+	const cached = await getCachedYoutubeIds(candidates.map((c) => c.spotifyId));
+	const needsSearch = candidates.filter((c) => !cached.has(c.spotifyId));
+
+	const limit = pLimit(8);
+	const searched = new Map<string, string>();
+
+	let quotaExhausted = false;
+
+	await Promise.all(
+		needsSearch.map((c) =>
+			limit(async () => {
+				if (quotaExhausted) return;
+				try {
+					const videoId = await searchTrackVideo(
+						{ name: c.name, artistName: c.artistName, albumName: c.albumName },
+						authCtx,
+					);
+					if (videoId) searched.set(c.spotifyId, videoId);
+				} catch (e: any) {
+					const status = e?.response?.status;
+					if (status === 403 || status === 429) {
+						quotaExhausted = true;
+						console.warn(
+							`YouTube search quota/rate limit reached (${status}) — continuing with ${cached.size + searched.size} resolved tracks`,
+						);
+						return;
+					}
+					console.warn(
+						`YouTube: search failed for "${c.name}": ${formatApiError(e)}`,
+					);
+				}
+			}),
+		),
+	);
+
+	// A video already claimed by a different song means this match is wrong —
+	// search landed on someone else's track — so drop it rather than repeat it.
+	const unclaimed = await filterUnclaimedYoutubeIds([
+		...new Set(searched.values()),
+	]);
+
+	const seenVideoIds = new Set<string>();
+	const refs: RankedRef[] = [];
+
+	for (const candidate of candidates) {
+		const searchedId = searched.get(candidate.spotifyId);
+		const videoId = cached.get(candidate.spotifyId) ?? searchedId;
+		if (!videoId || seenVideoIds.has(videoId)) continue;
+		if (searchedId && !unclaimed.has(searchedId)) continue;
+		seenVideoIds.add(videoId);
+
+		if (searchedId) {
+			await cacheYoutubeIdForSpotifyId(candidate.spotifyId, videoId);
+		}
+		refs.push(withScore(candidate, videoId));
+	}
+
+	return { refs, quotaExhausted };
 }
 
 export async function generateSeedPlaylist(
@@ -155,8 +272,11 @@ export async function generateSeedPlaylist(
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	userId?: string,
+	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
-): Promise<{ tracks: string[]; error?: string }> {
+	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
+): Promise<{ tracks: ProviderTrackRef[]; error?: string }> {
+	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = () => {
 		if (signal?.aborted) {
 			throw new Error('Aborted');
@@ -167,11 +287,20 @@ export async function generateSeedPlaylist(
 		throwIfAborted();
 		const token = await getDummyAccessToken();
 		setAccessToken(token);
-		console.log('Generating seed playlist...');
+		console.log(`Generating seed playlist (provider=${provider})...`);
 
 		let previouslyGeneratedIds: string[] = [];
 		if (userId) {
-			previouslyGeneratedIds = await getUserGeneratedSongIds(userId);
+			const raw = await getUserGeneratedSongIds(userId);
+			previouslyGeneratedIds = raw
+				.map((entry) => decodeGeneratedSongId(entry))
+				.filter((d): d is { provider: ProviderName; externalId: string } => {
+					if (!d) return false;
+					// keep only ids that belong to the active provider's space,
+					// restored to their bare external id.
+					return d.provider === provider;
+				})
+				.map((d) => d.externalId);
 		}
 
 		const seedSpotifyIds = seeds.map((s) => s.id);
@@ -185,6 +314,7 @@ export async function generateSeedPlaylist(
 						title: seed.name,
 						artist: seed.artist[0] || 'Unknown Artist',
 						album: seed.album || 'Unknown Album',
+						provider,
 					},
 					signal,
 				);
@@ -192,7 +322,10 @@ export async function generateSeedPlaylist(
 		);
 
 		throwIfAborted();
-		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
+		const seedEmbeddings = await getAndParseSeedEmbeddings(
+			seedSpotifyIds,
+			provider,
+		);
 
 		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
 			return {
@@ -202,24 +335,32 @@ export async function generateSeedPlaylist(
 			};
 		}
 
-		let dbScored: ScoredTrack[] = [];
+		let dbScored: (RankedRef & { title: string; artist: string })[] = [];
 
 		if (seedEmbeddings.length > 0) {
 			const excludeIds = [...seedSpotifyIds, ...previouslyGeneratedIds];
-			const dbSimilar = await findSimilarSongs(seedEmbeddings, excludeIds, 24);
+			const dbSimilar = await findSimilarSongs(
+				seedEmbeddings,
+				excludeIds,
+				DB_SIMILAR_SONGS_LIMIT,
+				provider,
+			);
 			throwIfAborted();
-			dbScored = scoreDbMatches(dbSimilar, seedEmbeddings);
+			dbScored = scoreDbMatches(dbSimilar, seedEmbeddings, provider);
 		}
 
 		if (PLAYLIST_SIZE - dbScored.length <= 10) {
-			const ranked = [...dbScored].sort(byRankDesc).slice(0, PLAYLIST_SIZE);
-			const dbTracks = ranked.map((t) => t.uri);
+			const dbTracks = [...dbScored]
+				.sort(byRankDesc)
+				.slice(0, PLAYLIST_SIZE)
+				.map(toRef);
 
 			if (userId) {
-				const generatedSpotifyIds = dbTracks.map((uri) =>
-					uri.replace('spotify:track:', ''),
+				await addGeneratedSongsForUser(
+					userId,
+					dbTracks.map((r) => r.externalId),
+					provider,
 				);
-				await addGeneratedSongsForUser(userId, generatedSpotifyIds);
 			}
 			return { tracks: dbTracks };
 		}
@@ -227,82 +368,115 @@ export async function generateSeedPlaylist(
 		const titleKey = (title: string, artist: string) =>
 			title.toLowerCase().trim() + '|' + artist.toLowerCase().trim();
 
-		const candidates: ScoredTrack[] = [...dbScored];
+		let hitQuotaLimit = false;
+		const accumulatedRefs: RankedRef[] = [...dbScored];
 		const checkedTrackIds = new Set<string>(
-			dbScored.map((t) => t.uri.replace('spotify:track:', '')),
+			dbScored.map((r) => r.externalId),
 		);
 		const checkedTrackTitles = new Set<string>(
-			dbScored.map((t) => titleKey(t.name ?? '', t.artist ?? '')),
+			dbScored.map((r) => titleKey(r.title, r.artist)),
 		);
 		const usedArtistNames: string[] = [];
 
 		for (let attempt = 0; attempt < 2; attempt++) {
-			if (candidates.length >= PLAYLIST_SIZE) break;
+			if (accumulatedRefs.length >= PLAYLIST_SIZE) break;
 			throwIfAborted();
 
-			const targetArtists =
-				seeds.length > 0
-					? Array.from(new Set(seeds.flatMap((s) => s.artist)))
-					: artistNames;
+			try {
+				const targetArtists =
+					seeds.length > 0
+						? Array.from(new Set(seeds.flatMap((s) => s.artist)))
+						: artistNames;
 
-			const finalList = await relatedArists(
-				targetArtists,
-				options,
-				signal,
-				usedArtistNames,
-			);
-			throwIfAborted();
+				const finalList = await relatedArists(
+					targetArtists,
+					options,
+					signal,
+					usedArtistNames,
+				);
+				throwIfAborted();
 
-			usedArtistNames.push(...finalList.map(artistNameOf));
+				usedArtistNames.push(...finalList.map(artistNameOf));
 
-			const albums = await getEveryAlbum(finalList, signal);
-			throwIfAborted();
+				const albums = await getEveryAlbum(finalList, signal);
+				throwIfAborted();
 
-			const aiTracks = (await getAllTracks(
-				albums as string[],
-				2,
-				true,
-				signal,
-			)) as any[];
+				const aiTracks = (await getAllTracks(
+					albums as string[],
+					2,
+					true,
+					signal,
+				)) as any[];
 
-			if (!aiTracks || aiTracks.length === 0) continue;
+				if (!aiTracks || aiTracks.length === 0) continue;
 
-			const newTracks = aiTracks.filter(
-				(t) =>
-					!checkedTrackIds.has(t.id) &&
-					!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
-			);
+				const newTracks = aiTracks
+					.filter(
+						(t: any) =>
+							!checkedTrackIds.has(t.id) &&
+							!checkedTrackTitles.has(titleKey(t.name, t.artistName)),
+					)
+					.map(
+						(t: any): CandidateTrack => ({
+							spotifyId: t.id,
+							name: t.name,
+							artistName: t.artistName,
+							albumName: t.albumName,
+						}),
+					);
 
-			const pLimitInstance = pLimit(15);
-			const acceptedTracks = await scoreTracks(
-				newTracks,
-				seedEmbeddings,
-				pLimitInstance,
-				signal,
-			);
-			throwIfAborted();
-			candidates.push(...acceptedTracks);
-			acceptedTracks.forEach((t) => {
-				checkedTrackIds.add(t.uri.replace('spotify:track:', ''));
-				checkedTrackTitles.add(titleKey(t.name, t.artist));
-			});
+				const pLimitInstance = pLimit(15);
+				const scoredTracks = await scoreTracks(
+					newTracks,
+					seedEmbeddings,
+					pLimitInstance,
+					signal,
+				);
+				throwIfAborted();
+
+				const acceptedTracks = scoredTracks.slice(
+					0,
+					PLAYLIST_SIZE - accumulatedRefs.length + RESOLVE_HEADROOM,
+				);
+
+				const { refs: newRefs, quotaExhausted } =
+					await resolveSpotifyTracksToRefs(acceptedTracks, provider, authCtx);
+				if (quotaExhausted) hitQuotaLimit = true;
+
+				accumulatedRefs.push(...newRefs);
+				newRefs.forEach((r) => checkedTrackIds.add(r.externalId));
+				acceptedTracks.forEach((t) =>
+					checkedTrackTitles.add(titleKey(t.name, t.artistName)),
+				);
+			} catch (e) {
+				if (signal?.aborted) throw e;
+				console.warn(
+					`Expansion attempt ${attempt + 1} failed, keeping ${accumulatedRefs.length} tracks: ${formatApiError(e)}`,
+				);
+				break;
+			}
 		}
 
-		const finalTracks = [...candidates]
+		const finalTracks = [...accumulatedRefs]
 			.sort(byRankDesc)
 			.slice(0, PLAYLIST_SIZE)
-			.map((t) => t.uri);
+			.map(toRef);
 
 		if (userId) {
-			const generatedSpotifyIds = finalTracks.map((uri) =>
-				uri.replace('spotify:track:', ''),
+			await addGeneratedSongsForUser(
+				userId,
+				finalTracks.map((r) => r.externalId),
+				provider,
 			);
-			await addGeneratedSongsForUser(userId, generatedSpotifyIds);
+		}
+
+		if (hitQuotaLimit && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
+			return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };
 		}
 
 		return { tracks: finalTracks };
 	} catch (error: any) {
-		console.error('Error generating seed playlist:', error);
+		console.error('Error generating seed playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }
@@ -311,14 +485,17 @@ export async function generateSeedPlaylist(
  * Artist-only generation path. Instead of expanding through related artists,
  * this pulls the selected artist's full discography, scores those tracks
  * against the provided lyric/embedding seeds, keeps the tracks that pass the
- * similarity cutoff, ranks by strongest match, and returns up to 100 URIs.
+ * similarity cutoff, ranks by strongest match, and returns up to 100 refs.
  */
 export async function generateArtistPlaylist(
 	artist: { id: string; name: string },
 	seeds: { id: string; name: string; artist: string[]; album?: string }[],
 	userId?: string,
+	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
-): Promise<{ tracks: string[]; error?: string }> {
+	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
+): Promise<{ tracks: ProviderTrackRef[]; error?: string }> {
+	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = () => {
 		if (signal?.aborted) {
 			throw new Error('Aborted');
@@ -329,7 +506,9 @@ export async function generateArtistPlaylist(
 		throwIfAborted();
 		const token = await getDummyAccessToken();
 		setAccessToken(token);
-		console.log(`Generating artist playlist for ${artist.name}...`);
+		console.log(
+			`Generating artist playlist for ${artist.name} (provider=${provider})...`,
+		);
 
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
@@ -342,6 +521,7 @@ export async function generateArtistPlaylist(
 						title: seed.name,
 						artist: seed.artist[0] || 'Unknown Artist',
 						album: seed.album || 'Unknown Album',
+						provider,
 					},
 					signal,
 				);
@@ -349,7 +529,10 @@ export async function generateArtistPlaylist(
 		);
 
 		throwIfAborted();
-		const seedEmbeddings = await getAndParseSeedEmbeddings(seedSpotifyIds);
+		const seedEmbeddings = await getAndParseSeedEmbeddings(
+			seedSpotifyIds,
+			provider,
+		);
 
 		if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
 			return {
@@ -360,7 +543,15 @@ export async function generateArtistPlaylist(
 		}
 
 		throwIfAborted();
-		const discography = await getArtistDiscographyTracks(artist.id, signal);
+		// For Spotify, `artist.id` is the Spotify artist id. For YouTube the same
+		// field is interpreted as a YouTube channel id (artist search is
+		// Spotify-only in v1, so the YouTube path here is best-effort).
+		const providerImpl = getProvider(provider);
+		const discography = await providerImpl.getArtistDiscographyTracks(
+			artist.id,
+			signal,
+			authCtx,
+		);
 		if (!discography || discography.length === 0) {
 			return {
 				tracks: [],
@@ -372,14 +563,21 @@ export async function generateArtistPlaylist(
 		const checkedTrackTitles = new Set<string>();
 		const titleKey = (title: string, artistName: string) =>
 			title.toLowerCase().trim() + '|' + artistName.toLowerCase().trim();
-		const newTracks = discography.filter((t) => {
-			const excluded =
-				checkedTrackIds.has(t.id) ||
-				checkedTrackTitles.has(titleKey(t.name, t.artistName));
-			return !excluded;
-		});
+		const newTracks: CandidateTrack[] = discography
+			.filter((t) => {
+				const excluded =
+					checkedTrackIds.has(t.externalId) ||
+					checkedTrackTitles.has(titleKey(t.name, t.artistName));
+				return !excluded;
+			})
+			.map((t) => ({
+				spotifyId: t.externalId,
+				name: t.name,
+				artistName: t.artistName,
+				albumName: t.albumName,
+			}));
 		const pLimitInstance = pLimit(15);
-		const acceptedTracks = await scoreTracks(
+		const scoredTracks = await scoreTracks(
 			newTracks,
 			seedEmbeddings,
 			pLimitInstance,
@@ -387,21 +585,34 @@ export async function generateArtistPlaylist(
 		);
 		throwIfAborted();
 
-		const finalTracks = [...acceptedTracks]
+		const { refs: finalRefs, quotaExhausted } =
+			await resolveSpotifyTracksToRefs(
+				scoredTracks.slice(0, PLAYLIST_SIZE + RESOLVE_HEADROOM),
+				provider,
+				authCtx,
+			);
+		const finalTracks = finalRefs
 			.sort(byRankDesc)
 			.slice(0, PLAYLIST_SIZE)
-			.map((t) => t.uri);
+			.map(toRef);
 
 		if (userId) {
-			const generatedSpotifyIds = finalTracks.map((uri) =>
-				uri.replace('spotify:track:', ''),
+			await addGeneratedSongsForUser(
+				userId,
+				finalTracks.map((r) => r.externalId),
+				provider,
 			);
-			await addGeneratedSongsForUser(userId, generatedSpotifyIds);
+		}
+
+		if (quotaExhausted && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
+			return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };
 		}
 
 		return { tracks: finalTracks };
 	} catch (error: any) {
-		console.error('Error generating artist playlist:', error);
+		console.error('Error generating artist playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };
 	}
 }
+
+// TODO: split this file into two based on the purpose first if it's the broad path or specific artist part and then make the thngs they share in common into it's own file

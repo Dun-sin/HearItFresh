@@ -5,13 +5,21 @@ import {
 	formatPlaylistTracks,
 	getPlaylistTracks,
 	isSpotifyPlaylistPermissionError,
-	isValidPlaylistLink,
+	detectPlaylistProvider,
+	extractYoutubePlaylistId,
 	SPOTIFY_PUBLIC_PLAYLIST_ERROR,
 } from '@/app/lib/helpers';
 
 import React, { useRef, useState, useEffect } from 'react';
 import SubmitButtionContainer from './SubmitButtonContainer';
-import { addToUrl } from '@/app/lib/clientUtils';
+import ConnectYoutubePrompt from './ConnectYoutubePrompt';
+import {
+	addToUrl,
+	consumeYoutubeConnectRedirect,
+	savePendingPlaylistLink,
+	takePendingPlaylistLink,
+	type YoutubeGuestCredentials,
+} from '@/app/lib/clientUtils';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/app/context/authContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
@@ -21,7 +29,7 @@ import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useSeedSongs } from '@/app/context/seedSongsContext';
 import {
-  clearGuestGeneration,
+	clearGuestGeneration,
 	clearPendingGeneration,
 	patchGuestGeneration,
 	patchPendingGeneration,
@@ -31,7 +39,13 @@ import {
 	savePendingGeneration,
 } from '@/app/lib/pendingGeneration';
 import useGenerationCountdown from '@/app/hooks/useGenerationCountdown';
-import { addTracksToPlayList, createPlayList } from '../lib';
+import type { ProviderName } from '@/app/lib/providers/types';
+import type { SourcePlaylist } from '@/app/types';
+
+const providerOfLink = (link: string): ProviderName =>
+	link.includes('youtube.com') || link.includes('youtu.be')
+		? 'youtube'
+		: 'spotify';
 
 const SubmitButton = () => {
 	const { setLoading } = useLoading();
@@ -40,16 +54,29 @@ const SubmitButton = () => {
 		errorMessages,
 		buttonClick,
 		setButtonClicked,
-		setPlayListData,
 		playListData,
+		setPlayListData,
+		provider,
+		setProvider,
 	} = useGeneralState();
-	const { user, isLoggedIn, isGuest: isGuestSession, isAuthHydrated, continueAsGuest } =
-		useAuth();
+	const {
+		user,
+		isLoggedIn,
+		isGuest: isGuestSession,
+		isAuthHydrated,
+		continueAsGuest,
+		youtubeGuestCredentials,
+		setYoutubeGuestCredentials,
+	} = useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { spotifyPlaylist } = useInput();
 	const { setHistory } = useHistory();
-	const { isNotPopularArtists, isDifferentTypesOfArtists, selectedArtist } =
-		useOptions();
+	const {
+		isNotPopularArtists,
+		isDifferentTypesOfArtists,
+		selectedArtist,
+		setSelectedArtist,
+	} = useOptions();
 
 	const {
 		extractedSongs,
@@ -61,11 +88,8 @@ const SubmitButton = () => {
 	} = useSeedSongs();
 
 	const isGuest = !user?.user_id;
-	const failedMessage = isGuest
-		? "We couldn't create your playlist. Please sign in and try again."
-		: "We couldn't create your playlist. Please try again.";
+	const failedMessage = "We couldn't create your playlist. Please try again.";
 
-	// Refs for in-flight Inngest job management
 	const abortedRef = useRef(false);
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const activeRunIdRef = useRef<string | null>(null);
@@ -75,10 +99,19 @@ const SubmitButton = () => {
 	const cancellationIdRef = useRef<string | null>(null);
 	const resumedFromStorageRef = useRef(false);
 	const restoredGuestResultRef = useRef(false);
+	const youtubeGuestCredentialsRef = useRef<YoutubeGuestCredentials | null>(
+		youtubeGuestCredentials,
+	);
+	youtubeGuestCredentialsRef.current = youtubeGuestCredentials;
+	const connectPromptResolveRef = useRef<((proceed: boolean) => void) | null>(
+		null,
+	);
 
 	// Terminal state flags
 	const [failed, setFailed] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [showConnectPrompt, setShowConnectPrompt] = useState(false);
+	const [linkAwaitingUser, setLinkAwaitingUser] = useState<string | null>(null);
 
 	// Countdown anchor — null whenever no generation is in flight
 	const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(
@@ -109,6 +142,50 @@ const SubmitButton = () => {
 		clearSeeds();
 		endGeneration();
 	};
+
+	useEffect(() => {
+		const result = consumeYoutubeConnectRedirect();
+		if (!result) return;
+
+		if (result.status !== 'connected') {
+			console.error('[YouTube connect] failed:', result.reason);
+			setErrorMessages({
+				...errorMessages,
+				error: `YouTube connection failed${result.reason ? `: ${result.reason}` : ''}. Please try again.`,
+			});
+			return;
+		}
+
+		const pendingLink = takePendingPlaylistLink();
+		if (pendingLink && spotifyPlaylist.current) {
+			spotifyPlaylist.current.value = pendingLink;
+		}
+
+		// signed-in connection: `user` isn't restored yet on mount, so resume once it is
+		if (!result.guestCredentials) {
+			if (pendingLink) setLinkAwaitingUser(pendingLink);
+			return;
+		}
+
+		youtubeGuestCredentialsRef.current = result.guestCredentials;
+		setYoutubeGuestCredentials(result.guestCredentials);
+
+		if (pendingLink) {
+			setLoading(true);
+			handleIfItsAPlaylistLink(pendingLink);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	useEffect(() => {
+		if (!linkAwaitingUser || !user?.user_id) return;
+
+		const link = linkAwaitingUser;
+		setLinkAwaitingUser(null);
+		setLoading(true);
+		handleIfItsAPlaylistLink(link);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [linkAwaitingUser, user?.user_id]);
 
 	useEffect(() => {
 		if (resumedFromStorageRef.current) return;
@@ -157,7 +234,9 @@ const SubmitButton = () => {
 		abortedRef.current = true;
 		setFailed(true);
 		setErrorMessage(
-			isGuest ? "This one's taking far longer than it should. Feel free to start a new one": "This one's taking far longer than it should. It may still finish in the background. check your history in a bit, or start a fresh one."
+			isGuest
+				? "This one's taking far longer than it should. Feel free to start a new one"
+				: "This one's taking far longer than it should. It may still finish in the background. check your history in a bit, or start a fresh one.",
 		);
 		setLoading(false);
 		setButtonClicked(false);
@@ -216,7 +295,11 @@ const SubmitButton = () => {
 		restoredGuestResultRef.current = true;
 
 		if (record.link && record.name) {
-			setPlayListData({ link: record.link, name: record.name });
+			setPlayListData({
+				link: record.link,
+				name: record.name,
+				provider: providerOfLink(record.link),
+			});
 			addToUrl('link', record.link.split('/').at(-1) as string);
 			return;
 		}
@@ -234,13 +317,21 @@ const SubmitButton = () => {
 
 				const data = await res.json();
 
-				if (data.status === 'Completed' && data.output?.link && data.output?.name) {
+				if (
+					data.status === 'Completed' &&
+					data.output?.link &&
+					data.output?.name
+				) {
 					patchGuestGeneration({
 						link: data.output.link,
 						name: data.output.name,
 						runId: data.runId ?? record.runId,
 					});
-					setPlayListData({ link: data.output.link, name: data.output.name });
+					setPlayListData({
+						link: data.output.link,
+						name: data.output.name,
+						provider: providerOfLink(data.output.link),
+					});
 					addToUrl('link', data.output.link.split('/').at(-1) as string);
 					toast.info('Showing the last playlist we made for you.');
 					return;
@@ -272,7 +363,7 @@ const SubmitButton = () => {
 					text: string;
 					lastUsed: string;
 					kind?: 'artist' | 'playlist';
-					sourcePlaylist?: { id: string; name: string };
+					sourcePlaylist?: SourcePlaylist;
 					generatedPlaylists?: any[];
 				}) => ({
 					text,
@@ -326,6 +417,7 @@ const SubmitButton = () => {
 			setPlayListData({
 				link: completedPlaylist.output.link,
 				name: completedPlaylist.output.name,
+				provider: providerOfLink(completedPlaylist.output.link),
 			});
 			await refreshHistory();
 		}
@@ -357,13 +449,15 @@ const SubmitButton = () => {
 		activeEventIdRef.current = null;
 		cancellationIdRef.current = crypto.randomUUID();
 
+		setFailed(false);
+		setErrorMessage(null);
+		setErrorMessages({ ...errorMessages, error: null });
+
 		const startedAt = Date.now();
 		setButtonClicked(true);
 		setLoading(true);
 		setGenerationStartedAt(startedAt);
 		setGenerationArtistName(selectedArtist?.name ?? null);
-		setFailed(false);
-		setErrorMessage(null);
 
 		try {
 			const selectedSongsData = extractedSongs.filter((s: any) =>
@@ -371,57 +465,65 @@ const SubmitButton = () => {
 			);
 
 			if (process.env.NODE_ENV === 'production') {
-			// Inngest path
-			inngestStartedRef.current = true;
-			const payload = {
-				seeds: selectedSongsData,
-				artistNames: extractedArtists,
-				options: {
-					isNotPopular: isNotPopularArtists,
-					isDifferent: isDifferentTypesOfArtists,
-				},
-				artistId: selectedArtist?.id,
-				artistName: selectedArtist?.name,
-				artistImage: selectedArtist?.image,
-				userId: user?.user_id,
-				sourcePlaylistId: spotifyPlaylist.current?.value
-					? extractPlaylistId(spotifyPlaylist.current.value)
-					: undefined,
-				cancellationId: cancellationIdRef.current,
-			};
-			const result = await fetch('/api/playlist/generate', {
-				method: 'POST',
-				body: JSON.stringify(payload),
-			});
-			console.log('[handleSeedPlaylistGeneration] Starting polling...');
-			const { generatedPlaylistId, eventId, mode } = await result.json();
-			console.log(
-				'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
-			);
-			activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
-			activeEventIdRef.current = mode === 'guest' ? eventId : null;
+				// Inngest path
+				inngestStartedRef.current = true;
+				const rawLink = spotifyPlaylist.current?.value ?? '';
+				const sourcePlaylistId = rawLink
+					? provider === 'youtube'
+						? extractYoutubePlaylistId(rawLink)
+						: extractPlaylistId(rawLink)
+					: undefined;
 
-			savePendingGeneration({
-				generatedPlaylistId: activeGeneratedPlaylistIdRef.current,
-				eventId: activeEventIdRef.current,
-				runId: null,
-				cancellationId: cancellationIdRef.current,
-				userId: user?.user_id ?? null,
-				startedAt,
-				artistName: selectedArtist?.name,
-			});
-
-			if (isGuest) {
-				saveGuestGeneration({
-					runId: null,
-					eventId: activeEventIdRef.current,
-					startedAt,
+				const payload = {
+					seeds: selectedSongsData,
+					artistNames: extractedArtists,
+					options: {
+						isNotPopular: isNotPopularArtists,
+						isDifferent: isDifferentTypesOfArtists,
+					},
+					artistId: selectedArtist?.id,
+					artistName: selectedArtist?.name,
+					artistImage: selectedArtist?.image,
+					userId: user?.user_id,
+					youtubeGuestCredentials:
+						!user?.user_id && provider === 'youtube'
+							? youtubeGuestCredentialsRef.current
+							: undefined,
+					provider,
+					sourcePlaylistId,
+					cancellationId: cancellationIdRef.current,
+				};
+				const result = await fetch('/api/playlist/generate', {
+					method: 'POST',
+					body: JSON.stringify(payload),
 				});
-			}
+				console.log('[handleSeedPlaylistGeneration] Starting polling...');
+				const { generatedPlaylistId, eventId, mode } = await result.json();
+				console.log(
+					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
+				);
+				activeGeneratedPlaylistIdRef.current = generatedPlaylistId ?? null;
+				activeEventIdRef.current = mode === 'guest' ? eventId : null;
 
-			await pollForCompletion(payload, 0);
+				savePendingGeneration({
+					generatedPlaylistId: activeGeneratedPlaylistIdRef.current,
+					eventId: activeEventIdRef.current,
+					runId: null,
+					cancellationId: cancellationIdRef.current,
+					userId: user?.user_id ?? null,
+					startedAt,
+					artistName: selectedArtist?.name,
+				});
 
+				if (isGuest) {
+					saveGuestGeneration({
+						runId: null,
+						eventId: activeEventIdRef.current,
+						startedAt,
+					});
+				}
 
+				await pollForCompletion(payload, 0);
 			} else {
 				inngestStartedRef.current = false;
 				abortControllerRef.current = new AbortController();
@@ -443,6 +545,7 @@ const SubmitButton = () => {
 						artistId: selectedArtist?.id,
 						artistName: selectedArtist?.name,
 						userId: user?.user_id,
+						provider,
 					}),
 					signal: abortControllerRef.current.signal,
 				});
@@ -468,30 +571,32 @@ const SubmitButton = () => {
 					: 'HearItFresh - Lyrics Inspired @hearitfresh.favour.dev';
 
 				setGenerationStartedAt(null);
-				setLoadingMessage('Creating your new playlist on Spotify...');
-				const playlistInfo = await createPlayList(
-					playlistName,
-					'Created by HearItFresh',
+				setLoadingMessage(
+					`Creating your new playlist on ${provider === 'youtube' ? 'YouTube Music' : 'Spotify'}...`,
 				);
+				const createRes = await fetch('/api/playlist/dev-create', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						provider,
+						tracks: resultData.tracks,
+						playlistName,
+						description: 'Created by HearItFresh',
+						userId: user?.user_id,
+					}),
+				});
+				const createData = await createRes.json();
 				if (
 					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 					abortedRef.current
 				)
 					return;
 
-				if ('isError' in playlistInfo) throw new Error(playlistInfo.err);
+				if (!createRes.ok || createData.error) {
+					throw new Error(createData.error || 'Failed to create playlist');
+				}
 
-				const { id, link, name } = playlistInfo;
-				const playListID = id.substring('spotify:playlist:'.length);
-
-				setLoadingMessage('Adding the tracks to your Spotify playlist...');
-				await addTracksToPlayList(resultData.tracks, playListID);
-				if (
-					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
-					abortedRef.current
-				)
-					return;
-				createSpotifyPlaylist(link, name);
+				createSpotifyPlaylist(createData.link, createData.name);
 			}
 		} catch (err: any) {
 			// Swallow errors that occurred after a user-initiated cancel
@@ -675,24 +780,41 @@ const SubmitButton = () => {
 		toast.info('Generation cancelled.');
 	};
 
+	const handleConnectPromptConnect = () => {
+		setShowConnectPrompt(false);
+		const qs = user?.user_id
+			? `?userId=${encodeURIComponent(user.user_id)}`
+			: '';
+		window.location.href = `/api/youtube/connect${qs}`;
+	};
+
+	const handleConnectPromptCancel = () => {
+		setShowConnectPrompt(false);
+		connectPromptResolveRef.current?.(false);
+		connectPromptResolveRef.current = null;
+	};
+
 	const createSpotifyPlaylist = async (link: string, name: string) => {
+		const derivedProvider = providerOfLink(link);
 		addToUrl('link', link.split('/').at(-1) as string);
-		setPlayListData({ link, name });
+		setPlayListData({ link, name, provider: derivedProvider });
 		clearSeeds();
 		endGeneration();
 		toast.success('Playlist Created');
 
 		if (!user?.user_id) {
 			patchGuestGeneration({ link, name });
-			toast.warning(
-				'Add this playlist to your Spotify library now, or you may lose access to it later.',
-				{
-					autoClose: 100000,
-					bodyStyle: {
-						color: 'red',
+			if (derivedProvider === 'spotify') {
+				toast.warning(
+					'Add this playlist to your Spotify library now, or you may lose access to it later.',
+					{
+						autoClose: 100000,
+						bodyStyle: {
+							color: 'red',
+						},
 					},
-				},
-			);
+				);
+			}
 		}
 	};
 
@@ -705,22 +827,83 @@ const SubmitButton = () => {
 			.substring(2, 15);
 		const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
 
-		if (!isValidPlaylistLink(link)) {
+		const detected = detectPlaylistProvider(link);
+
+		if (detected.provider === 'unsupported') {
+			setErrorMessages({
+				...errorMessages,
+				notCorrectSpotifyLink: false,
+				error: `We don't support ${detected.label} playlists yet — try a Spotify or YouTube Music playlist link instead.`,
+			});
+			setLoading(false);
+			return;
+		}
+
+		if (detected.provider === 'unknown') {
 			setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: true });
 			setLoading(false);
 			return;
 		}
 
-		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
+		setErrorMessages({
+			...errorMessages,
+			notCorrectSpotifyLink: false,
+			error: null,
+		});
+
+		if (detected.provider === 'youtube') {
+			const hasGuestCredentials =
+				!user?.user_id && Boolean(youtubeGuestCredentialsRef.current);
+
+			const alreadyConnected = hasGuestCredentials
+				? true
+				: user?.user_id
+					? await fetch(
+							`/api/youtube/status?userId=${encodeURIComponent(user.user_id)}`,
+						)
+							.then((r) => r.json())
+							.then((s) => Boolean(s.connected))
+					: false;
+
+			if (!alreadyConnected) {
+				savePendingPlaylistLink(link);
+				const proceed = await new Promise<boolean>((resolve) => {
+					connectPromptResolveRef.current = resolve;
+					setShowConnectPrompt(true);
+				});
+				if (!proceed) {
+					setLoading(false);
+					return;
+				}
+			}
+		}
+
+		// TODO: decouple source and landing platforms — let the source playlist come from any provider and let the user pick where the generated playlist lands (e.g. Spotify seeds → YouTube Music playlist)
+		setProvider(detected.provider);
+		// Artist search only resolves Spotify artist ids; a previously selected
+		// artist won't work as a YouTube channel id (see Options.tsx's
+		// artist-mode guard), so drop it once the detected provider is YouTube.
+		if (detected.provider === 'youtube') setSelectedArtist(null);
 
 		try {
 			setLoadingMessage(
-				'Connecting to Spotify to extract your playlist details...',
+				`Connecting to ${detected.provider === 'youtube' ? 'YouTube' : 'Spotify'} to extract your playlist details...`,
 			);
-			const playlistId = extractPlaylistId(link);
+			const playlistId =
+				detected.provider === 'youtube'
+					? extractYoutubePlaylistId(link)
+					: extractPlaylistId(link);
 
 			setLoadingMessage('Retrieving all tracks from the provided playlist...');
-			const playlistData = await getPlaylistTracks(playlistId, true);
+			const playlistData = await getPlaylistTracks(
+				playlistId,
+				true,
+				detected.provider,
+				user?.user_id,
+				!user?.user_id && detected.provider === 'youtube'
+					? youtubeGuestCredentialsRef.current
+					: undefined,
+			);
 			if (
 				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 				abortedRef.current
@@ -732,7 +915,10 @@ const SubmitButton = () => {
 				name: playlistId,
 			};
 
-			await addHistoryToDB(playlistId, sourcePlaylist);
+			await addHistoryToDB(playlistId, {
+				...sourcePlaylist,
+				provider: detected.provider,
+			});
 			if (
 				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 				abortedRef.current
@@ -778,7 +964,7 @@ const SubmitButton = () => {
 
 	const addHistoryToDB = async (
 		text: string,
-		sourcePlaylist?: { id: string; name: string },
+		sourcePlaylist?: { id: string; name: string; provider?: ProviderName },
 	) => {
 		if (!user?.user_id) {
 			return { message: 'skipped', history: [] };
@@ -803,18 +989,26 @@ const SubmitButton = () => {
 	const btnClass = isLowSeedCount ? 'bg-gray-400 text-lightest' : undefined;
 
 	return (
-		<SubmitButtionContainer
-			handleSubmit={handleSubmit}
-			onCancel={handleCancel}
-			onReset={handleReset}
-			failed={failed}
-			errorMessage={errorMessage}
-			canRetry={extractedSongs.length > 0 && selectedSeedIds.size >= 5}
-			btnClass={btnClass}
-			disabled={isLowSeedCount}
-			startedAt={generationStartedAt}
-			artistName={generationArtistName}
-		/>
+		<>
+			<SubmitButtionContainer
+				handleSubmit={handleSubmit}
+				onCancel={handleCancel}
+				onReset={handleReset}
+				failed={failed}
+				errorMessage={errorMessage}
+				canRetry={extractedSongs.length > 0 && selectedSeedIds.size >= 5}
+				btnClass={btnClass}
+				disabled={isLowSeedCount}
+				startedAt={generationStartedAt}
+				artistName={generationArtistName}
+			/>
+			{showConnectPrompt && (
+				<ConnectYoutubePrompt
+					onConnect={handleConnectPromptConnect}
+					onCancel={handleConnectPromptCancel}
+				/>
+			)}
+		</>
 	);
 };
 

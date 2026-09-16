@@ -57,24 +57,16 @@ const SubmitButtionContainer = ({
 		return (
 			<div className='flex flex-col items-center gap-3 w-full'>
 				<p className='text-sm text-red-400 text-center'>{errorMessage}</p>
-				{canRetry ? (
-					<button
-						className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
-						onClick={handleSubmit}>
-						Try Again
-					</button>
-				) : (
-					<button
-						className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
-						onClick={onReset}>
-						Start a New Generation
-					</button>
-				)}
+				<button
+					className='bg-brand text-lightest rounded p-3 w-full hover:bg-opacity-85 transition-all'
+					onClick={canRetry ? handleSubmit : onReset}>
+					{canRetry ? 'Try Again' : 'Start a New Generation'}
+				</button>
 			</div>
 		);
 	}
 
-		return (
+	return (
 		!buttonClick && (
 			<button
 				className={`${btnClass ?? 'bg-brand text-lightest'} rounded p-3 w-full hover:bg-opacity-85 transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}

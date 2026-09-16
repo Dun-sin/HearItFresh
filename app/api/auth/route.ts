@@ -2,37 +2,11 @@ import axios, { AxiosError } from "axios";
 
 import { NextResponse } from "next/server";
 import { encrypt } from '@/app/lib/utils';
+import { getGoogleUser } from '@/app/lib/googleAuth';
 import prisma from '@/app/lib/prisma';
 
 const client_id = process.env.GOOGLE_CLIENT_ID;
 const client_secret = process.env.GOOGLE_CLIENT_SECRET;
-
-async function getGoogleUser(access_token: string) {
-	if (!access_token) return null;
-
-	try {
-		const response = await axios.get(
-			'https://www.googleapis.com/oauth2/v2/userinfo',
-			{
-				headers: {
-					Authorization: `Bearer ${access_token}`,
-				},
-			},
-		);
-
-		const { name, id, picture } = response.data;
-		const user = {
-			display_name: name,
-			user_id: id,
-			profile_image_url: picture,
-		};
-
-		return user;
-	} catch (error) {
-		console.error('Failed to fetch Google user info:', error);
-		return null;
-	}
-}
 
 export async function POST(req: Request) {
 	const res = await req.json();

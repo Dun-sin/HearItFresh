@@ -1,6 +1,8 @@
 import { formatRelativeTime } from '@/app/lib/utils';
 
 import DeleteButton from './DeleteButton';
+import { Icon } from '@iconify/react';
+import { PROVIDER_META } from '../OpenOnSpotify';
 import { useAuth } from '@/app/context/authContext';
 import { useState } from 'react';
 import useReuseSeeds from '@/app/hooks/useReuseSeeds';
@@ -40,6 +42,7 @@ const HistoryCard = ({
 	const playlistArt =
 		sourcePlaylist?.imageUrl ?? fallbackPlaylistArtwork(playlistName);
 	const playlistTrackCount = sourcePlaylist?.totalTracks;
+	const sourceProvider = sourcePlaylist?.provider;
 
 	const items = generatedPlaylists ?? [];
 	const hasGeneratedPlaylists = items.length > 0;
@@ -54,11 +57,27 @@ const HistoryCard = ({
 						onClick={() => setIsExpanded((current) => !current)}
 						className='flex min-w-0 flex-1 items-start gap-4 text-left'>
 						<div className='flex shrink-0 flex-col items-center gap-2'>
-							<img
-								src={playlistArt}
-								alt={playlistName}
-								className='h-20 w-20 rounded-xl object-cover shadow-sm'
-							/>
+							<div className='relative'>
+								<img
+									src={playlistArt}
+									alt={playlistName}
+									className='h-20 w-20 rounded-xl object-cover shadow-sm'
+								/>
+								{sourceProvider && (
+									<span
+										title={
+											sourceProvider === 'youtube'
+												? 'From YouTube Music'
+												: 'From Spotify'
+										}
+										className='absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-lightest shadow-md ring-2 ring-lightest'>
+										<Icon
+											icon={PROVIDER_META[sourceProvider].icon}
+											className='h-4 w-4'
+										/>
+									</span>
+								)}
+							</div>
 						</div>
 						<div className='min-w-0 flex-1 pt-1'>
 							<h3 className='truncate text-2xl font-semibold text-fbase'>
@@ -107,7 +126,12 @@ const HistoryCard = ({
 										key={playlist.id}
 										playlist={playlist}
 										onReuseSeeds={() =>
-											reuseSeeds(playlistId, playlist.seeds ?? [])
+											reuseSeeds(
+												playlistId,
+												playlist.seeds ?? [],
+												sourceProvider ??
+													(playlist.provider === 'youtube' ? 'youtube' : 'spotify'),
+											)
 										}
 										isReuseDisabled={isReuseDisabled}
 									/>
@@ -142,7 +166,9 @@ const GeneratedPlaylistBlock = ({
 	const seedCount = seeds.length;
 	const statusLabel = getStatusLabel(playlist.status);
 	const statusStyles = getStatusStyles(playlist.status);
-	const dateLabel = formatRelativeTime(playlist.completedAt ?? playlist.createdAt);
+	const dateLabel = formatRelativeTime(
+		playlist.completedAt ?? playlist.createdAt,
+	);
 	const options = playlist.event?.data?.options;
 
 	const optionTags = [
@@ -240,7 +266,9 @@ const GeneratedPlaylistBlock = ({
 							target='_blank'
 							rel='noreferrer'
 							className='inline-flex items-center rounded-lg bg-brand px-5 py-3 font-semibold text-lightest transition-opacity hover:opacity-90'>
-							Open in Spotify
+							{playlist.provider === 'youtube'
+								? 'Open in YouTube Music'
+								: 'Open in Spotify'}
 						</a>
 					)}
 				</div>
@@ -288,9 +316,9 @@ const getSeedLabel = (seed: SeedTrackHistory) => {
 	};
 };
 
-
 const getArtistInfo = (event: any) => {
-	const artistName = event?.data?.options?.artistName ?? event?.data?.artistName;
+	const artistName =
+		event?.data?.options?.artistName ?? event?.data?.artistName;
 	if (!artistName) return null;
 
 	return {

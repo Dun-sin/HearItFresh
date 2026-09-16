@@ -21,8 +21,6 @@ export async function POST(req: Request) {
 		return Response.json({ error: 'Failed to cancel run' }, { status: 500 });
 	}
 
-	// Saves reconcile a round trip on the next load; it would reach the same
-	// state from the run's Cancelled status anyway.
 	if (generatedPlaylistId) {
 		try {
 			await prisma.generatedPlaylist.update({

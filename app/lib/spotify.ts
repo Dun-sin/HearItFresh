@@ -4,26 +4,28 @@ import { getDummyAccessToken } from './spotify-dummy-auth';
 
 import pLimit from 'p-limit';
 
-import { shuffle, convertToSubArray, sleep, cleanMusicMetadata } from './utils';
+import {
+	shuffle,
+	convertToSubArray,
+	cleanMusicMetadata,
+	formatApiError,
+	NON_CANONICAL_RELEASE_KEYWORDS,
+} from './utils';
+import { spotifyErrors, withRetry } from './retry';
 
-const ALBUM_BLACKLIST_WORDS = [
-	'remix',
-	'mix',
-	'edit',
-	'radio',
-	'- live',
-	' ver.',
-	'live-',
-	'version',
-	'tour',
-	'live',
-	'event',
-	'concert',
-	'tour',
-	'extended',
-	'special edition',
-	'bonus track',
-];
+const retrySpotify = <T>(
+	label: string,
+	fn: () => Promise<T>,
+	signal?: AbortSignal,
+) =>
+	withRetry(fn, {
+		errors: spotifyErrors,
+		label: `Spotify ${label}`,
+		retryOn: [429],
+		attempts: 2,
+		signal,
+	});
+
 const EDITION_KEYWORDS = [
 	'deluxe',
 	'edition',
@@ -44,7 +46,6 @@ const MAX_PLAYLIST_TRACKS_TO_FETCH = 500;
  * that stop early once enough candidates land on the requested side of the
  * threshold.
  */
-export const MAX_FOLLOWER_LOOKUP_ATTEMPTS = 3;
 export const FOLLOWER_LOOKUP_CONCURRENCY = 10;
 export const FOLLOWER_LOOKUP_CHUNK_SIZE = 20;
 /**
@@ -130,7 +131,7 @@ export function deduplicateAlbums<T extends { name: string; id: string }>(
 ): T[] {
 	const filtered = albums.filter((album) => {
 		const name = album.name.toLowerCase();
-		return !ALBUM_BLACKLIST_WORDS.some((word) => name.includes(word));
+		return !NON_CANONICAL_RELEASE_KEYWORDS.some((word) => name.includes(word));
 	});
 
 	const seenBaseTitles = new Map<string, T>();
@@ -289,11 +290,10 @@ export async function addTracksToPlayList(
  *   searching for the same artist a second time.
  *
  *   Handles one artist only: 429 responses are retried in place (honouring
- *   `retry-after`) up to MAX_ARTIST_ATTEMPTS times, and the function always
+ *   `retry-after`), and the function always
  *   resolves to a stable `string[]` so callers never have to special-case error
  *   objects.
  **/
-const MAX_ARTIST_ATTEMPTS = 3;
 
 export async function getArtistAlbumsById(
 	artistId: string,
@@ -306,56 +306,30 @@ export async function getArtistAlbumsById(
 			? 5
 			: Math.max(1, Math.floor(100 / (artistsLength * 2)));
 
-	for (let attempt = 0; attempt < MAX_ARTIST_ATTEMPTS; attempt++) {
-		try {
-			const data = await spotifyApi.getArtistAlbums(artistId, {
+	try {
+		const data = await retrySpotify(
+			`getArtistAlbumsById ${artistName}`,
+			() => spotifyApi.getArtistAlbums(artistId, {
 				limit: 10,
 				include_groups: 'album',
-			});
+			}),
+			signal,
+		);
 
-			const deduplicated = deduplicateAlbums(data.body.items);
+		const deduplicated = deduplicateAlbums(data.body.items);
 
-			return shuffle(deduplicated)
-				.slice(0, Math.min(maxAlbums, deduplicated.length))
-				.map((item) => item.id);
-		} catch (err: any) {
-			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
-			const retryAfter = Number(
-				err?.headers?.['retry-after'] ??
-					err?.response?.headers?.['retry-after'],
-			);
-
-			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
-				console.log(
-					`Rate limited (429) for ${artistName}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_ARTIST_ATTEMPTS})`,
-				);
-				// Let an abort propagate so the caller can stop the whole batch.
-				await sleep(retryAfter * 1000, signal);
-				continue;
-			}
-
-			console.error(
-				`Error in getArtistAlbumsById for ${artistName}:`,
-				err?.message || err,
-			);
-			if (err?.response?.body)
-				console.error('Spotify API Error Body:', err.response.body);
-			return [];
-		}
+		return shuffle(deduplicated)
+			.slice(0, Math.min(maxAlbums, deduplicated.length))
+			.map((item) => item.id);
+	} catch (err: any) {
+		if (signal?.aborted) throw err;
+		console.error(
+			`Error in getArtistAlbumsById for ${artistName}: ${formatApiError(err)}`,
+		);
+		return [];
 	}
-
-	console.error(
-		`getArtistAlbumsById exhausted ${MAX_ARTIST_ATTEMPTS} retries for ${artistName}`,
-	);
-	return [];
 }
 
-/**
- *   Name-only entry point for album fetching: resolves the name to a Spotify
- *   artist first, then defers to {@link getArtistAlbumsById}. Used by paths that
- *   never needed follower counts (the popular/default path), so they still only
- *   pay for one search per artist.
- **/
 export async function getArtistsAlbums(
 	artist: string,
 	artistsLength: number,
@@ -383,53 +357,33 @@ export async function getArtistsAlbums(
  * from search, so it does not re-search by name (avoiding ambiguity and
  * duplicate artist matches). 429s are retried in place honouring `retry-after`.
  */
-const MAX_DISCOGRAPHY_ATTEMPTS = 3;
 
 export async function getArtistDiscographyTracks(
 	artistId: string,
 	signal?: AbortSignal,
 ): Promise<singleTrack[]> {
-	for (let attempt = 0; attempt < MAX_DISCOGRAPHY_ATTEMPTS; attempt++) {
-		try {
-			const albums = await spotifyApi.getArtistAlbums(artistId, {
+	try {
+		const albums = await retrySpotify(
+			`discography ${artistId}`,
+			() => spotifyApi.getArtistAlbums(artistId, {
 				limit: 50,
 				include_groups: 'album,single',
-			});
+			}),
+			signal,
+		);
 
-			const deduplicatedAlbums = deduplicateAlbums(albums.body.items);
+		const deduplicatedAlbums = deduplicateAlbums(albums.body.items);
 
-			const albumIds = [...new Set(deduplicatedAlbums.map((item) => item.id))];
-			const tracks = await getTracks(albumIds as string[]);
-			return Array.isArray(tracks) ? tracks : [];
-		} catch (err: any) {
-			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
-			const retryAfter = Number(
-				err?.headers?.['retry-after'] ??
-					err?.response?.headers?.['retry-after'],
-			);
-
-			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
-				console.log(
-					`Rate limited (429) fetching discography for ${artistId}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_DISCOGRAPHY_ATTEMPTS})`,
-				);
-				await sleep(retryAfter * 1000, signal);
-				continue;
-			}
-
-			console.error(
-				`Error fetching discography for artist ${artistId}:`,
-				err?.message || err,
-			);
-			if (err?.response?.body)
-				console.error('Spotify API Error Body:', err.response.body);
-			return [];
-		}
+		const albumIds = [...new Set(deduplicatedAlbums.map((item) => item.id))];
+		const tracks = await getTracks(albumIds as string[]);
+		return Array.isArray(tracks) ? tracks : [];
+	} catch (err: any) {
+		if (signal?.aborted) throw err;
+		console.error(
+			`Error fetching discography for artist ${artistId}: ${formatApiError(err)}`,
+		);
+		return [];
 	}
-
-	console.error(
-		`getArtistDiscographyTracks exhausted ${MAX_DISCOGRAPHY_ATTEMPTS} retries for ${artistId}`,
-	);
-	return [];
 }
 
 export async function getTracks(
@@ -466,22 +420,11 @@ export async function getTracks(
 				const trackKey = normalizeTrackKey(track.name, track.artistName);
 
 				// Check if the track is a remix or a mix or an edit or a radio mix
-				const blacklistedWords = [
-					'remix',
-					'mix',
-					'edit',
-					'radio',
-					'- live',
-					' ver.',
-					'live-',
-					'version',
-					'tour',
-					'live',
-					'event',
-					'concert',
-					'tour',
-				];
-				if (blacklistedWords.some((word) => trackName.includes(word))) {
+				if (
+					NON_CANONICAL_RELEASE_KEYWORDS.some((word) =>
+						trackName.includes(word),
+					)
+				) {
 					return false;
 				}
 
@@ -558,48 +501,28 @@ async function resolveSpotifyArtist(
 	const cached = spotifyArtistCache.get(cacheKey);
 	if (cached !== undefined) return cached;
 
-	for (let attempt = 0; attempt < MAX_FOLLOWER_LOOKUP_ATTEMPTS; attempt++) {
-		try {
-			const data = await spotifyApi.searchArtists(artistName, {
-				limit: 1,
-				offset: 0,
-			});
-			const match = data.body.artists?.items?.[0];
-			const resolved: ResolvedSpotifyArtist | null = match
-				? {
-						id: match.id,
-						name: match.name,
-						followers: match.followers?.total ?? 0,
-					}
-				: null;
+	try {
+		const data = await retrySpotify(
+			`resolve artist ${artistName}`,
+			() => spotifyApi.searchArtists(artistName, { limit: 1, offset: 0 }),
+			signal,
+		);
+		const match = data.body.artists?.items?.[0];
+		const resolved: ResolvedSpotifyArtist | null = match
+			? {
+					id: match.id,
+					name: match.name,
+					followers: match.followers?.total ?? 0,
+				}
+			: null;
 
-			cacheSpotifyArtist(cacheKey, resolved);
-			return resolved;
-		} catch (err: any) {
-			const status = err?.statusCode ?? err?.status ?? err?.response?.status;
-			const retryAfter = Number(
-				err?.headers?.['retry-after'] ??
-					err?.response?.headers?.['retry-after'],
-			);
-
-			if (status === 429 && Number.isFinite(retryAfter) && retryAfter > 0) {
-				console.log(
-					`Rate limited (429) resolving ${artistName}, retrying after ${retryAfter}s (attempt ${attempt + 1}/${MAX_FOLLOWER_LOOKUP_ATTEMPTS})`,
-				);
-				// Let an abort propagate so the caller can stop the whole batch.
-				await sleep(retryAfter * 1000, signal);
-				continue;
-			}
-
-			console.error(`Error resolving ${artistName}:`, err?.message || err);
-			return null;
-		}
+		cacheSpotifyArtist(cacheKey, resolved);
+		return resolved;
+	} catch (err: any) {
+		if (signal?.aborted) throw err;
+		console.error(`Error resolving ${artistName}: ${formatApiError(err)}`);
+		return null;
 	}
-
-	console.error(
-		`resolveSpotifyArtist exhausted ${MAX_FOLLOWER_LOOKUP_ATTEMPTS} retries for ${artistName}`,
-	);
-	return null;
 }
 
 /**

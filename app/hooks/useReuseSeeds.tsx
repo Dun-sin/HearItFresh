@@ -1,17 +1,21 @@
 import {
 	addPlaylistFullLinkFromID,
+	addYoutubePlaylistFullLinkFromID,
 	formatPlaylistTracks,
 	getPlaylistTracks,
 	isSpotifyPlaylistPermissionError,
 	SPOTIFY_PUBLIC_PLAYLIST_ERROR,
 } from '../lib/helpers';
 import { SeedTrackHistory, playlistSongDetails } from '../types';
+import type { ProviderName } from '../lib/providers/types';
 
 import { toast } from 'react-toastify';
 import { useRef } from 'react';
+import { useAuth } from '../context/authContext';
 import { useGeneralState } from '../context/generalStateContext';
 import { useInput } from '../context/inputContext';
 import { useLoading } from '../context/loadingContext';
+import { useOptions } from '../context/optionsContext';
 import { useSeedSongs } from '../context/seedSongsContext';
 
 const toSongDetails = (seeds: SeedTrackHistory[]): playlistSongDetails[] =>
@@ -32,30 +36,42 @@ const toSongDetails = (seeds: SeedTrackHistory[]): playlistSongDetails[] =>
 
 const useReuseSeeds = () => {
 	const { loading, setLoading, setLoadingMessage } = useLoading();
-	const { buttonClick, errorMessages, setErrorMessages } = useGeneralState();
+	const { buttonClick, errorMessages, setErrorMessages, setProvider } =
+		useGeneralState();
+	const { user } = useAuth();
+	const { setSelectedArtist } = useOptions();
 	const { spotifyPlaylist } = useInput();
 	const { setExtractedSongs, setExtractedArtists, selectSeeds } =
 		useSeedSongs();
 
 	const loadedPlaylistRef = useRef<
-		| ({ playlistId: string } & ReturnType<typeof formatPlaylistTracks>)
+		| ({ playlistId: string; provider: ProviderName } & ReturnType<
+				typeof formatPlaylistTracks
+		  >)
 		| null
-	>(null); 
+	>(null);
 
 	const isReuseDisabled = loading || buttonClick;
 
-	const loadPlaylist = async (playlistId: string) => {
-		if (loadedPlaylistRef.current?.playlistId === playlistId) {
-			return loadedPlaylistRef.current;
+	const loadPlaylist = async (playlistId: string, provider: ProviderName) => {
+		const cached = loadedPlaylistRef.current;
+		if (cached?.playlistId === playlistId && cached.provider === provider) {
+			return cached;
 		}
 
 		setLoading(true);
 		setLoadingMessage('Retrieving all tracks from the provided playlist...');
 
 		try {
-			const playlistData = await getPlaylistTracks(playlistId, true);
+			const playlistData = await getPlaylistTracks(
+				playlistId,
+				true,
+				provider,
+				user?.user_id,
+			);
 			loadedPlaylistRef.current = {
 				playlistId,
+				provider,
 				...formatPlaylistTracks(playlistData.tracks),
 			};
 			return loadedPlaylistRef.current;
@@ -75,6 +91,7 @@ const useReuseSeeds = () => {
 	const reuseSeeds = async (
 		sourcePlaylistId: string,
 		seeds: SeedTrackHistory[],
+		provider: ProviderName = 'spotify',
 	) => {
 		if (isReuseDisabled) return;
 
@@ -82,9 +99,14 @@ const useReuseSeeds = () => {
 		if (seedSongs.length === 0) return;
 
 		if (spotifyPlaylist.current) {
-			spotifyPlaylist.current.value = addPlaylistFullLinkFromID(sourcePlaylistId);
+			spotifyPlaylist.current.value =
+				provider === 'youtube'
+					? addYoutubePlaylistFullLinkFromID(sourcePlaylistId)
+					: addPlaylistFullLinkFromID(sourcePlaylistId);
 		}
 		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
+		setProvider(provider);
+		if (provider === 'youtube') setSelectedArtist(null);
 
 		const seedIds = new Set(seedSongs.map((song) => song.id));
 		let songs = seedSongs;
@@ -92,7 +114,7 @@ const useReuseSeeds = () => {
 			...new Set(seedSongs.flatMap((song) => song.artist.slice(0, 2))),
 		];
 
-		const playlist = await loadPlaylist(sourcePlaylistId);
+		const playlist = await loadPlaylist(sourcePlaylistId, provider);
 		if (playlist) {
 			songs = [
 				...seedSongs,
