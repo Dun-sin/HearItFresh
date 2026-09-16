@@ -41,7 +41,7 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
 	const { playListData } = useGeneralState();
-	const { user } = useAuth();
+	const { user, youtubeGuestCredentials } = useAuth();
 	const provider = playListData.provider ?? 'spotify';
 	const link =
 		provider === 'youtube'
@@ -59,19 +59,25 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 	const [tracksDeleted, setTracksDeleted] = useState<playlistSongDetails[]>([]);
 
 	useEffect(() => {
-		(async () => {
-			await getTracks();
-		})();
-	}, []);
-
-	useEffect(() => {
 		if (showingTracks.length === 0) {
 			setShowingTracks(tracks);
 		}
 	}, [showingTracks, tracks]);
 
 	const getTracks = useCallback(async () => {
-		const data = await getPlaylistTracks(link, false, provider, user?.user_id);
+		// auth restores asynchronously, so skip until there's a token to send
+		if (provider === 'youtube' && !user?.user_id && !youtubeGuestCredentials)
+			return;
+
+		const data = await getPlaylistTracks(
+			link,
+			false,
+			provider,
+			user?.user_id,
+			!user?.user_id && provider === 'youtube'
+				? youtubeGuestCredentials
+				: undefined,
+		);
 
 		if (!Array.isArray(data)) {
 			console.error('Failed to load playlist tracks:', data);
@@ -86,7 +92,13 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 		}));
 
 		setTracks(tracks);
-	}, [link, provider, user?.user_id]);
+	}, [link, provider, user?.user_id, youtubeGuestCredentials]);
+
+	useEffect(() => {
+		(async () => {
+			await getTracks();
+		})();
+	}, [getTracks]);
 
 	const deleteTrack = useCallback(
 		(id: string) => {
@@ -134,6 +146,10 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 				playlistId: link,
 				trackIds: tracksToRemove,
 				userId: user?.user_id,
+				youtubeGuestCredentials:
+					!user?.user_id && provider === 'youtube'
+						? youtubeGuestCredentials
+						: undefined,
 			}),
 		});
 
@@ -142,7 +158,14 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 		setTracksToRemove([]);
 		setTracksDeleted([]);
 		setStartedEditing(false);
-	}, [tracksToRemove, provider, link, user?.user_id, getTracks]);
+	}, [
+		tracksToRemove,
+		provider,
+		link,
+		user?.user_id,
+		youtubeGuestCredentials,
+		getTracks,
+	]);
 
 	const value = useMemo(
 		() => ({

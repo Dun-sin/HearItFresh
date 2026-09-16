@@ -4,7 +4,8 @@ import type { ProviderTrackRef } from '@/app/lib/providers/types';
 
 export async function POST(req: Request) {
 	try {
-		const { provider, playlistId, trackIds, userId } = await req.json();
+		const { provider, playlistId, trackIds, userId, youtubeGuestCredentials } =
+			await req.json();
 
 		if (!playlistId || !Array.isArray(trackIds) || trackIds.length === 0) {
 			return NextResponse.json(
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
 
 		await musicProvider.removeTracksFromPlaylist(tracks, playlistId, {
 			userId,
+			youtubeGuestCredentials,
 		});
 
 		return NextResponse.json({ ok: true });
