@@ -1,10 +1,10 @@
 {
 	"name": "hearitfresh",
-	"version": "1.39.0",
+	"version": "1.42.0",
 	"private": true,
 	"scripts": {
 		"dev": "next dev",
-		"build": "prisma migrate deploy && prisma generate --no-engine && next build",
+		"build": "prisma migrate deploy && prisma generate && next build",
 		"start": "next start",
 		"lint": "next lint",
 		"semantic-release": "semantic-release",

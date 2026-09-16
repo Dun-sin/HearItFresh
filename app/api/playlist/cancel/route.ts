@@ -1,7 +1,8 @@
 import { inngest } from '@/app/inngest/client';
+import prisma from '@/app/lib/prisma';
 
 export async function POST(req: Request) {
-	const { cancellationId } = await req.json();
+	const { cancellationId, generatedPlaylistId } = await req.json();
 
 	if (!cancellationId) {
 		return Response.json(
@@ -18,6 +19,17 @@ export async function POST(req: Request) {
 	} catch (error) {
 		console.error('[cancel] Inngest cancel failed:', error);
 		return Response.json({ error: 'Failed to cancel run' }, { status: 500 });
+	}
+
+	if (generatedPlaylistId) {
+		try {
+			await prisma.generatedPlaylist.update({
+				where: { id: generatedPlaylistId },
+				data: { status: 'cancelled', errorMessage: 'Generation was cancelled' },
+			});
+		} catch (error) {
+			console.error('[cancel] Failed to mark record cancelled:', error);
+		}
 	}
 
 	return Response.json({ success: true });

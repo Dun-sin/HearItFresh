@@ -51,6 +51,7 @@ export type SourcePlaylist = {
 	name: string;
 	imageUrl?: string | null;
 	totalTracks?: number | null;
+	provider?: ProviderName;
 };
 
 export type GeneratedPlaylistHistory = {
@@ -83,4 +84,11 @@ export type LRCLibResult = {
 	plainLyrics?: string;
 	artistName?: string;
 	trackName?: string;
+};
+export type GuestGeneration = {
+	runId: string | null;
+	eventId: string | null;
+	link?: string | null;
+	name?: string | null;
+	startedAt: number;
 };

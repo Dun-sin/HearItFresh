@@ -16,6 +16,7 @@ interface SeedSongsContextProps {
 	setExtractedSongs: (songs: playlistSongDetails[]) => void;
 	selectedSeedIds: Set<string>;
 	toggleSeed: (id: string) => void;
+	selectSeeds: (ids: string[]) => void;
 	clearSeeds: () => void;
 	selectAllSeeds: () => void;
 	extractedArtists: string[];
@@ -50,6 +51,10 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 		});
 	}, []);
 
+	const selectSeeds = useCallback((ids: string[]) => {
+		setSelectedSeedIds(new Set(ids.slice(0, 10)));
+	}, []);
+
 	const clearSeeds = useCallback(() => {
 		setSelectedSeedIds(new Set());
 		setExtractedSongs([]);
@@ -67,6 +72,7 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 			setExtractedSongs,
 			selectedSeedIds,
 			toggleSeed,
+			selectSeeds,
 			clearSeeds,
 			selectAllSeeds,
 			extractedArtists,
@@ -76,6 +82,7 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 			extractedSongs,
 			selectedSeedIds,
 			toggleSeed,
+			selectSeeds,
 			clearSeeds,
 			selectAllSeeds,
 			extractedArtists,

@@ -196,6 +196,20 @@ export const getPlaylistTracks = async (
 	return includeDetails ? data : data.tracks;
 };
 
+export const formatPlaylistTracks = (playlistTracks: any[]) => {
+	const songs = playlistTracks.map((item: any) => ({
+		id: item.externalId as string,
+		name: item.name as string,
+		artist: [item.artistName] as string[],
+		image: item.imageUrl as string | undefined,
+	}));
+	const artistNames: string[] = playlistTracks.map(
+		(item: any) => item.artistName,
+	);
+
+	return { songs, artistNames: [...new Set(artistNames)] };
+};
+
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
@@ -445,11 +459,12 @@ export async function relatedArists(
 		...artistNames.map((n) => n.toLowerCase()),
 		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
 	]);
+	const maxAmountOfArtists = 80;
 
-	while (finalList.length < 65 && workingLists.length > 0) {
+	while (finalList.length < maxAmountOfArtists && workingLists.length > 0) {
 		// Iterate in reverse so we can safely splice exhausted lists out
 		for (let i = workingLists.length - 1; i >= 0; i--) {
-			if (finalList.length >= 65) break;
+			if (finalList.length >= maxAmountOfArtists) break;
 
 			const pool = workingLists[i];
 			// Find a valid candidate at a random position within this seed's remaining list

@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import { useGeneralState } from '../context/generalStateContext';
 import type { ProviderName } from '@/app/lib/providers/types';
 
-const PROVIDER_META: Record<
+export const PROVIDER_META: Record<
 	ProviderName,
 	{ icon: string; label: string; width: number; height: number }
 > = {

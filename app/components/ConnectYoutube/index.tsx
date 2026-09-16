@@ -103,8 +103,8 @@ const ConnectYoutube = () => {
 			{!userId && (
 				<p className='text-xs text-slate-400 italic'>
 					You&apos;re using HearItFresh as a guest, so this connection
-					isn&apos;t saved to our servers — it lasts until you reload or close
-					the tab. Sign in if you want it remembered between visits.
+					isn&apos;t saved to our servers — it lasts until you close this tab.
+					Sign in if you want it remembered between visits.
 				</p>
 			)}
 

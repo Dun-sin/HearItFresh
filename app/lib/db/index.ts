@@ -1,12 +1,11 @@
-"use server";
+'use server';
 
 import { SpotifyTrack, HistoryKind } from '@/app/types';
 import type { ProviderName } from '../providers/types';
-import { getCentroid } from '../utils';
+import { getCentroid, compareGeneratedPlaylists } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
-import { getProvider } from '../providers';
-
+import { getProvider, isProviderName } from '../providers';
 
 function idColumn(provider: ProviderName): 'spotifyId' | 'youtubeId' {
 	return provider === 'youtube' ? 'youtubeId' : 'spotifyId';
@@ -23,7 +22,6 @@ function idColumn(provider: ProviderName): 'spotifyId' | 'youtubeId' {
 function isSafeExternalId(id: string): boolean {
 	return /^[a-zA-Z0-9_-]+$/.test(id);
 }
-
 
 export const encodeGeneratedSongId = (
 	provider: ProviderName,
@@ -49,6 +47,7 @@ export interface HistoryEntry {
 		id: string;
 		name: string;
 		imageUrl?: string | null;
+		provider?: ProviderName;
 	};
 	generatedPlaylists?: GeneratedPlaylistHistory[];
 	[key: string]: any;
@@ -80,16 +79,24 @@ export type SeedTrackHistory = {
 export async function addUserHistory(
 	userId: string,
 	artists: string,
-	sourcePlaylist?: { id: string; name: string },
+	sourcePlaylist?: { id: string; name: string; provider?: string },
 ): Promise<{ message: string; history: HistoryEntry[] }> {
 	try {
 		const lastUsed = new Date();
 		const lastUsedString = lastUsed.toISOString();
 		const entryText = sourcePlaylist?.id ?? artists;
+		const { provider, ...sourcePlaylistFields } = sourcePlaylist ?? {};
 		const newObject: HistoryEntry = {
 			text: entryText,
 			lastUsed: lastUsedString,
-			...(sourcePlaylist ? { sourcePlaylist } : {}),
+			...(sourcePlaylist
+				? {
+						sourcePlaylist: {
+							...(sourcePlaylistFields as { id: string; name: string }),
+							...(isProviderName(provider) ? { provider } : {}),
+						},
+					}
+				: {}),
 		};
 
 		const result = await getUserHistory(userId);
@@ -166,27 +173,14 @@ export async function getUserHistory(
 
 		const userHistory = (history as unknown as HistoryEntry[]) ?? [];
 		const getSourcePlaylistId = (entry: HistoryEntry) =>
-			entry.sourcePlaylist?.id ?? (!entry.text.includes(',') ? entry.text : null);
+			entry.sourcePlaylist?.id ??
+			(!entry.text.includes(',') ? entry.text : null);
 
 		const sourcePlaylistIds = userHistory
 			.map(getSourcePlaylistId)
 			.filter((id): id is string => Boolean(id));
 
 		if (sourcePlaylistIds.length === 0) return userHistory;
-
-		const sourcePlaylistDetails = await Promise.all(
-			sourcePlaylistIds.map(async (id) => {
-				const details = await getProvider('spotify').getPlaylistDetails(id);
-				if (!details) {
-					return [id, null] as const;
-				}
-				return [
-					id,
-					details as { imageUrl?: string | null; totalTracks?: number | null },
-				] as const;
-			}),
-		);
-		const sourcePlaylistById = new Map(sourcePlaylistDetails);
 
 		const generatedPlaylists = await prisma.generatedPlaylist.findMany({
 			where: {
@@ -212,29 +206,63 @@ export async function getUserHistory(
 			} as any,
 		});
 
-		const playlistsBySource = generatedPlaylists.reduce(
-			(acc, playlist) => {
-				if (!playlist.sourcePlaylistId) return acc;
-				const playlists = acc.get(playlist.sourcePlaylistId) ?? [];
-				playlists.push({
-					id: playlist.id,
-					playlistId: playlist.playlistId,
-					playlistName: playlist.playlistName,
-					playlistLink: playlist.playlistLink,
-					provider: (playlist as any).provider,
-					completedAt: playlist.completedAt,
-					createdAt: playlist.createdAt,
-					status: playlist.status,
-					seeds: playlist.seeds as SeedTrackHistory[] | null,
-					errorMessage: playlist.errorMessage,
-					retryCount: playlist.retryCount,
-					event: playlist.event as any,
-				});
-				acc.set(playlist.sourcePlaylistId, playlists);
-				return acc;
-			},
-			new Map<string, GeneratedPlaylistHistory[]>(),
+		const playlistsBySource = generatedPlaylists.reduce((acc, playlist) => {
+			if (!playlist.sourcePlaylistId) return acc;
+			const playlists = acc.get(playlist.sourcePlaylistId) ?? [];
+			playlists.push({
+				id: playlist.id,
+				playlistId: playlist.playlistId,
+				playlistName: playlist.playlistName,
+				playlistLink: playlist.playlistLink,
+				provider: (playlist as any).provider,
+				completedAt: playlist.completedAt,
+				createdAt: playlist.createdAt,
+				status: playlist.status,
+				seeds: playlist.seeds as SeedTrackHistory[] | null,
+				errorMessage: playlist.errorMessage,
+				retryCount: playlist.retryCount,
+				event: playlist.event as any,
+			});
+			acc.set(playlist.sourcePlaylistId, playlists);
+			return acc;
+		}, new Map<string, GeneratedPlaylistHistory[]>());
+
+		// entries saved before the source provider was stored fall back to the landing provider
+		const sourceProviderById = new Map<string, ProviderName>(
+			userHistory.flatMap((entry) => {
+				const id = getSourcePlaylistId(entry);
+				if (!id) return [];
+				const stored = entry.sourcePlaylist?.provider;
+				const landing = playlistsBySource.get(id)?.[0]?.provider;
+				const provider: ProviderName = isProviderName(stored)
+					? stored
+					: isProviderName(landing)
+						? landing
+						: 'spotify';
+				return [[id, provider] as const];
+			}),
 		);
+
+		const sourcePlaylistDetails = await Promise.all(
+			sourcePlaylistIds.map(async (id) => {
+				try {
+					const details = await getProvider(
+						sourceProviderById.get(id) ?? 'spotify',
+					).getPlaylistDetails(id, { userId });
+					return [
+						id,
+						details as {
+							imageUrl?: string | null;
+							totalTracks?: number | null;
+						} | null,
+					] as const;
+				} catch (error) {
+					console.error(`Failed to fetch source playlist ${id}:`, error);
+					return [id, null] as const;
+				}
+			}),
+		);
+		const sourcePlaylistById = new Map(sourcePlaylistDetails);
 
 		return userHistory
 			.map((entry) => {
@@ -242,59 +270,43 @@ export async function getUserHistory(
 				const sourcePlaylistDetails = sourcePlaylistById.get(sourcePlaylistId);
 				const generated = playlistsBySource.get(sourcePlaylistId) ?? [];
 
-				const sortedGenerated = [...generated].sort((a, b) => {
-					const statusRank = (status?: string) => {
-						const normalized = status?.toLowerCase();
-						if (normalized === 'completed') return 0;
-						if (normalized === 'pending' || normalized === 'running')
-							return 1;
-						if (normalized === 'failed' || normalized === 'cancelled')
-							return 2;
-						return 3;
-					};
+				const sortedGenerated = [...generated].sort(compareGeneratedPlaylists);
 
-					const statusDelta =
-						statusRank(a.status) - statusRank(b.status);
-					if (statusDelta !== 0) return statusDelta;
-
-					const aTime =
-						(a.completedAt ?? a.createdAt)?.getTime?.() ?? 0;
-					const bTime =
-						(b.completedAt ?? b.createdAt)?.getTime?.() ?? 0;
-					return bTime - aTime;
-				});
-
-			const isArtistEntry = sortedGenerated.some((playlist: any) =>
-				Boolean(
-					playlist?.event?.data?.options?.artistName ??
+				const isArtistEntry = sortedGenerated.some((playlist: any) =>
+					Boolean(
+						playlist?.event?.data?.options?.artistName ??
 						playlist?.event?.data?.artistName,
-				),
-			);
+					),
+				);
 
-			const artistEvent = sortedGenerated.find((playlist: any) =>
-				Boolean(
-					playlist?.event?.data?.options?.artistName ??
+				const artistEvent = sortedGenerated.find((playlist: any) =>
+					Boolean(
+						playlist?.event?.data?.options?.artistName ??
 						playlist?.event?.data?.artistName,
-				),
-			)?.event?.data;
+					),
+				)?.event?.data;
 
-			const artistImage = artistEvent?.artistImage;
-			const artistName = artistEvent?.artistName;
+				const artistImage = artistEvent?.artistImage;
+				const artistName = artistEvent?.artistName;
 
-			return {
-				...entry,
-				kind: (isArtistEntry ? 'artist' : 'playlist') as HistoryKind,
-				sourcePlaylist: {
-					...(entry.sourcePlaylist ?? { id: sourcePlaylistId, name: entry.text }),
-					...(sourcePlaylistDetails?.imageUrl
-						? { imageUrl: sourcePlaylistDetails.imageUrl }
-						: {}),
-					...(sourcePlaylistDetails?.totalTracks != null
-						? { totalTracks: sourcePlaylistDetails.totalTracks }
-						: {}),
-				},
-				generatedPlaylists: sortedGenerated,
-			};
+				return {
+					...entry,
+					kind: (isArtistEntry ? 'artist' : 'playlist') as HistoryKind,
+					sourcePlaylist: {
+						...(entry.sourcePlaylist ?? {
+							id: sourcePlaylistId,
+							name: entry.text,
+						}),
+						provider: sourceProviderById.get(sourcePlaylistId) ?? 'spotify',
+						...(sourcePlaylistDetails?.imageUrl
+							? { imageUrl: sourcePlaylistDetails.imageUrl }
+							: {}),
+						...(sourcePlaylistDetails?.totalTracks != null
+							? { totalTracks: sourcePlaylistDetails.totalTracks }
+							: {}),
+					},
+					generatedPlaylists: sortedGenerated,
+				};
 			})
 			.sort((a, b) => {
 				const aDate = new Date(a.lastUsed).getTime();
@@ -438,6 +450,7 @@ export async function findSimilarSongs(
 	return await prisma.$queryRawUnsafe(
 		`
     SELECT id, title, artist, album, "${col}" AS "externalId",
+           embedding::text AS embedding,
            embedding <=> $1::vector AS distance
     FROM "Song"
     WHERE embedding IS NOT NULL
