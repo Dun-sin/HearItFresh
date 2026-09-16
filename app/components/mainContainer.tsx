@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import Header from './Header';
 
 import { OptionsProvider } from '../context/optionsContext';
@@ -26,6 +28,19 @@ const MainContainer = ({
 					<OptionsProvider>{children}</OptionsProvider>
 				</main>
 			</div>
+			{/* z-10: must stay clickable above the sign-in overlay */}
+			<footer className='relative z-10 w-full flex justify-center gap-4 py-4 text-fxs opacity-70'>
+				<Link href='/privacy-policy' className='underline underline-offset-2'>
+					Privacy Policy
+				</Link>
+				<a
+					href='https://www.youtube.com/t/terms'
+					target='_blank'
+					rel='noopener noreferrer'
+					className='underline underline-offset-2'>
+					YouTube Terms of Service
+				</a>
+			</footer>
 		</section>
 	);
 };
