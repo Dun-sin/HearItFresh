@@ -43,20 +43,7 @@ const Settings = ({ onClose }: { onClose: () => void }) => {
 					</button>
 				</div>
 
-				{isGuest ? (
-					<div className='flex flex-col gap-2 rounded-2xl border border-gray/40 px-5 py-4 w-full'>
-						<h3 className='text-lg font-semibold text-fbase'>
-							YouTube Music connection
-						</h3>
-						<p className='text-sm text-slate-500'>
-							You&apos;re using HearItFresh as a guest, so a YouTube connection
-							lasts only for the current tab and is never saved to our servers.
-							Sign in if you want it remembered between visits.
-						</p>
-					</div>
-				) : (
-					<ConnectYoutube />
-				)}
+				<ConnectYoutube />
 
 				<div className='border-t border-gray/40 pt-4'>
 					<button

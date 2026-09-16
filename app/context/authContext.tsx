@@ -9,6 +9,8 @@ import React, {
 	useState,
 } from 'react';
 
+import type { YoutubeGuestCredentials } from '../lib/clientUtils';
+
 interface User {
 	display_name: string;
 	user_id: string;
@@ -32,6 +34,8 @@ interface AuthContextProps {
 	authInProgress: (state: boolean) => void;
 	setUserData: (data: User | null) => void;
   setAccessToken: (token: string | null) => void;
+	youtubeGuestCredentials: YoutubeGuestCredentials | null;
+	setYoutubeGuestCredentials: (creds: YoutubeGuestCredentials | null) => void;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -43,6 +47,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 	const [isGuest, setIsGuest] = useState(false);
 	const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
+	const [youtubeGuestCredentials, setYoutubeGuestCredentialsState] =
+		useState<YoutubeGuestCredentials | null>(null);
 	const [isAuthInProgress, setAuthInProgress] = useState(false);
 
 	useEffect(() => {
@@ -59,6 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 		setIsGuest(false);
 		setAuthInProgress(false);
     setAccessTokenState(null);
+		setYoutubeGuestCredentialsState(null);
 		localStorage.clear();
 	};
 
@@ -95,6 +102,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
 	const setUserData = (data: User | null) => setUser(data);
   const setAccessToken = (token: string | null) => setAccessTokenState(token);
+	const setYoutubeGuestCredentials = (creds: YoutubeGuestCredentials | null) =>
+		setYoutubeGuestCredentialsState(creds);
 
 	const value = useMemo(
 		() => ({
@@ -110,8 +119,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 			authInProgress,
 			setUserData,
       setAccessToken,
+			youtubeGuestCredentials,
+			setYoutubeGuestCredentials,
 		}),
-    [isLoggedIn, isGuest, isAuthInProgress, user, accessToken],
+    [
+      isLoggedIn,
+      isGuest,
+      isAuthInProgress,
+      user,
+      accessToken,
+      youtubeGuestCredentials,
+    ],
 	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

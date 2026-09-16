@@ -40,7 +40,8 @@ const SubmitButton = () => {
 		provider,
 		setProvider,
 	} = useGeneralState();
-	const { user } = useAuth();
+	const { user, youtubeGuestCredentials, setYoutubeGuestCredentials } =
+		useAuth();
 	const { setLoadingMessage } = useLoading();
 	const { spotifyPlaylist } = useInput();
 	const { setHistory } = useHistory();
@@ -70,8 +71,9 @@ const SubmitButton = () => {
 	const inngestStartedRef = useRef(false);
 	const cancellationIdRef = useRef<string | null>(null);
 	const youtubeGuestCredentialsRef = useRef<YoutubeGuestCredentials | null>(
-		null,
+		youtubeGuestCredentials,
 	);
+	youtubeGuestCredentialsRef.current = youtubeGuestCredentials;
 	const connectPromptResolveRef = useRef<((proceed: boolean) => void) | null>(
 		null,
 	);
@@ -95,6 +97,7 @@ const SubmitButton = () => {
 		}
 
 		youtubeGuestCredentialsRef.current = result.guestCredentials ?? null;
+		setYoutubeGuestCredentials(result.guestCredentials ?? null);
 
 		const pendingLink = takePendingPlaylistLink();
 		if (pendingLink) {

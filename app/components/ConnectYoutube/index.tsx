@@ -12,7 +12,8 @@ type YTStatus = {
 };
 
 const ConnectYoutube = () => {
-	const { user } = useAuth();
+	const { user, isGuest, youtubeGuestCredentials, setYoutubeGuestCredentials } =
+		useAuth();
 	const userId = user?.user_id;
 
 	const [status, setStatus] = useState<YTStatus | null>(null);
@@ -54,21 +55,26 @@ const ConnectYoutube = () => {
 	}, []);
 
 	const handleConnect = () => {
-		if (!userId) return;
 		setError(null);
-		window.location.href = `/api/youtube/connect?userId=${encodeURIComponent(userId)}`;
+		window.location.href = userId
+			? `/api/youtube/connect?userId=${encodeURIComponent(userId)}`
+			: '/api/youtube/connect';
 	};
 
 	const handleDisconnect = async () => {
-		if (!userId) return;
 		setLoading(true);
 		setError(null);
 		try {
 			await fetch('/api/youtube/disconnect', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ userId }),
+				body: JSON.stringify(
+					userId
+						? { userId }
+						: { guestRefreshToken: youtubeGuestCredentials?.refreshToken },
+				),
 			});
+			if (!userId) setYoutubeGuestCredentials(null);
 			setStatus({ connected: false });
 		} catch {
 			setError('Failed to disconnect YouTube account.');
@@ -77,7 +83,11 @@ const ConnectYoutube = () => {
 		}
 	};
 
-	if (!userId) return null;
+	if (!userId && !isGuest) return null;
+
+	const connected = userId
+		? Boolean(status?.connected)
+		: Boolean(youtubeGuestCredentials);
 
 	return (
 		<div className='flex flex-col gap-2 rounded-2xl border border-gray/40 px-5 py-4 w-full'>
@@ -85,14 +95,22 @@ const ConnectYoutube = () => {
 				YouTube Music connection
 			</h3>
 			<p className='text-sm text-slate-500'>
-				{status?.connected
+				{connected
 					? 'Your YouTube account is connected. Generated playlists will be created in your YouTube Music library.'
 					: 'Connect your YouTube account to generate playlists directly in your YouTube Music library.'}
 			</p>
 
+			{!userId && (
+				<p className='text-xs text-slate-400 italic'>
+					You&apos;re using HearItFresh as a guest, so this connection
+					isn&apos;t saved to our servers — it lasts until you reload or close
+					the tab. Sign in if you want it remembered between visits.
+				</p>
+			)}
+
 			{error && <p className='text-fsm text-red-500'>{error}</p>}
 
-			{status?.connected ? (
+			{connected ? (
 				<button
 					type='button'
 					onClick={handleDisconnect}
