@@ -1,3 +1,10 @@
+# [1.44.0](https://github.com/Dun-sin/HearItFresh/compare/v1.43.0...v1.44.0) (2026-09-16)
+
+
+### Features
+
+* add youtube music ([#55](https://github.com/Dun-sin/HearItFresh/issues/55)) ([9c2a68d](https://github.com/Dun-sin/HearItFresh/commit/9c2a68dd5fb007bb7f8a9cbf859a361d8aeb1b30))
+
 # [1.43.0](https://github.com/Dun-sin/HearItFresh/compare/v1.42.0...v1.43.0) (2026-09-14)
 
 
