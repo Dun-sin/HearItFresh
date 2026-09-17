@@ -100,7 +100,7 @@ export async function generateArtistPlaylist(
 			authCtx,
 		);
 
-		return await finalizeTracks(refs, { userId, provider, quotaExhausted });
+		return await finalizeTracks(refs, { quotaExhausted });
 	} catch (error: any) {
 		console.error('Error generating artist playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };

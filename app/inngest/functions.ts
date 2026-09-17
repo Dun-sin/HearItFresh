@@ -6,6 +6,7 @@ import { getProvider } from '../lib/providers';
 import type { ProviderAuthCtx, ProviderName } from '../lib/providers/types';
 import { inngest } from './client';
 import prisma from '../lib/prisma';
+import { addGeneratedSongsForUser } from '../lib/db';
 import { buildArtistPlaylistName } from '../lib/helpers';
 
 export const generatePlaylist = inngest.createFunction(
@@ -115,6 +116,16 @@ export const generatePlaylist = inngest.createFunction(
 			const musicProvider = getProvider(provider);
 			await musicProvider.addTracksToPlaylist(result.tracks, playListID, authCtx);
 		});
+
+		if (userId) {
+			await step.run('save-generated-songs', async () => {
+				await addGeneratedSongsForUser(
+					userId,
+					result.tracks.map((t) => t.externalId),
+					provider,
+				);
+			});
+		}
 
 		const playlistOutput = await step.run('finalize-playlist-output', async () => {
 			return { link, name };

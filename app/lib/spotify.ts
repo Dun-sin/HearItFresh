@@ -272,12 +272,7 @@ export async function addTracksToPlayList(
 	tracks: string[],
 	playListID: string,
 ) {
-	try {
-		const _data = await spotifyApi.addTracksToPlaylist(playListID, tracks);
-		return _data;
-	} catch (err) {
-		return err;
-	}
+	return spotifyApi.addTracksToPlaylist(playListID, tracks);
 }
 
 /**

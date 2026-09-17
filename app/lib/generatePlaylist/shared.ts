@@ -1,5 +1,4 @@
 import {
-	addGeneratedSongsForUser,
 	cacheYoutubeIdForSpotifyId,
 	filterUnclaimedYoutubeIds,
 	getCachedYoutubeIds,
@@ -294,24 +293,12 @@ export async function resolveSpotifyTracksToRefs(
 
 export async function finalizeTracks(
 	refs: RankedRef[],
-	{
-		userId,
-		provider,
-		quotaExhausted,
-	}: { userId?: string; provider: ProviderName; quotaExhausted: boolean },
+	{ quotaExhausted }: { quotaExhausted: boolean },
 ): Promise<GenerationResult> {
 	const finalTracks = [...refs]
 		.sort(byRankDesc)
 		.slice(0, PLAYLIST_SIZE)
 		.map(toRef);
-
-	if (userId) {
-		await addGeneratedSongsForUser(
-			userId,
-			finalTracks.map((r) => r.externalId),
-			provider,
-		);
-	}
 
 	if (quotaExhausted && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
 		return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };

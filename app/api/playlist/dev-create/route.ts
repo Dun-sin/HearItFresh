@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getProvider, isProviderName } from '@/app/lib/providers';
-import type { ProviderAuthCtx } from '@/app/lib/providers/types';
+import type {
+	ProviderAuthCtx,
+	ProviderTrackRef,
+} from '@/app/lib/providers/types';
+import { addGeneratedSongsForUser } from '@/app/lib/db';
 
 export async function POST(req: Request) {
 	try {
@@ -35,6 +39,14 @@ export async function POST(req: Request) {
 			playlistInfo.externalId,
 			authCtx,
 		);
+
+		if (userId) {
+			await addGeneratedSongsForUser(
+				userId,
+				tracks.map((t: ProviderTrackRef) => t.externalId),
+				resolvedProvider,
+			);
+		}
 
 		return NextResponse.json({
 			link: playlistInfo.link,

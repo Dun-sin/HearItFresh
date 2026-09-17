@@ -48,11 +48,7 @@ export async function generateSeedPlaylist(
 		throwIfAborted();
 
 		if (PLAYLIST_SIZE - dbMatches.length <= 10) {
-			return await finalizeTracks(dbMatches, {
-				userId,
-				provider,
-				quotaExhausted: false,
-			});
+			return await finalizeTracks(dbMatches, { quotaExhausted: false });
 		}
 
 		const { refs, quotaExhausted } = await expandWithRelatedArtists({
@@ -66,7 +62,7 @@ export async function generateSeedPlaylist(
 			signal,
 		});
 
-		return await finalizeTracks(refs, { userId, provider, quotaExhausted });
+		return await finalizeTracks(refs, { quotaExhausted });
 	} catch (error: any) {
 		console.error('Error generating seed playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };

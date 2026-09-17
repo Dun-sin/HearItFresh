@@ -524,9 +524,6 @@ export async function removeYoutubeConnection(userId: string) {
 	await prisma.youtubeConnection.deleteMany({ where: { userId } });
 }
 
-// TODO: callers run this during track selection, before the playlist is
-// actually created — a failed/cancelled run still burns these songs from the
-// user's future recommendations. Move it after add-tracks-to-playlist succeeds.
 export async function addGeneratedSongsForUser(
 	userId: string,
 	ids: string[],
