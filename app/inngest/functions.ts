@@ -1,7 +1,7 @@
 import {
 	generateArtistPlaylist,
 	generateSeedPlaylist,
-} from '../lib/generateSeedPlaylist';
+} from '../lib/generatePlaylist';
 import { getProvider } from '../lib/providers';
 import type { ProviderAuthCtx, ProviderName } from '../lib/providers/types';
 import { inngest } from './client';

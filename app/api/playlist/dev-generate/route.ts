@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import {
 	generateArtistPlaylist,
 	generateSeedPlaylist,
-} from '@/app/lib/generateSeedPlaylist';
+} from '@/app/lib/generatePlaylist';
 import { isProviderName } from '@/app/lib/providers';
 
 export async function POST(req: Request) {
