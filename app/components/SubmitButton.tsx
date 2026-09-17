@@ -28,6 +28,7 @@ import { useInput } from '@/app/context/inputContext';
 import { useLoading } from '@/app/context/loadingContext';
 import { useOptions } from '@/app/context/optionsContext';
 import { useSeedSongs } from '@/app/context/seedSongsContext';
+import { useYoutubeChannel } from '@/app/context/youtubeChannelContext';
 import {
 	clearGuestGeneration,
 	clearPendingGeneration,
@@ -111,6 +112,7 @@ const SubmitButton = () => {
 	const [failed, setFailed] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [showConnectPrompt, setShowConnectPrompt] = useState(false);
+	const { ensureYoutubeChannel, openChannelPrompt } = useYoutubeChannel();
 	const [linkAwaitingUser, setLinkAwaitingUser] = useState<string | null>(null);
 
 	// Countdown anchor — null whenever no generation is in flight
@@ -161,14 +163,21 @@ const SubmitButton = () => {
 			spotifyPlaylist.current.value = pendingLink;
 		}
 
+		if (result.guestCredentials) {
+			youtubeGuestCredentialsRef.current = result.guestCredentials;
+			setYoutubeGuestCredentials(result.guestCredentials);
+		}
+
+		if (!result.hasChannel) {
+			openChannelPrompt();
+			return;
+		}
+
 		// signed-in connection: `user` isn't restored yet on mount, so resume once it is
 		if (!result.guestCredentials) {
 			if (pendingLink) setLinkAwaitingUser(pendingLink);
 			return;
 		}
-
-		youtubeGuestCredentialsRef.current = result.guestCredentials;
-		setYoutubeGuestCredentials(result.guestCredentials);
 
 		if (pendingLink) {
 			setLoading(true);
@@ -453,9 +462,16 @@ const SubmitButton = () => {
 		setErrorMessage(null);
 		setErrorMessages({ ...errorMessages, error: null });
 
-		const startedAt = Date.now();
 		setButtonClicked(true);
 		setLoading(true);
+
+		if (provider === 'youtube' && !(await ensureYoutubeChannel())) {
+			setButtonClicked(false);
+			setLoading(false);
+			return;
+		}
+
+		const startedAt = Date.now();
 		setGenerationStartedAt(startedAt);
 		setGenerationArtistName(selectedArtist?.name ?? null);
 
@@ -875,6 +891,11 @@ const SubmitButton = () => {
 					setLoading(false);
 					return;
 				}
+			}
+
+			if (!(await ensureYoutubeChannel())) {
+				setLoading(false);
+				return;
 			}
 		}
 

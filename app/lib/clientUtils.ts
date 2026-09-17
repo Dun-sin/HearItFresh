@@ -48,7 +48,11 @@ export function takePendingPlaylistLink(): string | null {
 }
 
 export type YoutubeConnectRedirectResult =
-	| { status: 'connected'; guestCredentials?: YoutubeGuestCredentials }
+	| {
+			status: 'connected';
+			hasChannel: boolean;
+			guestCredentials?: YoutubeGuestCredentials;
+	  }
 	| { status: 'error' | 'no_refresh'; reason?: string };
 
 
@@ -60,6 +64,7 @@ export function consumeYoutubeConnectRedirect(): YoutubeConnectRedirectResult | 
 	if (!outcome) return null;
 
 	const reason = params.get('reason') ?? undefined;
+	const hasChannel = params.get('channel') !== 'none';
 
 	const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
 	const accessToken = hash.get('at');
@@ -69,6 +74,7 @@ export function consumeYoutubeConnectRedirect(): YoutubeConnectRedirectResult | 
 	const url = new URL(window.location.href);
 	url.searchParams.delete('youtube');
 	url.searchParams.delete('reason');
+	url.searchParams.delete('channel');
 	url.hash = '';
 	window.history.replaceState({}, '', url.toString());
 
@@ -79,8 +85,9 @@ export function consumeYoutubeConnectRedirect(): YoutubeConnectRedirectResult | 
 	if (accessToken && refreshToken && expiresAt) {
 		return {
 			status: 'connected',
+			hasChannel,
 			guestCredentials: { accessToken, refreshToken, expiresAt },
 		};
 	}
-	return { status: 'connected' };
+	return { status: 'connected', hasChannel };
 }

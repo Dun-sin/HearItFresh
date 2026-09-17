@@ -17,6 +17,7 @@ import { useInput } from '../context/inputContext';
 import { useLoading } from '../context/loadingContext';
 import { useOptions } from '../context/optionsContext';
 import { useSeedSongs } from '../context/seedSongsContext';
+import { useYoutubeChannel } from '../context/youtubeChannelContext';
 
 const toSongDetails = (seeds: SeedTrackHistory[]): playlistSongDetails[] =>
 	seeds
@@ -43,6 +44,7 @@ const useReuseSeeds = () => {
 	const { spotifyPlaylist } = useInput();
 	const { setExtractedSongs, setExtractedArtists, selectSeeds } =
 		useSeedSongs();
+	const { ensureYoutubeChannel } = useYoutubeChannel();
 
 	const loadedPlaylistRef = useRef<
 		| ({ playlistId: string; provider: ProviderName } & ReturnType<
@@ -97,6 +99,8 @@ const useReuseSeeds = () => {
 
 		const seedSongs = toSongDetails(seeds);
 		if (seedSongs.length === 0) return;
+
+		if (provider === 'youtube' && !(await ensureYoutubeChannel())) return;
 
 		if (spotifyPlaylist.current) {
 			spotifyPlaylist.current.value =

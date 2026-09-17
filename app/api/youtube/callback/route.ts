@@ -4,6 +4,7 @@ import {
 	upsertYoutubeConnection,
 	verifyYoutubeState,
 } from '@/app/lib/providers/youtube/auth';
+import { hasYoutubeChannel } from '@/app/lib/providers/youtube/client';
 import { encrypt } from '@/app/lib/utils';
 
 function fail(origin: string, status: 'error' | 'no_refresh', reason: string) {
@@ -63,6 +64,10 @@ export async function GET(req: Request) {
 		}
 
 		const expiresAt = new Date(Date.now() + (expires_in ?? 3600) * 1000);
+		const hasChannel = await hasYoutubeChannel(access_token).catch(() => true);
+		const connectedQuery = hasChannel
+			? 'youtube=connected'
+			: 'youtube=connected&channel=none';
 
 		if (stateResult.userId) {
 			await upsertYoutubeConnection({
@@ -72,7 +77,7 @@ export async function GET(req: Request) {
 				expiresAt,
 				scope,
 			});
-			return NextResponse.redirect(`${origin}/?youtube=connected`);
+			return NextResponse.redirect(`${origin}/?${connectedQuery}`);
 		}
 
 		const fragment = new URLSearchParams({
@@ -80,7 +85,9 @@ export async function GET(req: Request) {
 			rt: encrypt(refresh_token),
 			exp: expiresAt.toISOString(),
 		});
-		return NextResponse.redirect(`${origin}/?youtube=connected#${fragment.toString()}`);
+		return NextResponse.redirect(
+			`${origin}/?${connectedQuery}#${fragment.toString()}`,
+		);
 	} catch (error: any) {
 		const googleErrorBody = error?.response?.data;
 		console.error('YouTube token exchange failed:', googleErrorBody || error);

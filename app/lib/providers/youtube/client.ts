@@ -22,6 +22,20 @@ const buildQuery = (params: Record<string, string>) => {
 	return usp.toString();
 };
 
+export async function hasYoutubeChannel(accessToken: string): Promise<boolean> {
+	try {
+		const res = await axios.get(
+			`${YOUTUBE_API}/channels?${buildQuery({ part: 'id', mine: 'true' })}`,
+			{ headers: authHeader(accessToken) },
+		);
+		return (res.data?.items?.length ?? 0) > 0;
+	} catch (err: any) {
+		const reason = err?.response?.data?.error?.errors?.[0]?.reason;
+		if (reason === 'youtubeSignupRequired') return false;
+		throw err;
+	}
+}
+
 export type YoutubePlaylistCreated = {
 	id: string;
 	name: string;
