@@ -1,3 +1,10 @@
+# [1.45.0](https://github.com/Dun-sin/HearItFresh/compare/v1.44.0...v1.45.0) (2026-09-17)
+
+
+### Features
+
+* **youtube:** implement YouTube channel verification and prompt ([5b0b4f5](https://github.com/Dun-sin/HearItFresh/commit/5b0b4f5cb212e01ab21c1dcb373faef0b9c68573))
+
 # [1.44.0](https://github.com/Dun-sin/HearItFresh/compare/v1.43.0...v1.44.0) (2026-09-16)
 
 
