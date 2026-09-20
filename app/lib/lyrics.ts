@@ -129,6 +129,7 @@ export async function embedSong(
 	spotifyTrack: SpotifyTrack,
 	existing?: Song,
 	signal?: AbortSignal,
+	classifyThemes = true,
 ): Promise<(Song & { embeddingData?: number[] | null }) | null> {
 	const results = await getLyrics(
 		spotifyTrack.artist,
@@ -155,10 +156,12 @@ export async function embedSong(
 
 	const [embeddingData, answers] = await Promise.all([
 		getEmbedding(lyrics, signal),
-		classifySongThemes(
-			{ title: spotifyTrack.title, artist: spotifyTrack.artist, lyrics },
-			signal,
-		),
+		classifyThemes
+			? classifySongThemes(
+					{ title: spotifyTrack.title, artist: spotifyTrack.artist, lyrics },
+					signal,
+				)
+			: null,
 	]);
 	if (signal?.aborted) throw new Error('Aborted');
 

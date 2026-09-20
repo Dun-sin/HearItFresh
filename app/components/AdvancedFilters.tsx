@@ -10,9 +10,22 @@ import {
 	type ThemeSlug,
 } from '@/app/lib/themes/slugs';
 
-const FILTER_STATES: { value: ThemeFilterState; label: string }[] = [
-	{ value: 'yes', label: 'Yes' },
-	{ value: 'no', label: 'No' },
+const FILTER_STATES: {
+	value: ThemeFilterState;
+	label: string;
+	title: string;
+}[] = [
+	{ value: 'yes', label: 'Yes', title: 'Fine to include' },
+	{
+		value: 'no',
+		label: 'No',
+		title: 'Skip, unless the song is also about something you said yes to',
+	},
+	{
+		value: 'hard_no',
+		label: 'Never',
+		title: 'Always skip, even if the song has other themes you want',
+	},
 ];
 
 const Chevron = ({ open }: { open: boolean }) => (
@@ -77,12 +90,15 @@ const ThemeToggle = ({ theme }: { theme: ThemeSlug }) => {
 
 			<fieldset className='flex shrink-0 rounded overflow-hidden border-2 border-brand'>
 				<legend className='sr-only'>Include {THEME_LABELS[theme]} songs</legend>
-				{FILTER_STATES.map(({ value, label }) => (
+				{FILTER_STATES.map(({ value, label, title }) => (
 					<label
 						key={value}
+						title={title}
 						className={`cursor-pointer select-none px-2 py-0.5 text-fxs transition-colors ${
 							current === value
-								? 'bg-brand text-lightest'
+								? value === 'hard_no'
+									? 'bg-red-600 text-lightest'
+									: 'bg-brand text-lightest'
 								: 'text-brand hover:bg-brand hover:bg-opacity-10'
 						}`}>
 						<input
@@ -123,7 +139,8 @@ const AdvancedFilters = () => {
 		<Collapsible title='Advanced filters' count={excludedCount}>
 			<div className='flex flex-col gap-3 pl-5'>
 				<p className='text-fxs text-gray'>
-					Pick No to keep songs with that theme out of your playlist.
+					No skips the theme, but a song still gets in if it&apos;s also about
+					something you said yes to. Never always wins.
 				</p>
 
 				<Collapsible

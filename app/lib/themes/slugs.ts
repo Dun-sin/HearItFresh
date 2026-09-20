@@ -29,7 +29,7 @@ export const THEME_SLUGS = [
 
 export type ThemeSlug = (typeof THEME_SLUGS)[number];
 
-export type ThemeFilterState = 'yes' | 'no';
+export type ThemeFilterState = 'yes' | 'no' | 'hard_no';
 
 export type ThemeFilters = Partial<Record<ThemeSlug, ThemeFilterState>>;
 

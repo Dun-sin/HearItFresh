@@ -1,25 +1,33 @@
-import type { ThemeFilters, ThemeSlug } from './slugs';
+import type { ThemeFilterState, ThemeFilters, ThemeSlug } from './slugs';
 
-function excludedSlugs(filters: ThemeFilters): ThemeSlug[] {
-	return Object.entries(filters)
-		.filter(([, state]) => state === 'no')
-		.map(([slug]) => slug as ThemeSlug);
+function slugsMarked(
+	filters: ThemeFilters,
+	state: ThemeFilterState,
+): Set<ThemeSlug> {
+	return new Set(
+		Object.entries(filters)
+			.filter(([, value]) => value === state)
+			.map(([slug]) => slug as ThemeSlug),
+	);
 }
 
 export function hasActiveThemeFilter(filters?: ThemeFilters): boolean {
 	if (!filters) return false;
-	return Object.values(filters).some((state) => state === 'no');
+	return Object.values(filters).some((state) => state !== 'yes');
 }
 
 export function passesThemeFilter(
 	themes: readonly string[] | null | undefined,
 	filters?: ThemeFilters,
 ): boolean {
-	if (!filters) return true;
+	if (!filters || !hasActiveThemeFilter(filters)) return true;
 
-	const excluded = excludedSlugs(filters);
-	if (excluded.length === 0) return true;
+	const songThemes = themes ?? [];
+	if (songThemes.length === 0) return true;
 
-	const songThemes = new Set(themes ?? []);
-	return !excluded.some((slug) => songThemes.has(slug));
+	const banned = slugsMarked(filters, 'hard_no');
+	if (songThemes.some((theme) => banned.has(theme as ThemeSlug))) return false;
+
+	const unwanted = slugsMarked(filters, 'no');
+	return songThemes.some((theme) => !unwanted.has(theme as ThemeSlug));
 }

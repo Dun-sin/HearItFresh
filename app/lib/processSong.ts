@@ -89,6 +89,7 @@ async function getEmbeddingProd(
 export async function processSong(
 	spotifyTrack: SpotifyTrack,
 	signal?: AbortSignal,
+	{ classifyThemes = true }: { classifyThemes?: boolean } = {},
 ): Promise<(Song & { embeddingData?: number[] | null }) | null> {
 	if (signal?.aborted) throw new Error('Aborted');
 	const existing = await getSong(
@@ -116,7 +117,9 @@ export async function processSong(
 
 		let themes: string[] = existing.themes ?? [];
 
-		const pendingSync = describeSync(planSync(existing));
+		const pendingSync = classifyThemes
+			? describeSync(planSync(existing))
+			: null;
 		if (pendingSync) {
 			if (signal?.aborted) throw new Error('Aborted');
 			console.log(`Themes for ${existing.title}: ${pendingSync}`);
@@ -126,7 +129,12 @@ export async function processSong(
 
 		if (!existing.isComplete) {
 			try {
-				const refreshed = await embedSong(spotifyTrack, existing, signal);
+				const refreshed = await embedSong(
+					spotifyTrack,
+					existing,
+					signal,
+					classifyThemes,
+				);
 				if (refreshed) return refreshed;
 			} catch (err: any) {
 				if (signal?.aborted) throw new Error('Aborted');
@@ -139,7 +147,12 @@ export async function processSong(
 		return { ...existing, themes, embeddingData };
 	}
 
-	const song = await embedSong(spotifyTrack, undefined, signal);
+	const song = await embedSong(
+		spotifyTrack,
+		undefined,
+		signal,
+		classifyThemes,
+	);
 
 	return song;
 }
