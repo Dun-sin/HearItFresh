@@ -11,6 +11,9 @@ import {
 } from '../utils';
 import { YOUTUBE_QUOTA_EXHAUSTED_ERROR } from '../helpers';
 import { getProvider } from '../providers';
+import { hasActiveThemeFilter, passesThemeFilter } from '../themes/filter';
+import { syncSongThemes } from '../themes/persist';
+import type { ThemeFilters } from '../themes/slugs';
 import type {
 	ProviderAuthCtx,
 	ProviderName,
@@ -21,6 +24,7 @@ import pLimit from 'p-limit';
 import { processSong } from '../processSong';
 
 const THRESHOLD = 0.8;
+const CLASSIFY_CONCURRENCY = 4;
 export const CUTOFF = 0.55;
 const HIT_BONUS = 0.02;
 export const PLAYLIST_SIZE = 100;
@@ -50,6 +54,10 @@ export type ScoredCandidate = CandidateTrack & Score;
 export type RankedRef = ProviderTrackRef & Score;
 
 export type ResolvedRefs = { refs: RankedRef[]; quotaExhausted: boolean };
+
+type ProcessedSong = NonNullable<Awaited<ReturnType<typeof processSong>>>;
+
+type ScoredWithSong = ScoredCandidate & { song: ProcessedSong };
 
 export function createAbortGuard(signal?: AbortSignal) {
 	return () => {
@@ -153,7 +161,10 @@ export async function scoreTracks(
 	seedEmbeddings: number[][],
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
+	themeFilters?: ThemeFilters,
 ): Promise<ScoredCandidate[]> {
+	const filtering = hasActiveThemeFilter(themeFilters);
+
 	const scoredTracks = await Promise.all(
 		newTracks.map((track) =>
 			pLimitInstance(async () => {
@@ -173,6 +184,7 @@ export async function scoreTracks(
 							provider: 'spotify',
 						},
 						signal,
+						{ classifyThemes: false },
 					);
 					if (signal?.aborted) return null;
 					const emb = processed?.embeddingData;
@@ -185,7 +197,7 @@ export async function scoreTracks(
 						return null;
 					}
 
-					return { ...track, ...scored };
+					return { ...track, ...scored, song: processed };
 				} catch (e) {
 					console.error(
 						`✗ Error processing "${track.name}": ${formatApiError(e)}`,
@@ -196,15 +208,50 @@ export async function scoreTracks(
 		),
 	);
 
-	const validScored = scoredTracks.filter(
-		(t): t is ScoredCandidate => t !== null,
+	const survivors = scoredTracks.filter(
+		(t): t is ScoredWithSong => t !== null,
 	);
 
+	const kept = filtering
+		? await keepMatchingThemes(survivors, themeFilters, signal)
+		: survivors;
+
+	const droppedOnThemes = survivors.length - kept.length;
 	console.log(
-		`[Scoring Summary] ${validScored.length}/${newTracks.length} tracks passed cutoff`,
+		`[Scoring Summary] ${survivors.length}/${newTracks.length} tracks passed cutoff` +
+			(filtering ? ` (${droppedOnThemes} dropped on themes)` : ''),
 	);
 
-	return validScored.sort(byRankDesc);
+	return kept
+		.map(({ song, ...candidate }) => candidate)
+		.sort(byRankDesc);
+}
+
+/**
+ * Themes are resolved only for tracks that already cleared the cutoff, in their
+ * own pool — classifying inside the track pool would hold a track slot open for
+ * a second network hop and throttle everything behind it.
+ */
+async function keepMatchingThemes(
+	survivors: ScoredWithSong[],
+	themeFilters: ThemeFilters | undefined,
+	signal?: AbortSignal,
+): Promise<ScoredWithSong[]> {
+	const limit = pLimit(CLASSIFY_CONCURRENCY);
+
+	const checked = await Promise.all(
+		survivors.map((candidate) =>
+			limit(async () => {
+				const { song } = candidate;
+				const themes =
+					(await syncSongThemes(song, signal)) ?? song.themes ?? [];
+
+				return passesThemeFilter(themes, themeFilters) ? candidate : null;
+			}),
+		),
+	);
+
+	return checked.filter((c): c is ScoredWithSong => c !== null);
 }
 
 export async function resolveSpotifyTracksToRefs(

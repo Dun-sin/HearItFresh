@@ -78,6 +78,7 @@ const SubmitButton = () => {
 		isDifferentTypesOfArtists,
 		selectedArtist,
 		setSelectedArtist,
+		themeFilters,
 	} = useOptions();
 
 	const {
@@ -491,6 +492,7 @@ const SubmitButton = () => {
 					options: {
 						isNotPopular: isNotPopularArtists,
 						isDifferent: isDifferentTypesOfArtists,
+						themeFilters,
 					},
 					artistId: selectedArtist?.id,
 					artistName: selectedArtist?.name,
@@ -551,6 +553,7 @@ const SubmitButton = () => {
 						options: {
 							isNotPopular: isNotPopularArtists,
 							isDifferent: isDifferentTypesOfArtists,
+							themeFilters,
 						},
 						artistId: selectedArtist?.id,
 						artistName: selectedArtist?.name,

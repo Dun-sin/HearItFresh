@@ -5,6 +5,8 @@ import {
 } from '../db';
 import { DB_SIMILAR_SONGS_LIMIT } from '../utils';
 import type { ProviderName } from '../providers/types';
+import { passesThemeFilter } from '../themes/filter';
+import type { ThemeFilters } from '../themes/slugs';
 import { CUTOFF, parseEmbedding, scoreAgainstSeeds, type RankedRef } from './shared';
 
 export type DbMatch = RankedRef & { title: string; artist: string };
@@ -13,11 +15,14 @@ function scoreDbMatches(
 	dbSimilar: any[],
 	seedEmbeddings: number[][],
 	provider: ProviderName,
+	themeFilters?: ThemeFilters,
 ): DbMatch[] {
 	return dbSimilar
 		.map((song: any) => {
 			const emb = parseEmbedding(song.embedding);
 			if (!emb) return null;
+
+			if (!passesThemeFilter(song.themes, themeFilters)) return null;
 
 			const scored = scoreAgainstSeeds(emb, seedEmbeddings);
 			if (scored.maxScore < CUTOFF) return null;
@@ -38,6 +43,7 @@ export async function findDbMatches(
 	seedIds: string[],
 	userId: string | undefined,
 	provider: ProviderName,
+	themeFilters?: ThemeFilters,
 ): Promise<DbMatch[]> {
 	let previouslyGeneratedIds: string[] = [];
 	if (userId) {
@@ -61,5 +67,5 @@ export async function findDbMatches(
 		provider,
 	);
 
-	return scoreDbMatches(dbSimilar, seedEmbeddings, provider);
+	return scoreDbMatches(dbSimilar, seedEmbeddings, provider, themeFilters);
 }

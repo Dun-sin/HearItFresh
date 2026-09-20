@@ -327,7 +327,7 @@ export async function getSong(
 	const row = await prisma.$queryRawUnsafe<
 		Array<Song & { embedding: string | number[] | null }>
 	>(
-		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId"
+		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion"
      FROM "Song"
      WHERE "${col}" = $1
      LIMIT 1`,
@@ -420,6 +420,35 @@ export async function updateSong(songId: string, lyrics: string) {
 	return updated;
 }
 
+export async function setSongThemes(
+	songId: string,
+	themes: string[],
+	raw: unknown,
+	questionVersions: Record<string, string>,
+	deriveVersion: number,
+) {
+	return await prisma.song.update({
+		where: { id: songId },
+		data: {
+			themes,
+			themesRaw: raw as any,
+			themesQuestionVersions: questionVersions as any,
+			themesDeriveVersion: deriveVersion,
+		},
+	});
+}
+
+export async function setDerivedThemes(
+	songId: string,
+	themes: string[],
+	deriveVersion: number,
+) {
+	return await prisma.song.update({
+		where: { id: songId },
+		data: { themes, themesDeriveVersion: deriveVersion },
+	});
+}
+
 export async function addEmbeddingToSong(songId: string, embedding: number[]) {
 	return await prisma.$queryRawUnsafe(
 		`UPDATE "Song" SET embedding = $1::vector WHERE id = $2 RETURNING id`,
@@ -450,6 +479,7 @@ export async function findSimilarSongs(
 	return await prisma.$queryRawUnsafe(
 		`
     SELECT id, title, artist, album, "${col}" AS "externalId",
+           themes,
            embedding::text AS embedding,
            embedding <=> $1::vector AS distance
     FROM "Song"

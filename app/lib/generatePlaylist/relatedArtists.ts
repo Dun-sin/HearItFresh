@@ -5,6 +5,7 @@ import {
 	relatedArists,
 	artistNameOf,
 } from '../helpers';
+import type { GenerationOptions } from '@/app/types';
 import type { ProviderAuthCtx, ProviderName } from '../providers/types';
 
 import pLimit from 'p-limit';
@@ -34,7 +35,7 @@ export async function expandWithRelatedArtists({
 }: {
 	seeds: SeedInput[];
 	artistNames: string[];
-	options: { isNotPopular: boolean; isDifferent: boolean };
+	options: GenerationOptions;
 	seedEmbeddings: number[][];
 	existing: DbMatch[];
 	provider: ProviderName;
@@ -104,6 +105,7 @@ export async function expandWithRelatedArtists({
 				seedEmbeddings,
 				pLimitInstance,
 				signal,
+				options?.themeFilters,
 			);
 			throwIfAborted();
 

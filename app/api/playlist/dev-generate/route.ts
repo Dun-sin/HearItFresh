@@ -27,6 +27,7 @@ export async function POST(req: Request) {
 				resolvedProvider,
 				req.signal,
 				youtubeGuestCredentials,
+				options?.themeFilters,
 			)
 		: await generateSeedPlaylist(
 				seeds,
