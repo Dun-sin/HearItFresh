@@ -11,6 +11,8 @@ import {
 } from '../utils';
 import { YOUTUBE_QUOTA_EXHAUSTED_ERROR } from '../helpers';
 import { getProvider } from '../providers';
+import { passesThemeFilter } from '../themes/filter';
+import type { ThemeFilters } from '../themes/slugs';
 import type {
 	ProviderAuthCtx,
 	ProviderName,
@@ -153,7 +155,10 @@ export async function scoreTracks(
 	seedEmbeddings: number[][],
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
+	themeFilters?: ThemeFilters,
 ): Promise<ScoredCandidate[]> {
+	let droppedOnThemes = 0;
+
 	const scoredTracks = await Promise.all(
 		newTracks.map((track) =>
 			pLimitInstance(async () => {
@@ -180,6 +185,11 @@ export async function scoreTracks(
 						return null;
 					}
 
+					if (!passesThemeFilter(processed?.themes, themeFilters)) {
+						droppedOnThemes++;
+						return null;
+					}
+
 					const scored = scoreAgainstSeeds(emb, seedEmbeddings);
 					if (scored.maxScore < CUTOFF) {
 						return null;
@@ -201,7 +211,8 @@ export async function scoreTracks(
 	);
 
 	console.log(
-		`[Scoring Summary] ${validScored.length}/${newTracks.length} tracks passed cutoff`,
+		`[Scoring Summary] ${validScored.length}/${newTracks.length} tracks passed cutoff` +
+			(droppedOnThemes > 0 ? ` (${droppedOnThemes} dropped on themes)` : ''),
 	);
 
 	return validScored.sort(byRankDesc);

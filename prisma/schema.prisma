@@ -36,6 +36,12 @@ model Song {
   createdAt DateTime               @default(now())
   spotifyId String?                @unique
   youtubeId String?                @unique
+  themes                 String[]
+  themesRaw              Json?
+  themesQuestionVersions Json?
+  themesDeriveVersion    Int?
+
+  @@index([themes], type: Gin)
 }
 
 model GeneratedPlaylist {

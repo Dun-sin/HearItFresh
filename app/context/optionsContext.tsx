@@ -1,6 +1,11 @@
 'use client';
 
 import React, { ReactNode, createContext, useContext, useState } from 'react';
+import type {
+	ThemeFilterState,
+	ThemeFilters,
+	ThemeSlug,
+} from '@/app/lib/themes/slugs';
 
 export interface SelectedArtist {
 	id: string;
@@ -17,6 +22,9 @@ interface OptionsContextProps {
 	setIsNotPopularArtists: (value: boolean) => void;
 	selectedArtist: SelectedArtist | null;
 	setSelectedArtist: (artist: SelectedArtist | null) => void;
+	themeFilters: ThemeFilters;
+	setThemeFilter: (theme: ThemeSlug, state: ThemeFilterState) => void;
+	resetThemeFilters: () => void;
 }
 
 const OptionsContext = createContext<OptionsContextProps | undefined>(
@@ -31,6 +39,20 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 	const [selectedArtist, setSelectedArtist] = useState<SelectedArtist | null>(
 		null,
 	);
+	const [themeFilters, setThemeFilters] = useState<ThemeFilters>({});
+
+	const setThemeFilter = (theme: ThemeSlug, state: ThemeFilterState) =>
+		setThemeFilters((current) => {
+			const next = { ...current };
+			if (state === 'yes') {
+				delete next[theme];
+			} else {
+				next[theme] = state;
+			}
+			return next;
+		});
+
+	const resetThemeFilters = () => setThemeFilters({});
 
 	return (
 		<OptionsContext.Provider
@@ -41,6 +63,9 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 				setIsNotPopularArtists,
 				selectedArtist,
 				setSelectedArtist,
+				themeFilters,
+				setThemeFilter,
+				resetThemeFilters,
 			}}>
 			{children}
 		</OptionsContext.Provider>

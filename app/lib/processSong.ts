@@ -1,9 +1,11 @@
 import axios from 'axios';
-import { addEmbeddingToSong, addSong, getSong, updateSong } from './db';
+import { addEmbeddingToSong, getSong } from './db';
 import { Song } from '../generated/prisma';
 import { SpotifyTrack } from '../types';
 import { getCentroid } from './utils';
 import { embedSong } from './lyrics';
+import { syncSongThemes } from './themes/persist';
+import { describeSync, planSync } from './themes/versions';
 
 const MAX_TOKENS = 256;
 
@@ -89,7 +91,10 @@ export async function processSong(
 	signal?: AbortSignal,
 ): Promise<(Song & { embeddingData?: number[] | null }) | null> {
 	if (signal?.aborted) throw new Error('Aborted');
-	const existing = await getSong(spotifyTrack.id, spotifyTrack.provider ?? 'spotify');
+	const existing = await getSong(
+		spotifyTrack.id,
+		spotifyTrack.provider ?? 'spotify',
+	);
 
 	if (existing) {
 		const embeddingData =
@@ -109,6 +114,16 @@ export async function processSong(
 			await addEmbeddingToSong(existing.id, embedding);
 		}
 
+		let themes: string[] = existing.themes ?? [];
+
+		const pendingSync = describeSync(planSync(existing));
+		if (pendingSync) {
+			if (signal?.aborted) throw new Error('Aborted');
+			console.log(`Themes for ${existing.title}: ${pendingSync}`);
+			const synced = await syncSongThemes(existing, signal);
+			if (synced) themes = synced;
+		}
+
 		if (!existing.isComplete) {
 			try {
 				const refreshed = await embedSong(spotifyTrack, existing, signal);
@@ -121,7 +136,7 @@ export async function processSong(
 				);
 			}
 		}
-		return { ...existing, embeddingData };
+		return { ...existing, themes, embeddingData };
 	}
 
 	const song = await embedSong(spotifyTrack, undefined, signal);

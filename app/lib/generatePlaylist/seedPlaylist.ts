@@ -1,6 +1,7 @@
 'use server';
 
 import { formatApiError } from '../utils';
+import type { GenerationOptions } from '@/app/types';
 import type { ProviderAuthCtx, ProviderName } from '../providers/types';
 import { setAccessToken } from '../spotifyApi';
 import { getDummyAccessToken } from '../spotify-dummy-auth';
@@ -18,7 +19,7 @@ import { expandWithRelatedArtists } from './relatedArtists';
 export async function generateSeedPlaylist(
 	seeds: SeedInput[],
 	artistNames: string[],
-	options: { isNotPopular: boolean; isDifferent: boolean },
+	options: GenerationOptions,
 	userId?: string,
 	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
@@ -44,6 +45,7 @@ export async function generateSeedPlaylist(
 			seeds.map((s) => s.id),
 			userId,
 			provider,
+			options?.themeFilters,
 		);
 		throwIfAborted();
 

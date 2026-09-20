@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useOptions } from '@/app/context/optionsContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
 import ArtistSearchInput from './ArtistSearchInput';
+import AdvancedFilters from './AdvancedFilters';
 
 const Options = () => {
 	const {
@@ -118,6 +119,10 @@ const Options = () => {
 					<ArtistSearchInput />
 				</div>
 			)}
+
+			<div className='pl-4'>
+				<AdvancedFilters />
+			</div>
 		</div>
 	);
 };

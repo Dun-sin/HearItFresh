@@ -3,6 +3,7 @@
 import { formatApiError } from '../utils';
 import { getProvider } from '../providers';
 import type { ProviderAuthCtx, ProviderName } from '../providers/types';
+import type { ThemeFilters } from '../themes/slugs';
 
 import pLimit from 'p-limit';
 import { setAccessToken } from '../spotifyApi';
@@ -34,6 +35,7 @@ export async function generateArtistPlaylist(
 	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
 	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
+	themeFilters?: ThemeFilters,
 ): Promise<GenerationResult> {
 	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = createAbortGuard(signal);
@@ -91,6 +93,7 @@ export async function generateArtistPlaylist(
 			seedEmbeddings,
 			pLimitInstance,
 			signal,
+			themeFilters,
 		);
 		throwIfAborted();
 

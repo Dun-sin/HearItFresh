@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { Song } from '../generated/prisma';
 import { LRCLibResult, SpotifyTrack } from '../types';
-import { addEmbeddingToSong, addSong, updateSong } from './db';
+import { addEmbeddingToSong, addSong, setSongThemes, updateSong } from './db';
 import { getEmbedding } from './processSong';
+import { classifySongThemes } from './themes/classify';
+import { deriveThemes, DERIVE_VERSION } from './themes/derive';
+import { QUESTION_VERSIONS } from './themes/questions';
 import { cleanMusicMetadata, isLRCLibResult } from './utils';
 
 function cleanLyrics(raw: string): string | null {
@@ -150,7 +153,13 @@ export async function embedSong(
 
 	if (signal?.aborted) throw new Error('Aborted');
 
-	const embeddingData = await getEmbedding(lyrics, signal);
+	const [embeddingData, answers] = await Promise.all([
+		getEmbedding(lyrics, signal),
+		classifySongThemes(
+			{ title: spotifyTrack.title, artist: spotifyTrack.artist, lyrics },
+			signal,
+		),
+	]);
 	if (signal?.aborted) throw new Error('Aborted');
 
 	let song;
@@ -162,5 +171,16 @@ export async function embedSong(
 	}
 	await addEmbeddingToSong(song.id, embeddingData);
 
-	return { ...song, embeddingData };
+	const themes = deriveThemes(answers);
+	if (answers) {
+		await setSongThemes(
+			song.id,
+			themes,
+			answers,
+			QUESTION_VERSIONS,
+			DERIVE_VERSION,
+		);
+	}
+
+	return { ...song, themes, embeddingData };
 }

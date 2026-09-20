@@ -1,5 +1,18 @@
 import { Song } from './generated/prisma';
 import type { ProviderName } from './lib/providers/types';
+import type { ThemeFilters } from './lib/themes/slugs';
+
+export type {
+	ThemeSlug,
+	ThemeFilterState,
+	ThemeFilters,
+} from './lib/themes/slugs';
+
+export type GenerationOptions = {
+	isNotPopular: boolean;
+	isDifferent: boolean;
+	themeFilters?: ThemeFilters;
+};
 
 export type singleTrack = {
 	name: string;
