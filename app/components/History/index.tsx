@@ -88,13 +88,10 @@ const History = () => {
 		if (!userId) return;
 
 		while (true) {
-			const response = await fetch('/api/playlist/reconcile', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ userId, generatedPlaylistId: retryId }),
+			const { data } = await axios.post('/api/playlist/reconcile', {
+				userId,
+				generatedPlaylistId: retryId,
 			});
-
-			const data = await response.json();
 			const currentStatus = data.status ?? data.active?.status;
 			const waitCondition =
 				(!currentStatus && !data.updated?.length) ||
@@ -161,5 +158,3 @@ const History = () => {
 };
 
 export default History;
-// TODO: use axios instead of fetch for consistency and error handling.
-// TODO: keep the loading message consistent with all other loading messages in the app.

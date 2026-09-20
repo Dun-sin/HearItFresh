@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { useOptions } from '@/app/context/optionsContext';
 
 type ArtistResult = {
@@ -29,10 +30,9 @@ const ArtistSearchInput = () => {
 		setLoading(true);
 		const handler = setTimeout(async () => {
 			try {
-				const res = await fetch(
-					`/api/artists/search?q=${encodeURIComponent(query)}`,
-				);
-				const data = await res.json();
+				const { data } = await axios.get('/api/artists/search', {
+					params: { q: query },
+				});
 				setResults(data.artists ?? []);
 			} catch {
 				setResults([]);

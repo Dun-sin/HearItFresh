@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
 
 import { useAuth } from '@/app/context/authContext';
 import { consumeYoutubeConnectRedirect } from '@/app/lib/clientUtils';
@@ -26,8 +27,7 @@ const ConnectYoutube = () => {
 			return;
 		}
 		try {
-			const res = await fetch(`/api/youtube/status?userId=${encodeURIComponent(userId)}`);
-			const data = await res.json();
+			const { data } = await axios.get('/api/youtube/status', { params: { userId } });
 			setStatus({ connected: Boolean(data.connected), scope: data.scope, expiresAt: data.expiresAt });
 		} catch {
 			setStatus({ connected: false });
@@ -65,15 +65,12 @@ const ConnectYoutube = () => {
 		setLoading(true);
 		setError(null);
 		try {
-			await fetch('/api/youtube/disconnect', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(
-					userId
-						? { userId }
-						: { guestRefreshToken: youtubeGuestCredentials?.refreshToken },
-				),
-			});
+			await axios.post(
+				'/api/youtube/disconnect',
+				userId
+					? { userId }
+					: { guestRefreshToken: youtubeGuestCredentials?.refreshToken },
+			);
 			if (!userId) setYoutubeGuestCredentials(null);
 			setStatus({ connected: false });
 		} catch {

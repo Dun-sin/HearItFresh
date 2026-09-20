@@ -6,6 +6,7 @@ import React, {
 	useMemo,
 	useState,
 } from 'react';
+import axios from 'axios';
 import { extractYoutubePlaylistId, getPlaylistTracks } from '../lib/helpers';
 import { loadingType, playlistSongDetails } from '../types';
 
@@ -138,10 +139,8 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 
 	const saveTracks = useCallback(async () => {
 		setLoading({ isLoading: true, message: 'Deleting Tracks....' });
-		await fetch('/api/playlist/remove-tracks', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
+		try {
+			await axios.post('/api/playlist/remove-tracks', {
 				provider,
 				playlistId: link,
 				trackIds: tracksToRemove,
@@ -150,8 +149,10 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 					!user?.user_id && provider === 'youtube'
 						? youtubeGuestCredentials
 						: undefined,
-			}),
-		});
+			});
+		} catch (err) {
+			console.error('Failed to remove playlist tracks:', err);
+		}
 
 		await getTracks();
 		setLoading({ isLoading: false, message: null });

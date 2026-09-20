@@ -11,6 +11,7 @@ import {
 } from '@/app/lib/helpers';
 
 import React, { useRef, useState, useEffect } from 'react';
+import axios from 'axios';
 import SubmitButtionContainer from './SubmitButtonContainer';
 import ConnectYoutubePrompt from './ConnectYoutubePrompt';
 import {
@@ -260,13 +261,7 @@ const SubmitButton = () => {
 		const userId = user.user_id;
 
 		async function checkPendingGeneration() {
-			const response = await fetch('/api/playlist/reconcile', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ userId }),
-			});
-
-			const data = await response.json();
+			const { data } = await axios.post('/api/playlist/reconcile', { userId });
 
 			if (data.active?.generatedPlaylistId) {
 				await pollPendingGeneration(data.active.generatedPlaylistId);
@@ -287,7 +282,9 @@ const SubmitButton = () => {
 			}
 		}
 
-		checkPendingGeneration();
+		checkPendingGeneration().catch((err) =>
+			console.error('[checkPendingGeneration] Error:', err),
+		);
 	}, [user?.user_id]);
 
 	// Guests have no history, so their last result is restored from the stored
@@ -321,10 +318,7 @@ const SubmitButton = () => {
 			else if (record.eventId) params.set('eventId', record.eventId);
 
 			try {
-				const res = await fetch(`/api/playlist/status?${params.toString()}`);
-				if (!res.ok) return;
-
-				const data = await res.json();
+				const { data } = await axios.get('/api/playlist/status', { params });
 
 				if (
 					data.status === 'Completed' &&
@@ -358,31 +352,34 @@ const SubmitButton = () => {
 	const refreshHistory = async () => {
 		if (!user?.user_id) return;
 
-		const response = await fetch(`/api/users/${user.user_id}/history`);
-		const data = await response.json();
-		const history =
-			data.message?.map(
-				({
-					text,
-					lastUsed,
-					kind,
-					sourcePlaylist,
-					generatedPlaylists,
-				}: {
-					text: string;
-					lastUsed: string;
-					kind?: 'artist' | 'playlist';
-					sourcePlaylist?: SourcePlaylist;
-					generatedPlaylists?: any[];
-				}) => ({
-					text,
-					lastUsed: new Date(lastUsed),
-					kind,
-					sourcePlaylist,
-					generatedPlaylists,
-				}),
-			) ?? [];
-		setHistory(history);
+		try {
+			const { data } = await axios.get(`/api/users/${user.user_id}/history`);
+			const history =
+				data.message?.map(
+					({
+						text,
+						lastUsed,
+						kind,
+						sourcePlaylist,
+						generatedPlaylists,
+					}: {
+						text: string;
+						lastUsed: string;
+						kind?: 'artist' | 'playlist';
+						sourcePlaylist?: SourcePlaylist;
+						generatedPlaylists?: any[];
+					}) => ({
+						text,
+						lastUsed: new Date(lastUsed),
+						kind,
+						sourcePlaylist,
+						generatedPlaylists,
+					}),
+				) ?? [];
+			setHistory(history);
+		} catch (err) {
+			console.error('[refreshHistory] Error:', err);
+		}
 	};
 
 	const pollPendingGeneration = async (generatedPlaylistId: string) => {
@@ -392,43 +389,41 @@ const SubmitButton = () => {
 		setButtonClicked(true);
 		setGenerationStartedAt((current) => current ?? Date.now());
 
-		const response = await fetch('/api/playlist/reconcile', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
+		try {
+			const { data } = await axios.post('/api/playlist/reconcile', {
 				userId: user?.user_id ?? '',
 				generatedPlaylistId,
-			}),
-		});
-
-		const data = await response.json();
-
-		const currentStatus = data.status ?? data.active?.status;
-
-		if (
-			currentStatus === 'Running' ||
-			currentStatus === 'Scheduled' ||
-			currentStatus === 'Pending'
-		) {
-			setTimeout(() => pollPendingGeneration(generatedPlaylistId), 10000);
-			return;
-		}
-		const completedPlaylist = data.updated?.find(
-			(item: any) =>
-				item.status === 'Completed' && item.output?.link && item.output?.name,
-		);
-
-		if (completedPlaylist?.output?.link && completedPlaylist?.output?.name) {
-			addToUrl(
-				'link',
-				completedPlaylist.output.link.split('/').at(-1) as string,
-			);
-			setPlayListData({
-				link: completedPlaylist.output.link,
-				name: completedPlaylist.output.name,
-				provider: providerOfLink(completedPlaylist.output.link),
 			});
-			await refreshHistory();
+
+			const currentStatus = data.status ?? data.active?.status;
+
+			if (
+				currentStatus === 'Running' ||
+				currentStatus === 'Scheduled' ||
+				currentStatus === 'Pending'
+			) {
+				setTimeout(() => pollPendingGeneration(generatedPlaylistId), 10000);
+				return;
+			}
+			const completedPlaylist = data.updated?.find(
+				(item: any) =>
+					item.status === 'Completed' && item.output?.link && item.output?.name,
+			);
+
+			if (completedPlaylist?.output?.link && completedPlaylist?.output?.name) {
+				addToUrl(
+					'link',
+					completedPlaylist.output.link.split('/').at(-1) as string,
+				);
+				setPlayListData({
+					link: completedPlaylist.output.link,
+					name: completedPlaylist.output.name,
+					provider: providerOfLink(completedPlaylist.output.link),
+				});
+				await refreshHistory();
+			}
+		} catch (err) {
+			console.error('[pollPendingGeneration] Error:', err);
 		}
 
 		setLoading(false);
@@ -509,12 +504,12 @@ const SubmitButton = () => {
 					sourcePlaylistId,
 					cancellationId: cancellationIdRef.current,
 				};
-				const result = await fetch('/api/playlist/generate', {
-					method: 'POST',
-					body: JSON.stringify(payload),
-				});
+				const { data: generateData } = await axios.post(
+					'/api/playlist/generate',
+					payload,
+				);
 				console.log('[handleSeedPlaylistGeneration] Starting polling...');
-				const { generatedPlaylistId, eventId, mode } = await result.json();
+				const { generatedPlaylistId, eventId, mode } = generateData;
 				console.log(
 					'[handleSeedPlaylistGeneration] Got generatedPlaylistId, starting polling...',
 				);
@@ -548,10 +543,9 @@ const SubmitButton = () => {
 					.substring(2, 15);
 				const currentPlaylistId = activeGeneratedPlaylistIdRef.current;
 
-				const result = await fetch('/api/playlist/dev-generate', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
+				const { data: resultData } = await axios.post(
+					'/api/playlist/dev-generate',
+					{
 						seeds: selectedSongsData,
 						artistNames: extractedArtists,
 						options: {
@@ -562,17 +556,15 @@ const SubmitButton = () => {
 						artistName: selectedArtist?.name,
 						userId: user?.user_id,
 						provider,
-					}),
-					signal: abortControllerRef.current.signal,
-				});
+					},
+					{ signal: abortControllerRef.current.signal },
+				);
 
 				if (
 					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 					abortedRef.current
 				)
 					return;
-
-				const resultData = await result.json();
 
 				if (
 					resultData.error ||
@@ -590,25 +582,23 @@ const SubmitButton = () => {
 				setLoadingMessage(
 					`Creating your new playlist on ${provider === 'youtube' ? 'YouTube Music' : 'Spotify'}...`,
 				);
-				const createRes = await fetch('/api/playlist/dev-create', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
+				const { data: createData } = await axios.post(
+					'/api/playlist/dev-create',
+					{
 						provider,
 						tracks: resultData.tracks,
 						playlistName,
 						description: 'Created by HearItFresh',
 						userId: user?.user_id,
-					}),
-				});
-				const createData = await createRes.json();
+					},
+				);
 				if (
 					activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||
 					abortedRef.current
 				)
 					return;
 
-				if (!createRes.ok || createData.error) {
+				if (createData.error) {
 					throw new Error(createData.error || 'Failed to create playlist');
 				}
 
@@ -662,20 +652,20 @@ const SubmitButton = () => {
 			params.set('eventId', activeEventIdRef.current);
 		}
 
-		const res = await fetch(`/api/playlist/status?${params.toString()}`);
-
-		if (abortedRef.current) return;
-
-		if (!res.ok) {
+		let data: any;
+		try {
+			({ data } = await axios.get('/api/playlist/status', { params }));
+		} catch (err) {
+			if (!axios.isAxiosError(err) || !err.response) throw err;
+			if (abortedRef.current) return;
 			await new Promise((r) => setTimeout(r, 5000));
 			await pollForCompletion(payload, unexpectedRetries + 1);
 			return;
 		}
 
-		let data: any;
-		try {
-			data = await res.json();
-		} catch {
+		if (abortedRef.current) return;
+
+		if (!data || typeof data !== 'object') {
 			if (unexpectedRetries >= MAX_UNEXPECTED_RETRIES) {
 				throw new Error(
 					'Polling stopped after repeatedly receiving an invalid status response',
@@ -781,10 +771,9 @@ const SubmitButton = () => {
 
 		if (cancellationId && inngestStartedRef.current) {
 			try {
-				await fetch('/api/playlist/cancel', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ cancellationId, generatedPlaylistId }),
+				await axios.post('/api/playlist/cancel', {
+					cancellationId,
+					generatedPlaylistId,
 				});
 			} catch (e) {
 				console.warn('[handleCancel] Failed to cancel Inngest run:', e);
@@ -874,11 +863,12 @@ const SubmitButton = () => {
 			const alreadyConnected = hasGuestCredentials
 				? true
 				: user?.user_id
-					? await fetch(
-							`/api/youtube/status?userId=${encodeURIComponent(user.user_id)}`,
-						)
-							.then((r) => r.json())
-							.then((s) => Boolean(s.connected))
+					? await axios
+							.get('/api/youtube/status', {
+								params: { userId: user.user_id },
+							})
+							.then(({ data }) => Boolean(data.connected))
+							.catch(() => false)
 					: false;
 
 			if (!alreadyConnected) {
@@ -992,11 +982,14 @@ const SubmitButton = () => {
 		}
 
 		const userId = user.user_id;
-		await fetch(`/api/users/${userId}/history`, {
-			method: 'PUT',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ artists: text, sourcePlaylist }),
-		});
+		try {
+			await axios.put(`/api/users/${userId}/history`, {
+				artists: text,
+				sourcePlaylist,
+			});
+		} catch (err) {
+			console.error('[addHistoryToDB] Error:', err);
+		}
 
 		await refreshHistory();
 		return { message: 'success', history: [] };

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import {
 	normalizeOutput,
 	normalizeStatus,
@@ -8,6 +9,22 @@ const getInngestV2BaseUrl = () => {
 	return process.env.NODE_ENV === 'production'
 		? 'https://api.inngest.com/v2'
 		: 'http://localhost:8288/api/v2';
+};
+
+const inngestGet = async (url: string, errorMessage: string) => {
+	try {
+		const { data } = await axios.get(url, {
+			headers: {
+				Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
+			},
+		});
+		return data;
+	} catch (err) {
+		if (axios.isAxiosError(err) && err.response) {
+			throw new Error(`${errorMessage}: ${err.response.status}`);
+		}
+		throw err;
+	}
 };
 
 export type InngestRunStatus =
@@ -124,20 +141,10 @@ export const getInngestRunStatus = async (
 ): Promise<InngestRun | null> => {
 	const baseUrl = getInngestV2BaseUrl();
 
-	const response = await fetch(
+	const json = await inngestGet(
 		`${baseUrl}/runs/${runId}/trace?include_output=true`,
-		{
-			headers: {
-				Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
-			},
-		},
+		'Failed to fetch run status',
 	);
-
-	if (!response.ok) {
-		throw new Error(`Failed to fetch run status: ${response.status}`);
-	}
-
-	const json = await response.json();
 	return (json.data as InngestRun) ?? null;
 };
 
@@ -146,20 +153,10 @@ export const getInngestEventRuns = async (
 ): Promise<InngestRun[]> => {
 	const baseUrl = getInngestV2BaseUrl();
 
-	const response = await fetch(
+	const json = await inngestGet(
 		`${baseUrl}/events/${eventId}/runs?includeOutput=true`,
-		{
-			headers: {
-				Authorization: `Bearer ${process.env.INNGEST_SIGNING_KEY}`,
-			},
-		},
+		'Failed to fetch event runs',
 	);
-
-	if (!response.ok) {
-		throw new Error(`Failed to fetch event runs: ${response.status}`);
-	}
-
-	const json = await response.json();
 
 	if (Array.isArray(json.data)) {
 		return json.data as InngestRun[];

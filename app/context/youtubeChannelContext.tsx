@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, createContext, useContext, useState } from 'react';
+import axios from 'axios';
 
 import YoutubeChannelRequiredPrompt from '../components/YoutubeChannelRequiredPrompt';
 import { useAuth } from './authContext';
@@ -23,18 +24,14 @@ export const YoutubeChannelProvider = ({
 	const [isPromptOpen, setIsPromptOpen] = useState(false);
 
 	const ensureYoutubeChannel = async () => {
-		const hasChannel = await fetch('/api/youtube/channel', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
+		const hasChannel = await axios
+			.post('/api/youtube/channel', {
 				userId: user?.user_id,
 				youtubeGuestCredentials: user?.user_id
 					? undefined
 					: youtubeGuestCredentials,
-			}),
-		})
-			.then((r) => (r.ok ? r.json() : { hasChannel: true }))
-			.then((s) => s.hasChannel !== false)
+			})
+			.then(({ data }) => data.hasChannel !== false)
 			.catch(() => true);
 
 		if (!hasChannel) setIsPromptOpen(true);

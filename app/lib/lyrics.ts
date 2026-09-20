@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Song } from '../generated/prisma';
 import { LRCLibResult, SpotifyTrack } from '../types';
 import { addEmbeddingToSong, addSong, updateSong } from './db';
@@ -76,12 +77,10 @@ async function getLyrics(
 		artist = cleanMusicMetadata(artist);
 		track = cleanMusicMetadata(track);
 		const url = `https://lrclib.net/api/search?q=${encodeURIComponent(artist.toLocaleLowerCase())}+${encodeURIComponent(track.toLocaleLowerCase())}`;
-		const response = await fetch(url, {
+		const { data } = await axios.get<unknown>(url, {
 			headers: { 'User-Agent': 'hearitfresh/1.0' },
 			signal,
 		});
-		if (response.status !== 200) return null;
-		const data: unknown = await response.json();
 
 		if (!Array.isArray(data)) return null;
 		return data.filter(isLRCLibResult);
@@ -102,14 +101,11 @@ async function getLyricsOvh(
 		artist = cleanMusicMetadata(artist);
 		track = cleanMusicMetadata(track);
 
-		const response = await fetch(
+		const { data } = await axios.get<unknown>(
 			`https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(track)}`,
 			{ signal },
 		);
 
-		if (!response.ok) return null;
-
-		const data: unknown = await response.json();
 		if (
 			!data ||
 			typeof data !== 'object' ||

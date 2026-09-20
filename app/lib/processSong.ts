@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { addEmbeddingToSong, addSong, getSong, updateSong } from './db';
 import { Song } from '../generated/prisma';
 import { SpotifyTrack } from '../types';
@@ -66,23 +67,20 @@ async function getEmbeddingProd(
 	text: string,
 	signal?: AbortSignal,
 ): Promise<number[]> {
-	const response = await fetch(
+	const { data } = await axios.post(
 		'https://api.deepinfra.com/v1/openai/embeddings',
 		{
-			method: 'POST',
+			model: 'sentence-transformers/all-MiniLM-L6-v2',
+			input: text,
+			encoding_format: 'float',
+		},
+		{
 			headers: {
-				'Content-Type': 'application/json',
 				Authorization: `Bearer ${process.env.DEEPINFRA_TOKEN}`,
 			},
-			body: JSON.stringify({
-				model: 'sentence-transformers/all-MiniLM-L6-v2',
-				input: text,
-				encoding_format: 'float',
-			}),
 			signal,
 		},
 	);
-	const data = await response.json();
 	return data.data[0].embedding;
 }
 

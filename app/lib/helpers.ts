@@ -9,6 +9,7 @@ import {
 import { singleTrack, trackTypes } from '../types';
 import type { ProviderName } from './providers/types';
 
+import axios from 'axios';
 import pLimit from 'p-limit';
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -177,23 +178,18 @@ export const getPlaylistTracks = async (
 	userId?: string | null,
 	youtubeGuestCredentials?: unknown,
 ) => {
-	const response = await fetch('/api/playlist/tracks', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
+	try {
+		const { data } = await axios.post('/api/playlist/tracks', {
 			playlistId,
 			provider,
 			userId,
 			youtubeGuestCredentials,
-		}),
-	});
-	const data = await response.json();
+		});
 
-	if (!response.ok) {
-		throw data;
+		return includeDetails ? data : data.tracks;
+	} catch (err) {
+		throw axios.isAxiosError(err) && err.response ? err.response.data : err;
 	}
-
-	return includeDetails ? data : data.tracks;
 };
 
 export const formatPlaylistTracks = (playlistTracks: any[]) => {
@@ -504,8 +500,7 @@ export async function getRelatedArtists(
 	try {
 		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
 
-		const res = await fetch(url, { signal });
-		const data = await res.json();
+		const { data } = await axios.get(url, { signal });
 
 		if (!data.similarartists?.artist) return [];
 
