@@ -1,3 +1,10 @@
+# [1.47.0](https://github.com/Dun-sin/HearItFresh/compare/v1.46.0...v1.47.0) (2026-09-20)
+
+
+### Features
+
+* add song theming ([#56](https://github.com/Dun-sin/HearItFresh/issues/56)) ([c371803](https://github.com/Dun-sin/HearItFresh/commit/c3718036b95b299f70ccb3049adc5d7aa33e8f6b))
+
 # [1.46.0](https://github.com/Dun-sin/HearItFresh/compare/v1.45.0...v1.46.0) (2026-09-20)
 
 
