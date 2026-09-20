@@ -1,3 +1,10 @@
+# [1.46.0](https://github.com/Dun-sin/HearItFresh/compare/v1.45.0...v1.46.0) (2026-09-20)
+
+
+### Features
+
+* **db:** persist generated songs after successful playlist creation ([274cc36](https://github.com/Dun-sin/HearItFresh/commit/274cc36bee380e9d04524715cd6050d4d79f2562))
+
 # [1.45.0](https://github.com/Dun-sin/HearItFresh/compare/v1.44.0...v1.45.0) (2026-09-17)
 
 
