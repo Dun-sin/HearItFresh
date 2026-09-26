@@ -510,6 +510,7 @@ const SubmitButton = () => {
 					'/api/playlist/generate',
 					payload,
 				);
+				if (sourcePlaylistId) await addHistoryToDB(sourcePlaylistId);
 				console.log('[handleSeedPlaylistGeneration] Starting polling...');
 				const { generatedPlaylistId, eventId, mode } = generateData;
 				console.log(

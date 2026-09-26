@@ -35,7 +35,7 @@ const HistoryCard = ({
 	isRetrying,
 }: HistoryCardType) => {
 	const { user } = useAuth();
-	const { reuseSeeds, isReuseDisabled } = useReuseSeeds();
+	const { reuseSeeds, usePlaylist, isReuseDisabled } = useReuseSeeds();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const playlistId = sourcePlaylist?.id ?? text;
 	const playlistName = sourcePlaylist?.name ?? text;
@@ -91,7 +91,16 @@ const HistoryCard = ({
 							</div>
 						</div>
 					</button>
-					<div className='flex shrink-0 flex-col items-center gap-2 pt-1'>
+					<div className='flex shrink-0 items-center gap-2 pt-1'>
+						<button
+							type='button'
+							onClick={() => usePlaylist(playlistId, sourceProvider ?? 'spotify')}
+							disabled={isReuseDisabled}
+							title='Load this playlist and pick your own seeds'
+							className='inline-flex items-center gap-2 rounded-lg border border-brand px-4 py-2 font-semibold text-brand transition-colors hover:bg-brand hover:text-lightest disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-brand'>
+							<span className='icon-[uil--music-note] text-base' />
+							Use
+						</button>
 						<button
 							type='button'
 							aria-label={

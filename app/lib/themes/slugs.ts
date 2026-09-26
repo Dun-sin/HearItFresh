@@ -29,11 +29,11 @@ export const THEME_SLUGS = [
 
 export type ThemeSlug = (typeof THEME_SLUGS)[number];
 
-export type ThemeFilterState = 'yes' | 'no' | 'hard_no';
+export type ThemeFilterState = 'neutral' | 'restrict';
 
 export type ThemeFilters = Partial<Record<ThemeSlug, ThemeFilterState>>;
 
-export const DEFAULT_THEME_FILTER_STATE: ThemeFilterState = 'yes';
+export const DEFAULT_THEME_FILTER_STATE: ThemeFilterState = 'neutral';
 
 export const THEME_LABELS: Record<ThemeSlug, string> = {
 	love_gendered: 'Gendered partner',

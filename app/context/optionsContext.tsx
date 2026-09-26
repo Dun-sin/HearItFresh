@@ -44,7 +44,7 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 	const setThemeFilter = (theme: ThemeSlug, state: ThemeFilterState) =>
 		setThemeFilters((current) => {
 			const next = { ...current };
-			if (state === 'yes') {
+			if (state === 'neutral') {
 				delete next[theme];
 			} else {
 				next[theme] = state;

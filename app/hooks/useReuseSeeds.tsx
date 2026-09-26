@@ -42,7 +42,7 @@ const useReuseSeeds = () => {
 	const { user } = useAuth();
 	const { setSelectedArtist } = useOptions();
 	const { spotifyPlaylist } = useInput();
-	const { setExtractedSongs, setExtractedArtists, selectSeeds } =
+	const { setExtractedSongs, setExtractedArtists, selectSeeds, clearSeeds } =
 		useSeedSongs();
 	const { ensureYoutubeChannel } = useYoutubeChannel();
 
@@ -90,6 +90,46 @@ const useReuseSeeds = () => {
 		}
 	};
 
+	const applySourcePlaylist = (
+		sourcePlaylistId: string,
+		provider: ProviderName,
+	) => {
+		if (spotifyPlaylist.current) {
+			spotifyPlaylist.current.value =
+				provider === 'youtube'
+					? addYoutubePlaylistFullLinkFromID(sourcePlaylistId)
+					: addPlaylistFullLinkFromID(sourcePlaylistId);
+		}
+		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
+		setProvider(provider);
+		if (provider === 'youtube') setSelectedArtist(null);
+	};
+
+	const scrollToInput = () =>
+		spotifyPlaylist.current?.scrollIntoView({
+			behavior: 'smooth',
+			block: 'center',
+		});
+
+	const usePlaylist = async (
+		sourcePlaylistId: string,
+		provider: ProviderName = 'spotify',
+	) => {
+		if (isReuseDisabled) return;
+
+		if (provider === 'youtube' && !(await ensureYoutubeChannel())) return;
+
+		applySourcePlaylist(sourcePlaylistId, provider);
+
+		const playlist = await loadPlaylist(sourcePlaylistId, provider);
+		if (!playlist) return;
+
+		setExtractedSongs(playlist.songs);
+		setExtractedArtists(playlist.artistNames);
+		clearSeeds();
+		scrollToInput();
+	};
+
 	const reuseSeeds = async (
 		sourcePlaylistId: string,
 		seeds: SeedTrackHistory[],
@@ -102,15 +142,7 @@ const useReuseSeeds = () => {
 
 		if (provider === 'youtube' && !(await ensureYoutubeChannel())) return;
 
-		if (spotifyPlaylist.current) {
-			spotifyPlaylist.current.value =
-				provider === 'youtube'
-					? addYoutubePlaylistFullLinkFromID(sourcePlaylistId)
-					: addPlaylistFullLinkFromID(sourcePlaylistId);
-		}
-		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
-		setProvider(provider);
-		if (provider === 'youtube') setSelectedArtist(null);
+		applySourcePlaylist(sourcePlaylistId, provider);
 
 		const seedIds = new Set(seedSongs.map((song) => song.id));
 		let songs = seedSongs;
@@ -130,13 +162,10 @@ const useReuseSeeds = () => {
 		setExtractedSongs(songs);
 		setExtractedArtists(artistNames);
 		selectSeeds([...seedIds]);
-		spotifyPlaylist.current?.scrollIntoView({
-			behavior: 'smooth',
-			block: 'center',
-		});
+		scrollToInput();
 	};
 
-	return { reuseSeeds, isReuseDisabled };
+	return { reuseSeeds, usePlaylist, isReuseDisabled };
 };
 
 export default useReuseSeeds;

@@ -24,7 +24,7 @@ import pLimit from 'p-limit';
 import { processSong } from '../processSong';
 
 const THRESHOLD = 0.8;
-const CLASSIFY_CONCURRENCY = 4;
+const CLASSIFY_CONCURRENCY = 8;
 export const CUTOFF = 0.55;
 const HIT_BONUS = 0.02;
 export const PLAYLIST_SIZE = 100;

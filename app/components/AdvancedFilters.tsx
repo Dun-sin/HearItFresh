@@ -10,24 +10,6 @@ import {
 	type ThemeSlug,
 } from '@/app/lib/themes/slugs';
 
-const FILTER_STATES: {
-	value: ThemeFilterState;
-	label: string;
-	title: string;
-}[] = [
-	{ value: 'yes', label: 'Yes', title: 'Fine to include' },
-	{
-		value: 'no',
-		label: 'No',
-		title: 'Skip, unless the song is also about something you said yes to',
-	},
-	{
-		value: 'hard_no',
-		label: 'Never',
-		title: 'Always skip, even if the song has other themes you want',
-	},
-];
-
 const Chevron = ({ open }: { open: boolean }) => (
 	<svg
 		aria-hidden='true'
@@ -80,40 +62,45 @@ const Collapsible = ({
 
 const ThemeToggle = ({ theme }: { theme: ThemeSlug }) => {
 	const { themeFilters, setThemeFilter } = useOptions();
-	const current = themeFilters[theme] ?? 'yes';
+	const allowed = themeFilters[theme] !== 'restrict';
 
 	return (
-		<div className='flex items-center justify-between gap-3'>
-			<span className='text-fsm text-darkest dark:text-lightest truncate'>
+		<label
+			title={
+				allowed
+					? `No preference on ${THEME_LABELS[theme].toLowerCase()}`
+					: `Songs about ${THEME_LABELS[theme].toLowerCase()} are kept out`
+			}
+			className='flex items-center justify-between gap-3 cursor-pointer select-none'>
+			<span
+				className={`text-fsm truncate transition-colors ${
+					allowed
+						? 'text-darkest dark:text-lightest'
+						: 'text-red-600 line-through'
+				}`}>
 				{THEME_LABELS[theme]}
 			</span>
 
-			<fieldset className='flex shrink-0 rounded overflow-hidden border-2 border-brand'>
-				<legend className='sr-only'>Include {THEME_LABELS[theme]} songs</legend>
-				{FILTER_STATES.map(({ value, label, title }) => (
-					<label
-						key={value}
-						title={title}
-						className={`cursor-pointer select-none px-2 py-0.5 text-fxs transition-colors ${
-							current === value
-								? value === 'hard_no'
-									? 'bg-red-600 text-lightest'
-									: 'bg-brand text-lightest'
-								: 'text-brand hover:bg-brand hover:bg-opacity-10'
-						}`}>
-						<input
-							type='radio'
-							name={`theme-${theme}`}
-							value={value}
-							checked={current === value}
-							onChange={() => setThemeFilter(theme, value)}
-							className='sr-only'
-						/>
-						{label}
-					</label>
-				))}
-			</fieldset>
-		</div>
+			<input
+				type='checkbox'
+				checked={allowed}
+				onChange={(e) =>
+					setThemeFilter(theme, e.target.checked ? 'neutral' : 'restrict')
+				}
+				className='sr-only peer'
+			/>
+
+			<span
+				className={`relative h-5 w-9 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-focus-visible:ring-offset-1 ${
+					allowed ? 'bg-green-600' : 'bg-red-600'
+				}`}>
+				<span
+					className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-lightest shadow-sm transition-transform ${
+						allowed ? 'translate-x-4' : 'translate-x-0'
+					}`}
+				/>
+			</span>
+		</label>
 	);
 };
 
@@ -125,37 +112,37 @@ const ThemeGrid = ({ themes }: { themes: readonly ThemeSlug[] }) => (
 	</div>
 );
 
-const excludedIn = (
+const restrictedIn = (
 	themes: readonly ThemeSlug[],
 	filters: Record<string, ThemeFilterState | undefined>,
-) => themes.filter((theme) => filters[theme] === 'no').length;
+) => themes.filter((theme) => filters[theme] === 'restrict').length;
 
 const AdvancedFilters = () => {
 	const { themeFilters, resetThemeFilters } = useOptions();
 
-	const excludedCount = Object.keys(themeFilters).length;
+	const restrictedCount = Object.keys(themeFilters).length;
 
 	return (
-		<Collapsible title='Advanced filters' count={excludedCount}>
+		<Collapsible title='Advanced filters' count={restrictedCount}>
 			<div className='flex flex-col gap-3 pl-5'>
 				<p className='text-fxs text-gray'>
-					No skips the theme, but a song still gets in if it&apos;s also about
-					something you said yes to. Never always wins.
+					Everything is allowed by default. Switch a theme off to keep songs
+					carrying it out entirely.
 				</p>
 
 				<Collapsible
 					title='Love'
-					count={excludedIn(LOVE_THEME_SLUGS, themeFilters)}>
+					count={restrictedIn(LOVE_THEME_SLUGS, themeFilters)}>
 					<ThemeGrid themes={LOVE_THEME_SLUGS} />
 				</Collapsible>
 
 				<Collapsible
 					title='Other themes'
-					count={excludedIn(GENERAL_THEME_SLUGS, themeFilters)}>
+					count={restrictedIn(GENERAL_THEME_SLUGS, themeFilters)}>
 					<ThemeGrid themes={GENERAL_THEME_SLUGS} />
 				</Collapsible>
 
-				{excludedCount > 0 && (
+				{restrictedCount > 0 && (
 					<button
 						type='button'
 						onClick={resetThemeFilters}
