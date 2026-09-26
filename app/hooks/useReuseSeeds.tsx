@@ -111,7 +111,7 @@ const useReuseSeeds = () => {
 			block: 'center',
 		});
 
-	const usePlaylist = async (
+	const startFromPlaylist = async (
 		sourcePlaylistId: string,
 		provider: ProviderName = 'spotify',
 	) => {
@@ -165,7 +165,7 @@ const useReuseSeeds = () => {
 		scrollToInput();
 	};
 
-	return { reuseSeeds, usePlaylist, isReuseDisabled };
+	return { reuseSeeds, startFromPlaylist, isReuseDisabled };
 };
 
 export default useReuseSeeds;
