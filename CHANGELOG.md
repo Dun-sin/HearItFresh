@@ -1,3 +1,10 @@
+# [1.48.0](https://github.com/Dun-sin/HearItFresh/compare/v1.47.0...v1.48.0) (2026-09-26)
+
+
+### Features
+
+* **ui:** simplify theme filtering and add playlist reuse functionality ([24b6cf3](https://github.com/Dun-sin/HearItFresh/commit/24b6cf334180e70c04b31690fa8eedeb5d2c0549))
+
 # [1.47.0](https://github.com/Dun-sin/HearItFresh/compare/v1.46.0...v1.47.0) (2026-09-20)
 
 
