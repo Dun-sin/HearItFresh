@@ -1,3 +1,10 @@
+# [1.49.0](https://github.com/Dun-sin/HearItFresh/compare/v1.48.0...v1.49.0) (2026-10-01)
+
+
+### Features
+
+* **inngest:** add cleanupStalePlaylists function ([7ab9e01](https://github.com/Dun-sin/HearItFresh/commit/7ab9e01f09a71f1c74c455b9837a778f48079b67))
+
 # [1.48.0](https://github.com/Dun-sin/HearItFresh/compare/v1.47.0...v1.48.0) (2026-09-26)
 
 
