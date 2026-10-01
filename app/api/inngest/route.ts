@@ -1,8 +1,12 @@
-import { generatePlaylist, handleRunCancelled } from '../../inngest/functions'
+import {
+  cleanupStalePlaylists,
+  generatePlaylist,
+  handleRunCancelled,
+} from '../../inngest/functions'
 import { inngest } from '../../inngest/client'
 import { serve } from 'inngest/next'
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [generatePlaylist, handleRunCancelled],
+  functions: [generatePlaylist, handleRunCancelled, cleanupStalePlaylists],
 })
