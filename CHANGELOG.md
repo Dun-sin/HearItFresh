@@ -1,3 +1,10 @@
+# [1.50.0](https://github.com/Dun-sin/HearItFresh/compare/v1.49.0...v1.50.0) (2026-10-04)
+
+
+### Features
+
+* **playlist:** add pace mix filtering functionality ([0808bae](https://github.com/Dun-sin/HearItFresh/commit/0808bae0652b40fda1768d77d1be64456d393160))
+
 # [1.49.0](https://github.com/Dun-sin/HearItFresh/compare/v1.48.0...v1.49.0) (2026-10-01)
 
 
