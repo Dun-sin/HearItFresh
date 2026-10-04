@@ -42,7 +42,7 @@ const useReuseSeeds = () => {
 	const { user } = useAuth();
 	const { setSelectedArtist } = useOptions();
 	const { spotifyPlaylist } = useInput();
-	const { setExtractedSongs, setExtractedArtists, selectSeeds, clearSeeds } =
+	const { setExtractedSongs, setExtractedArtists, selectSeeds } =
 		useSeedSongs();
 	const { ensureYoutubeChannel } = useYoutubeChannel();
 
@@ -126,7 +126,7 @@ const useReuseSeeds = () => {
 
 		setExtractedSongs(playlist.songs);
 		setExtractedArtists(playlist.artistNames);
-		clearSeeds();
+		selectSeeds([]);
 		scrollToInput();
 	};
 

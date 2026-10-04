@@ -11,10 +11,11 @@ import type { ProviderAuthCtx, ProviderName } from '../providers/types';
 import pLimit from 'p-limit';
 import {
 	PLAYLIST_SIZE,
-	RESOLVE_HEADROOM,
 	createAbortGuard,
+	fillableCount,
 	resolveSpotifyTracksToRefs,
 	scoreTracks,
+	selectForResolve,
 	titleKey,
 	type CandidateTrack,
 	type RankedRef,
@@ -22,6 +23,8 @@ import {
 	type SeedInput,
 } from './shared';
 import type { DbMatch } from './dbMatches';
+import { hasPaceMix } from '../pace/mix';
+import type { PaceBudget } from '../pace/reccobeats';
 
 export async function expandWithRelatedArtists({
 	seeds,
@@ -31,6 +34,7 @@ export async function expandWithRelatedArtists({
 	existing,
 	provider,
 	authCtx,
+	paceBudget,
 	signal,
 }: {
 	seeds: SeedInput[];
@@ -40,6 +44,7 @@ export async function expandWithRelatedArtists({
 	existing: DbMatch[];
 	provider: ProviderName;
 	authCtx: ProviderAuthCtx;
+	paceBudget: PaceBudget;
 	signal?: AbortSignal;
 }): Promise<ResolvedRefs> {
 	const throwIfAborted = createAbortGuard(signal);
@@ -52,8 +57,10 @@ export async function expandWithRelatedArtists({
 	);
 	const usedArtistNames: string[] = [];
 
-	for (let attempt = 0; attempt < 2; attempt++) {
-		if (accumulatedRefs.length >= PLAYLIST_SIZE) break;
+	const attempts = hasPaceMix(options?.paceMix) ? 1 : 2;
+
+	for (let attempt = 0; attempt < attempts; attempt++) {
+		if (fillableCount(accumulatedRefs, options?.paceMix) >= PLAYLIST_SIZE) break;
 		throwIfAborted();
 
 		try {
@@ -106,12 +113,14 @@ export async function expandWithRelatedArtists({
 				pLimitInstance,
 				signal,
 				options?.themeFilters,
+				paceBudget,
 			);
 			throwIfAborted();
 
-			const acceptedTracks = scoredTracks.slice(
-				0,
-				PLAYLIST_SIZE - accumulatedRefs.length + RESOLVE_HEADROOM,
+			const acceptedTracks = selectForResolve(
+				scoredTracks,
+				accumulatedRefs,
+				options?.paceMix,
 			);
 
 			const { refs: newRefs, quotaExhausted } =

@@ -80,7 +80,7 @@ export const generatePlaylist = inngest.createFunction(
 					provider,
 					undefined,
 					youtubeGuestCredentials,
-					options?.themeFilters,
+					options,
 				);
 			}
 			return await generateSeedPlaylist(

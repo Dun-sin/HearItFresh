@@ -12,8 +12,18 @@ import {
 import { YOUTUBE_QUOTA_EXHAUSTED_ERROR } from '../helpers';
 import { getProvider } from '../providers';
 import { hasActiveThemeFilter, passesThemeFilter } from '../themes/filter';
-import { syncSongThemes } from '../themes/persist';
+import { syncSongThemes, type ClassifiableRow } from '../themes/persist';
 import type { ThemeFilters } from '../themes/slugs';
+import {
+	hasPaceMix,
+	paceTargets,
+	pickPaceMix,
+	type Pace,
+	type PaceMix,
+	type Paced,
+} from '../pace/mix';
+import { syncSongPaces } from '../pace/persist';
+import { createPaceBudget, type PaceBudget } from '../pace/reccobeats';
 import type {
 	ProviderAuthCtx,
 	ProviderName,
@@ -30,6 +40,11 @@ const HIT_BONUS = 0.02;
 export const PLAYLIST_SIZE = 100;
 // resolving to YouTube spends search quota, so only the best of each batch is resolved
 export const RESOLVE_HEADROOM = 20;
+
+const MIN_PACE_MIX_TRACKS = 10;
+
+const paceMixUnmetError = (found: number) =>
+	`Only ${found} matching songs fit the fast/slow mix you picked, and at least ${MIN_PACE_MIX_TRACKS} are needed. Try a different mix or turn the pace filter off.`;
 
 export type SeedInput = {
 	id: string;
@@ -49,9 +64,9 @@ export type CandidateTrack = {
 
 export type Score = { maxScore: number; hitRatio: number };
 
-export type ScoredCandidate = CandidateTrack & Score;
+export type ScoredCandidate = CandidateTrack & Score & Paced;
 
-export type RankedRef = ProviderTrackRef & Score;
+export type RankedRef = ProviderTrackRef & Score & Paced;
 
 export type ResolvedRefs = { refs: RankedRef[]; quotaExhausted: boolean };
 
@@ -162,6 +177,7 @@ export async function scoreTracks(
 	pLimitInstance: ReturnType<typeof pLimit>,
 	signal?: AbortSignal,
 	themeFilters?: ThemeFilters,
+	paceBudget: PaceBudget = createPaceBudget(),
 ): Promise<ScoredCandidate[]> {
 	const filtering = hasActiveThemeFilter(themeFilters);
 
@@ -222,9 +238,50 @@ export async function scoreTracks(
 			(filtering ? ` (${droppedOnThemes} dropped on themes)` : ''),
 	);
 
+	const paces = await syncSongPaces(
+		kept.map(({ song }) => song),
+		paceBudget,
+		signal,
+	);
+
 	return kept
-		.map(({ song, ...candidate }) => candidate)
+		.map(({ song, ...candidate }) => ({
+			...candidate,
+			pace: paces.get(song.id) ?? null,
+		}))
 		.sort(byRankDesc);
+}
+
+export function fillableCount(refs: Paced[], paceMix?: PaceMix): number {
+	return hasPaceMix(paceMix)
+		? pickPaceMix(refs, paceMix, PLAYLIST_SIZE).length
+		: refs.length;
+}
+
+/** Best candidates worth resolving, budgeted per pace bucket when a mix is set. */
+export function selectForResolve(
+	scored: ScoredCandidate[],
+	existing: Paced[],
+	paceMix?: PaceMix,
+): ScoredCandidate[] {
+	if (!hasPaceMix(paceMix)) {
+		return scored.slice(
+			0,
+			Math.max(PLAYLIST_SIZE - existing.length, 0) + RESOLVE_HEADROOM,
+		);
+	}
+
+	const target = paceTargets(PLAYLIST_SIZE, paceMix);
+	const take = (pace: Pace) => {
+		const need = target[pace] - existing.filter((r) => r.pace === pace).length;
+		if (need <= 0) return [];
+
+		const headroom = Math.ceil((RESOLVE_HEADROOM * target[pace]) / PLAYLIST_SIZE);
+		return scored.filter((c) => c.pace === pace).slice(0, need + headroom);
+	};
+
+	const chosen = new Set([...take('fast'), ...take('slow')]);
+	return scored.filter((c) => chosen.has(c));
 }
 
 /**
@@ -232,11 +289,11 @@ export async function scoreTracks(
  * own pool — classifying inside the track pool would hold a track slot open for
  * a second network hop and throttle everything behind it.
  */
-async function keepMatchingThemes(
-	survivors: ScoredWithSong[],
+export async function keepMatchingThemes<T extends { song: ClassifiableRow }>(
+	survivors: T[],
 	themeFilters: ThemeFilters | undefined,
 	signal?: AbortSignal,
-): Promise<ScoredWithSong[]> {
+): Promise<T[]> {
 	const limit = pLimit(CLASSIFY_CONCURRENCY);
 
 	const checked = await Promise.all(
@@ -251,7 +308,7 @@ async function keepMatchingThemes(
 		),
 	);
 
-	return checked.filter((c): c is ScoredWithSong => c !== null);
+	return checked.filter((c): c is Awaited<T> => c !== null);
 }
 
 export async function resolveSpotifyTracksToRefs(
@@ -264,6 +321,7 @@ export async function resolveSpotifyTracksToRefs(
 		externalId,
 		maxScore: c.maxScore,
 		hitRatio: c.hitRatio,
+		pace: c.pace,
 	});
 
 	if (provider === 'spotify') {
@@ -340,15 +398,21 @@ export async function resolveSpotifyTracksToRefs(
 
 export async function finalizeTracks(
 	refs: RankedRef[],
-	{ quotaExhausted }: { quotaExhausted: boolean },
+	{ quotaExhausted, paceMix }: { quotaExhausted: boolean; paceMix?: PaceMix },
 ): Promise<GenerationResult> {
-	const finalTracks = [...refs]
-		.sort(byRankDesc)
-		.slice(0, PLAYLIST_SIZE)
-		.map(toRef);
+	const ranked = [...refs].sort(byRankDesc);
+	const finalTracks = (
+		hasPaceMix(paceMix)
+			? pickPaceMix(ranked, paceMix, PLAYLIST_SIZE)
+			: ranked.slice(0, PLAYLIST_SIZE)
+	).map(toRef);
 
 	if (quotaExhausted && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
 		return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };
+	}
+
+	if (hasPaceMix(paceMix) && finalTracks.length < MIN_PACE_MIX_TRACKS) {
+		return { tracks: [], error: paceMixUnmetError(finalTracks.length) };
 	}
 
 	return { tracks: finalTracks };

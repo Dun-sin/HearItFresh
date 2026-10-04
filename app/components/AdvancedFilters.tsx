@@ -9,6 +9,9 @@ import {
 	type ThemeFilterState,
 	type ThemeSlug,
 } from '@/app/lib/themes/slugs';
+import { DEFAULT_PACE_MIX } from '@/app/lib/pace/mix';
+
+const PACE_STEP = 10;
 
 const Chevron = ({ open }: { open: boolean }) => (
 	<svg
@@ -112,43 +115,143 @@ const ThemeGrid = ({ themes }: { themes: readonly ThemeSlug[] }) => (
 	</div>
 );
 
+const ResetButton = ({
+	onClick,
+	children,
+}: {
+	onClick: () => void;
+	children: ReactNode;
+}) => (
+	<button
+		type='button'
+		onClick={onClick}
+		className='w-fit border-brand border-2 rounded px-3 py-1 text-fxs text-brand hover:bg-brand hover:text-lightest transition-all'>
+		{children}
+	</button>
+);
+
 const restrictedIn = (
 	themes: readonly ThemeSlug[],
 	filters: Record<string, ThemeFilterState | undefined>,
 ) => themes.filter((theme) => filters[theme] === 'restrict').length;
 
-const AdvancedFilters = () => {
-	const { themeFilters, resetThemeFilters } = useOptions();
-
-	const restrictedCount = Object.keys(themeFilters).length;
+const PaceFilter = () => {
+	const { paceMix, setPaceMix } = useOptions();
+	const enabled = paceMix !== null;
+	const fast = paceMix?.fast ?? DEFAULT_PACE_MIX.fast;
 
 	return (
-		<Collapsible title='Advanced filters' count={restrictedCount}>
+		<div className='flex flex-col gap-3 pl-5'>
+			<label className='flex items-center justify-between gap-3 cursor-pointer select-none'>
+				<span className='text-fsm text-darkest dark:text-lightest'>
+					Set a fast / slow split
+				</span>
+
+				<input
+					type='checkbox'
+					checked={enabled}
+					onChange={(e) => setPaceMix(e.target.checked ? DEFAULT_PACE_MIX : null)}
+					className='sr-only peer'
+				/>
+
+				<span
+					className={`relative h-5 w-9 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-focus-visible:ring-offset-1 ${
+						enabled ? 'bg-brand' : 'bg-gray'
+					}`}>
+					<span
+						className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-lightest shadow-sm transition-transform ${
+							enabled ? 'translate-x-4' : 'translate-x-0'
+						}`}
+					/>
+				</span>
+			</label>
+
+			{enabled && (
+				<>
+					<input
+						type='range'
+						min={0}
+						max={100}
+						step={PACE_STEP}
+						value={fast}
+						onChange={(e) => setPaceMix({ fast: Number(e.target.value) })}
+						aria-label='Share of fast songs'
+						aria-valuetext={`${fast}% fast, ${100 - fast}% slow`}
+						className='w-full accent-brand'
+					/>
+
+					<div className='flex justify-between text-fxs text-gray'>
+						<span>{fast}% fast</span>
+						<span>{100 - fast}% slow</span>
+					</div>
+
+					<p className='text-fxs text-amber-600 dark:text-amber-400'>
+						Heads up: only songs we have pace data for can be used, and the
+						playlist shrinks to keep this exact split, so you may get far
+						fewer songs than usual.
+					</p>
+				</>
+			)}
+		</div>
+	);
+};
+
+const AdvancedFilters = () => {
+	const { themeFilters, resetThemeFilters, paceMix, setPaceMix } =
+		useOptions();
+
+	const restrictedCount = Object.keys(themeFilters).length;
+	const activeCount = restrictedCount + (paceMix ? 1 : 0);
+
+	const resetFilters = () => {
+		resetThemeFilters();
+		setPaceMix(null);
+	};
+
+	return (
+		<Collapsible title='Advanced filters' count={activeCount}>
 			<div className='flex flex-col gap-3 pl-5'>
-				<p className='text-fxs text-gray'>
-					Everything is allowed by default. Switch a theme off to keep songs
-					carrying it out entirely.
-				</p>
+				<Collapsible title='Themes' count={restrictedCount}>
+					<div className='flex flex-col gap-3 pl-5'>
+						<p className='text-fxs text-gray'>
+							Everything is allowed by default. Switch a theme off to keep
+							songs carrying it out entirely.
+						</p>
 
-				<Collapsible
-					title='Love'
-					count={restrictedIn(LOVE_THEME_SLUGS, themeFilters)}>
-					<ThemeGrid themes={LOVE_THEME_SLUGS} />
+						<Collapsible
+							title='Love'
+							count={restrictedIn(LOVE_THEME_SLUGS, themeFilters)}>
+							<ThemeGrid themes={LOVE_THEME_SLUGS} />
+						</Collapsible>
+
+						<Collapsible
+							title='Other themes'
+							count={restrictedIn(GENERAL_THEME_SLUGS, themeFilters)}>
+							<ThemeGrid themes={GENERAL_THEME_SLUGS} />
+						</Collapsible>
+
+						{restrictedCount > 0 && (
+							<ResetButton onClick={resetThemeFilters}>Reset themes</ResetButton>
+						)}
+					</div>
 				</Collapsible>
 
-				<Collapsible
-					title='Other themes'
-					count={restrictedIn(GENERAL_THEME_SLUGS, themeFilters)}>
-					<ThemeGrid themes={GENERAL_THEME_SLUGS} />
+				<Collapsible title='Pace' count={paceMix ? 1 : 0}>
+					<div className='flex flex-col gap-3'>
+						<PaceFilter />
+
+						{paceMix && (
+							<div className='pl-5'>
+								<ResetButton onClick={() => setPaceMix(null)}>
+									Reset pace
+								</ResetButton>
+							</div>
+						)}
+					</div>
 				</Collapsible>
 
-				{restrictedCount > 0 && (
-					<button
-						type='button'
-						onClick={resetThemeFilters}
-						className='w-fit border-brand border-2 rounded px-3 py-1 text-fxs text-brand hover:bg-brand hover:text-lightest transition-all'>
-						Reset filters
-					</button>
+				{restrictedCount > 0 && paceMix && (
+					<ResetButton onClick={resetFilters}>Reset all filters</ResetButton>
 				)}
 			</div>
 		</Collapsible>

@@ -6,6 +6,7 @@ import type {
 	ThemeFilters,
 	ThemeSlug,
 } from '@/app/lib/themes/slugs';
+import type { PaceMix } from '@/app/lib/pace/mix';
 
 export interface SelectedArtist {
 	id: string;
@@ -25,6 +26,8 @@ interface OptionsContextProps {
 	themeFilters: ThemeFilters;
 	setThemeFilter: (theme: ThemeSlug, state: ThemeFilterState) => void;
 	resetThemeFilters: () => void;
+	paceMix: PaceMix | null;
+	setPaceMix: (mix: PaceMix | null) => void;
 }
 
 const OptionsContext = createContext<OptionsContextProps | undefined>(
@@ -40,6 +43,7 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 		null,
 	);
 	const [themeFilters, setThemeFilters] = useState<ThemeFilters>({});
+	const [paceMix, setPaceMix] = useState<PaceMix | null>(null);
 
 	const setThemeFilter = (theme: ThemeSlug, state: ThemeFilterState) =>
 		setThemeFilters((current) => {
@@ -66,6 +70,8 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 				themeFilters,
 				setThemeFilter,
 				resetThemeFilters,
+				paceMix,
+				setPaceMix,
 			}}>
 			{children}
 		</OptionsContext.Provider>

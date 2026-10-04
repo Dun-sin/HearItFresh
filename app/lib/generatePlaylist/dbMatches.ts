@@ -5,37 +5,56 @@ import {
 } from '../db';
 import { DB_SIMILAR_SONGS_LIMIT } from '../utils';
 import type { ProviderName } from '../providers/types';
-import { passesThemeFilter } from '../themes/filter';
+import { hasActiveThemeFilter } from '../themes/filter';
 import type { ThemeFilters } from '../themes/slugs';
-import { CUTOFF, parseEmbedding, scoreAgainstSeeds, type RankedRef } from './shared';
+import { syncSongPaces } from '../pace/persist';
+import { createPaceBudget, type PaceBudget } from '../pace/reccobeats';
+import {
+	CUTOFF,
+	keepMatchingThemes,
+	parseEmbedding,
+	scoreAgainstSeeds,
+	type RankedRef,
+} from './shared';
 
 export type DbMatch = RankedRef & { title: string; artist: string };
 
-function scoreDbMatches(
+async function scoreDbMatches(
 	dbSimilar: any[],
 	seedEmbeddings: number[][],
 	provider: ProviderName,
-	themeFilters?: ThemeFilters,
-): DbMatch[] {
-	return dbSimilar
-		.map((song: any) => {
-			const emb = parseEmbedding(song.embedding);
-			if (!emb) return null;
+	themeFilters: ThemeFilters | undefined,
+	paceBudget: PaceBudget,
+	signal?: AbortSignal,
+): Promise<DbMatch[]> {
+	const survivors = dbSimilar.flatMap((song: any) => {
+		const emb = parseEmbedding(song.embedding);
+		if (!emb) return [];
 
-			if (!passesThemeFilter(song.themes, themeFilters)) return null;
+		const scored = scoreAgainstSeeds(emb, seedEmbeddings);
+		if (scored.maxScore < CUTOFF) return [];
 
-			const scored = scoreAgainstSeeds(emb, seedEmbeddings);
-			if (scored.maxScore < CUTOFF) return null;
+		return [{ song, scored }];
+	});
 
-			return {
-				provider,
-				externalId: song.externalId,
-				title: song.title ?? '',
-				artist: song.artist ?? '',
-				...scored,
-			};
-		})
-		.filter(Boolean) as DbMatch[];
+	const matches = hasActiveThemeFilter(themeFilters)
+		? await keepMatchingThemes(survivors, themeFilters, signal)
+		: survivors;
+
+	const paces = await syncSongPaces(
+		matches.map(({ song }) => song),
+		paceBudget,
+		signal,
+	);
+
+	return matches.map(({ song, scored }) => ({
+		provider,
+		externalId: song.externalId,
+		title: song.title ?? '',
+		artist: song.artist ?? '',
+		...scored,
+		pace: paces.get(song.id) ?? null,
+	}));
 }
 
 export async function findDbMatches(
@@ -44,6 +63,8 @@ export async function findDbMatches(
 	userId: string | undefined,
 	provider: ProviderName,
 	themeFilters?: ThemeFilters,
+	signal?: AbortSignal,
+	paceBudget: PaceBudget = createPaceBudget(),
 ): Promise<DbMatch[]> {
 	let previouslyGeneratedIds: string[] = [];
 	if (userId) {
@@ -67,5 +88,12 @@ export async function findDbMatches(
 		provider,
 	);
 
-	return scoreDbMatches(dbSimilar, seedEmbeddings, provider, themeFilters);
+	return scoreDbMatches(
+		dbSimilar,
+		seedEmbeddings,
+		provider,
+		themeFilters,
+		paceBudget,
+		signal,
+	);
 }

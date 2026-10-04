@@ -8,6 +8,7 @@ import { getDummyAccessToken } from '../spotify-dummy-auth';
 import {
 	PLAYLIST_SIZE,
 	createAbortGuard,
+	fillableCount,
 	finalizeTracks,
 	prepareSeedEmbeddings,
 	type GenerationResult,
@@ -15,6 +16,7 @@ import {
 } from './shared';
 import { findDbMatches } from './dbMatches';
 import { expandWithRelatedArtists } from './relatedArtists';
+import { createPaceBudget } from '../pace/reccobeats';
 
 export async function generateSeedPlaylist(
 	seeds: SeedInput[],
@@ -39,6 +41,7 @@ export async function generateSeedPlaylist(
 			return { tracks: [], error: prepared.error };
 		}
 		const { seedEmbeddings } = prepared;
+		const paceBudget = createPaceBudget();
 
 		const dbMatches = await findDbMatches(
 			seedEmbeddings,
@@ -46,11 +49,18 @@ export async function generateSeedPlaylist(
 			userId,
 			provider,
 			options?.themeFilters,
+			signal,
+			paceBudget,
 		);
 		throwIfAborted();
 
-		if (PLAYLIST_SIZE - dbMatches.length <= 10) {
-			return await finalizeTracks(dbMatches, { quotaExhausted: false });
+		const paceMix = options?.paceMix;
+
+		if (PLAYLIST_SIZE - fillableCount(dbMatches, paceMix) <= 10) {
+			return await finalizeTracks(dbMatches, {
+				quotaExhausted: false,
+				paceMix,
+			});
 		}
 
 		const { refs, quotaExhausted } = await expandWithRelatedArtists({
@@ -61,10 +71,11 @@ export async function generateSeedPlaylist(
 			existing: dbMatches,
 			provider,
 			authCtx,
+			paceBudget,
 			signal,
 		});
 
-		return await finalizeTracks(refs, { quotaExhausted });
+		return await finalizeTracks(refs, { quotaExhausted, paceMix });
 	} catch (error: any) {
 		console.error('Error generating seed playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };

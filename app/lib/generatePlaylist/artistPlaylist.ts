@@ -3,19 +3,18 @@
 import { formatApiError } from '../utils';
 import { getProvider } from '../providers';
 import type { ProviderAuthCtx, ProviderName } from '../providers/types';
-import type { ThemeFilters } from '../themes/slugs';
+import type { GenerationOptions } from '@/app/types';
 
 import pLimit from 'p-limit';
 import { setAccessToken } from '../spotifyApi';
 import { getDummyAccessToken } from '../spotify-dummy-auth';
 import {
-	PLAYLIST_SIZE,
-	RESOLVE_HEADROOM,
 	createAbortGuard,
 	finalizeTracks,
 	prepareSeedEmbeddings,
 	resolveSpotifyTracksToRefs,
 	scoreTracks,
+	selectForResolve,
 	titleKey,
 	type CandidateTrack,
 	type GenerationResult,
@@ -35,7 +34,7 @@ export async function generateArtistPlaylist(
 	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
 	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
-	themeFilters?: ThemeFilters,
+	filters?: Pick<GenerationOptions, 'themeFilters' | 'paceMix'>,
 ): Promise<GenerationResult> {
 	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = createAbortGuard(signal);
@@ -93,17 +92,20 @@ export async function generateArtistPlaylist(
 			seedEmbeddings,
 			pLimitInstance,
 			signal,
-			themeFilters,
+			filters?.themeFilters,
 		);
 		throwIfAborted();
 
 		const { refs, quotaExhausted } = await resolveSpotifyTracksToRefs(
-			scoredTracks.slice(0, PLAYLIST_SIZE + RESOLVE_HEADROOM),
+			selectForResolve(scoredTracks, [], filters?.paceMix),
 			provider,
 			authCtx,
 		);
 
-		return await finalizeTracks(refs, { quotaExhausted });
+		return await finalizeTracks(refs, {
+			quotaExhausted,
+			paceMix: filters?.paceMix,
+		});
 	} catch (error: any) {
 		console.error('Error generating artist playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };

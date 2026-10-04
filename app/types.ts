@@ -1,6 +1,7 @@
 import { Song } from './generated/prisma';
 import type { ProviderName } from './lib/providers/types';
 import type { ThemeFilters } from './lib/themes/slugs';
+import type { PaceMix } from './lib/pace/mix';
 
 export type {
 	ThemeSlug,
@@ -12,6 +13,7 @@ export type GenerationOptions = {
 	isNotPopular: boolean;
 	isDifferent: boolean;
 	themeFilters?: ThemeFilters;
+	paceMix?: PaceMix;
 };
 
 export type singleTrack = {

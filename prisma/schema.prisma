@@ -40,6 +40,7 @@ model Song {
   themesRaw              Json?
   themesQuestionVersions Json?
   themesDeriveVersion    Int?
+  audioFeatures          Json?
 
   @@index([themes], type: Gin)
 }

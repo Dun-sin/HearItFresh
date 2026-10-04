@@ -79,6 +79,7 @@ const SubmitButton = () => {
 		selectedArtist,
 		setSelectedArtist,
 		themeFilters,
+		paceMix,
 	} = useOptions();
 
 	const {
@@ -493,6 +494,7 @@ const SubmitButton = () => {
 						isNotPopular: isNotPopularArtists,
 						isDifferent: isDifferentTypesOfArtists,
 						themeFilters,
+						paceMix: paceMix ?? undefined,
 					},
 					artistId: selectedArtist?.id,
 					artistName: selectedArtist?.name,
@@ -555,6 +557,7 @@ const SubmitButton = () => {
 							isNotPopular: isNotPopularArtists,
 							isDifferent: isDifferentTypesOfArtists,
 							themeFilters,
+							paceMix: paceMix ?? undefined,
 						},
 						artistId: selectedArtist?.id,
 						artistName: selectedArtist?.name,

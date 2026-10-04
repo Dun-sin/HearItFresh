@@ -6,6 +6,7 @@ import { getCentroid, compareGeneratedPlaylists } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
 import { getProvider, isProviderName } from '../providers';
+import type { AudioFeatures } from '../pace/mix';
 
 function idColumn(provider: ProviderName): 'spotifyId' | 'youtubeId' {
 	return provider === 'youtube' ? 'youtubeId' : 'spotifyId';
@@ -327,7 +328,7 @@ export async function getSong(
 	const row = await prisma.$queryRawUnsafe<
 		Array<Song & { embedding: string | number[] | null }>
 	>(
-		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion"
+		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion", "audioFeatures"
      FROM "Song"
      WHERE "${col}" = $1
      LIMIT 1`,
@@ -449,6 +450,19 @@ export async function setDerivedThemes(
 	});
 }
 
+export async function setAudioFeatures(
+	entries: { songId: string; features: AudioFeatures }[],
+) {
+	await prisma.$transaction(
+		entries.map(({ songId, features }) =>
+			prisma.song.update({
+				where: { id: songId },
+				data: { audioFeatures: features },
+			}),
+		),
+	);
+}
+
 export async function addEmbeddingToSong(songId: string, embedding: number[]) {
 	return await prisma.$queryRawUnsafe(
 		`UPDATE "Song" SET embedding = $1::vector WHERE id = $2 RETURNING id`,
@@ -478,8 +492,9 @@ export async function findSimilarSongs(
 	// 2. Use Parameterized Query ($1) instead of string injection
 	return await prisma.$queryRawUnsafe(
 		`
-    SELECT id, title, artist, album, "${col}" AS "externalId",
-           themes,
+    SELECT id, title, artist, album, lyrics, "${col}" AS "externalId",
+           "spotifyId", themes, "themesRaw", "themesQuestionVersions",
+           "themesDeriveVersion", "audioFeatures",
            embedding::text AS embedding,
            embedding <=> $1::vector AS distance
     FROM "Song"
