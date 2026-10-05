@@ -39,7 +39,7 @@ const TEMPO_CEIL = 170;
 const ENERGY_WEIGHT = 0.6;
 const TEMPO_WEIGHT = 0.25;
 const DANCEABILITY_WEIGHT = 0.15;
-const FAST_THRESHOLD = 0.5;
+const FAST_THRESHOLD = 0.65;
 
 const clamp01 = (n: number) => Math.min(Math.max(n, 0), 1);
 
