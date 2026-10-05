@@ -16,13 +16,16 @@ import { syncSongThemes, type ClassifiableRow } from '../themes/persist';
 import type { ThemeFilters } from '../themes/slugs';
 import {
 	hasPaceMix,
+	interleaveByPace,
+	isInstrumental,
+	paceOf,
 	paceTargets,
 	pickPaceMix,
 	type Pace,
 	type PaceMix,
 	type Paced,
 } from '../pace/mix';
-import { syncSongPaces } from '../pace/persist';
+import { syncAudioFeatures } from '../pace/persist';
 import { createPaceBudget, type PaceBudget } from '../pace/reccobeats';
 import type {
 	ProviderAuthCtx,
@@ -182,7 +185,9 @@ export async function scoreTracks(
 	const filtering = hasActiveThemeFilter(themeFilters);
 
 	const scoredTracks = await Promise.all(
-		newTracks.map((track) =>
+		newTracks
+			.filter((track) => !isInstrumental(track.name))
+			.map((track) =>
 			pLimitInstance(async () => {
 				if (signal?.aborted) return null;
 				try {
@@ -238,16 +243,17 @@ export async function scoreTracks(
 			(filtering ? ` (${droppedOnThemes} dropped on themes)` : ''),
 	);
 
-	const paces = await syncSongPaces(
+	const features = await syncAudioFeatures(
 		kept.map(({ song }) => song),
 		paceBudget,
 		signal,
 	);
 
 	return kept
+		.filter(({ name, song }) => !isInstrumental(name, features.get(song.id)))
 		.map(({ song, ...candidate }) => ({
 			...candidate,
-			pace: paces.get(song.id) ?? null,
+			pace: paceOf(features.get(song.id)),
 		}))
 		.sort(byRankDesc);
 }
@@ -403,7 +409,7 @@ export async function finalizeTracks(
 	const ranked = [...refs].sort(byRankDesc);
 	const finalTracks = (
 		hasPaceMix(paceMix)
-			? pickPaceMix(ranked, paceMix, PLAYLIST_SIZE)
+			? interleaveByPace(pickPaceMix(ranked, paceMix, PLAYLIST_SIZE))
 			: ranked.slice(0, PLAYLIST_SIZE)
 	).map(toRef);
 

@@ -7,7 +7,8 @@ import { DB_SIMILAR_SONGS_LIMIT } from '../utils';
 import type { ProviderName } from '../providers/types';
 import { hasActiveThemeFilter } from '../themes/filter';
 import type { ThemeFilters } from '../themes/slugs';
-import { syncSongPaces } from '../pace/persist';
+import { isInstrumental, paceOf } from '../pace/mix';
+import { syncAudioFeatures } from '../pace/persist';
 import { createPaceBudget, type PaceBudget } from '../pace/reccobeats';
 import {
 	CUTOFF,
@@ -28,6 +29,8 @@ async function scoreDbMatches(
 	signal?: AbortSignal,
 ): Promise<DbMatch[]> {
 	const survivors = dbSimilar.flatMap((song: any) => {
+		if (isInstrumental(song.title ?? '')) return [];
+
 		const emb = parseEmbedding(song.embedding);
 		if (!emb) return [];
 
@@ -41,20 +44,22 @@ async function scoreDbMatches(
 		? await keepMatchingThemes(survivors, themeFilters, signal)
 		: survivors;
 
-	const paces = await syncSongPaces(
+	const features = await syncAudioFeatures(
 		matches.map(({ song }) => song),
 		paceBudget,
 		signal,
 	);
 
-	return matches.map(({ song, scored }) => ({
-		provider,
-		externalId: song.externalId,
-		title: song.title ?? '',
-		artist: song.artist ?? '',
-		...scored,
-		pace: paces.get(song.id) ?? null,
-	}));
+	return matches
+		.filter(({ song }) => !isInstrumental(song.title ?? '', features.get(song.id)))
+		.map(({ song, scored }) => ({
+			provider,
+			externalId: song.externalId,
+			title: song.title ?? '',
+			artist: song.artist ?? '',
+			...scored,
+			pace: paceOf(features.get(song.id)),
+		}));
 }
 
 export async function findDbMatches(

@@ -1,11 +1,6 @@
 import { setAudioFeatures } from '../db';
 import { formatApiError } from '../utils';
-import {
-	paceOf,
-	parseAudioFeatures,
-	type AudioFeatures,
-	type Pace,
-} from './mix';
+import { parseAudioFeatures, type AudioFeatures } from './mix';
 import { fetchAudioFeatures, type PaceBudget } from './reccobeats';
 
 export type PaceRow = {
@@ -14,12 +9,12 @@ export type PaceRow = {
 	audioFeatures: unknown;
 };
 
-/** Pace per song id, backfilling audio features for rows that lack them. */
-export async function syncSongPaces(
+/** Audio features per song id, backfilling rows that lack them. */
+export async function syncAudioFeatures(
 	rows: PaceRow[],
 	budget: PaceBudget,
 	signal?: AbortSignal,
-): Promise<Map<string, Pace | null>> {
+): Promise<Map<string, AudioFeatures | null>> {
 	const features = new Map<string, AudioFeatures | null>(
 		rows.map((row) => [row.id, parseAudioFeatures(row.audioFeatures)]),
 	);
@@ -56,7 +51,5 @@ export async function syncSongPaces(
 		}
 	}
 
-	return new Map(
-		[...features].map(([id, songFeatures]) => [id, paceOf(songFeatures)]),
-	);
+	return features;
 }
