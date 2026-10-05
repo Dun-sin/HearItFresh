@@ -228,12 +228,14 @@ const BATCH_RETRY_DELAY_MS = 5000;
  * @param artists - Array of artist names or resolved Spotify artists. Resolved
  * artists reuse their cached id for the album lookup; plain names search once.
  * @param signal - Optional abort signal
+ * @param maxAlbumsPerArtist - Overrides the per-artist album count derived from the artist total
  * @param attempt - Internal batch retry counter; callers should not pass this
  * @returns Array of unique album IDs
  */
 export const getEveryAlbum = async (
 	artists: AlbumLookupArtist[],
 	signal?: AbortSignal,
+	maxAlbumsPerArtist?: number,
 	attempt = 0,
 ): Promise<string[]> => {
 	if (signal?.aborted) throw new Error('Aborted');
@@ -245,12 +247,18 @@ export const getEveryAlbum = async (
 		shuffled.map((artist) =>
 			limit(() =>
 				typeof artist === 'string'
-					? getArtistsAlbums(artist, shuffled.length, signal)
+					? getArtistsAlbums(
+							artist,
+							shuffled.length,
+							signal,
+							maxAlbumsPerArtist,
+						)
 					: getArtistAlbumsById(
 							artist.id,
 							artist.name,
 							shuffled.length,
 							signal,
+							maxAlbumsPerArtist,
 						),
 			),
 		),
@@ -282,7 +290,7 @@ export const getEveryAlbum = async (
 			`getEveryAlbum: only ${albums.length} album(s) from ${artists.length} artist(s), retrying batch in ${BATCH_RETRY_DELAY_MS}ms`,
 		);
 		await sleep(BATCH_RETRY_DELAY_MS, signal);
-		return getEveryAlbum(artists, signal, attempt + 1);
+		return getEveryAlbum(artists, signal, maxAlbumsPerArtist, attempt + 1);
 	}
 
 	return albums;
@@ -420,6 +428,7 @@ export async function relatedArists(
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	signal?: AbortSignal,
 	extraExcludedArtists?: string[],
+	maxAmountOfArtists = 80,
 ) {
 	const relatedArtistsPerSeed: RelatedArtistCandidate[][] = [];
 	const batches = [];
@@ -455,7 +464,6 @@ export async function relatedArists(
 		...artistNames.map((n) => n.toLowerCase()),
 		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
 	]);
-	const maxAmountOfArtists = 80;
 
 	while (finalList.length < maxAmountOfArtists && workingLists.length > 0) {
 		// Iterate in reverse so we can safely splice exhausted lists out

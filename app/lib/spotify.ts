@@ -295,11 +295,13 @@ export async function getArtistAlbumsById(
 	artistName: string,
 	artistsLength: number,
 	signal?: AbortSignal,
+	maxAlbumsPerArtist?: number,
 ): Promise<string[]> {
 	const maxAlbums =
-		artistsLength >= 20
+		maxAlbumsPerArtist ??
+		(artistsLength >= 20
 			? 5
-			: Math.max(1, Math.floor(100 / (artistsLength * 2)));
+			: Math.max(1, Math.floor(100 / (artistsLength * 2))));
 
 	try {
 		const data = await retrySpotify(
@@ -329,6 +331,7 @@ export async function getArtistsAlbums(
 	artist: string,
 	artistsLength: number,
 	signal?: AbortSignal,
+	maxAlbumsPerArtist?: number,
 ): Promise<string[]> {
 	const resolved = await resolveSpotifyArtist(artist, signal);
 	if (!resolved) {
@@ -341,6 +344,7 @@ export async function getArtistsAlbums(
 		resolved.name,
 		artistsLength,
 		signal,
+		maxAlbumsPerArtist,
 	);
 }
 

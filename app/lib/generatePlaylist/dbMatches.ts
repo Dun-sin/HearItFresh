@@ -18,7 +18,7 @@ import {
 	type RankedRef,
 } from './shared';
 
-export type DbMatch = RankedRef & { title: string; artist: string };
+export type DbMatch = RankedRef & { title: string };
 
 async function scoreDbMatches(
 	dbSimilar: any[],
@@ -56,7 +56,7 @@ async function scoreDbMatches(
 			provider,
 			externalId: song.externalId,
 			title: song.title ?? '',
-			artist: song.artist ?? '',
+			artistName: song.artist ?? '',
 			...scored,
 			pace: paceOf(features.get(song.id)),
 		}));

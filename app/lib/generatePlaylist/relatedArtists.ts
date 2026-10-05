@@ -26,6 +26,9 @@ import type { DbMatch } from './dbMatches';
 import { hasPaceMix } from '../pace/mix';
 import type { PaceBudget } from '../pace/reccobeats';
 
+const PACED_MAX_RELATED_ARTISTS = 160;
+const PACED_ALBUMS_PER_ARTIST = 2;
+
 export async function expandWithRelatedArtists({
 	seeds,
 	artistNames,
@@ -53,11 +56,12 @@ export async function expandWithRelatedArtists({
 	const accumulatedRefs: RankedRef[] = [...existing];
 	const checkedTrackIds = new Set<string>(existing.map((r) => r.externalId));
 	const checkedTrackTitles = new Set<string>(
-		existing.map((r) => titleKey(r.title, r.artist)),
+		existing.map((r) => titleKey(r.title, r.artistName)),
 	);
 	const usedArtistNames: string[] = [];
 
-	const attempts = hasPaceMix(options?.paceMix) ? 1 : 2;
+	const paced = hasPaceMix(options?.paceMix);
+	const attempts = paced ? 1 : 2;
 
 	for (let attempt = 0; attempt < attempts; attempt++) {
 		if (fillableCount(accumulatedRefs, options?.paceMix) >= PLAYLIST_SIZE) break;
@@ -74,12 +78,17 @@ export async function expandWithRelatedArtists({
 				options,
 				signal,
 				usedArtistNames,
+				paced ? PACED_MAX_RELATED_ARTISTS : undefined,
 			);
 			throwIfAborted();
 
 			usedArtistNames.push(...finalList.map(artistNameOf));
 
-			const albums = await getEveryAlbum(finalList, signal);
+			const albums = await getEveryAlbum(
+				finalList,
+				signal,
+				paced ? PACED_ALBUMS_PER_ARTIST : undefined,
+			);
 			throwIfAborted();
 
 			const aiTracks = (await getAllTracks(

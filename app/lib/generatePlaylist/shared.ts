@@ -45,6 +45,7 @@ export const PLAYLIST_SIZE = 100;
 export const RESOLVE_HEADROOM = 20;
 
 const MIN_PACE_MIX_TRACKS = 10;
+const MAX_TRACKS_PER_ARTIST_WITH_PACE = 2;
 
 const paceMixUnmetError = (found: number) =>
 	`Only ${found} matching songs fit the fast/slow mix you picked, and at least ${MIN_PACE_MIX_TRACKS} are needed. Try a different mix or turn the pace filter off.`;
@@ -69,7 +70,9 @@ export type Score = { maxScore: number; hitRatio: number };
 
 export type ScoredCandidate = CandidateTrack & Score & Paced;
 
-export type RankedRef = ProviderTrackRef & Score & Paced;
+export type RankedRef = ProviderTrackRef &
+	Score &
+	Paced & { artistName: string };
 
 export type ResolvedRefs = { refs: RankedRef[]; quotaExhausted: boolean };
 
@@ -258,9 +261,29 @@ export async function scoreTracks(
 		.sort(byRankDesc);
 }
 
-export function fillableCount(refs: Paced[], paceMix?: PaceMix): number {
+/** Keeps each artist's best-ranked tracks up to the cap; expects rank order. */
+function capPerArtist<T extends { artistName: string }>(ranked: T[]): T[] {
+	const counts = new Map<string, number>();
+
+	return ranked.filter(({ artistName }) => {
+		const artist = artistName.toLowerCase().trim();
+		const count = counts.get(artist) ?? 0;
+		if (count >= MAX_TRACKS_PER_ARTIST_WITH_PACE) return false;
+
+		counts.set(artist, count + 1);
+		return true;
+	});
+}
+
+/** The pace-mixed playlist, best-ranked first, before interleaving. */
+function pickPacedTracks<T extends RankedRef>(refs: T[], paceMix: PaceMix): T[] {
+	const ranked = capPerArtist([...refs].sort(byRankDesc));
+	return pickPaceMix(ranked, paceMix, PLAYLIST_SIZE);
+}
+
+export function fillableCount(refs: RankedRef[], paceMix?: PaceMix): number {
 	return hasPaceMix(paceMix)
-		? pickPaceMix(refs, paceMix, PLAYLIST_SIZE).length
+		? pickPacedTracks(refs, paceMix).length
 		: refs.length;
 }
 
@@ -277,13 +300,14 @@ export function selectForResolve(
 		);
 	}
 
+	const eligible = capPerArtist(scored);
 	const target = paceTargets(PLAYLIST_SIZE, paceMix);
 	const take = (pace: Pace) => {
 		const need = target[pace] - existing.filter((r) => r.pace === pace).length;
 		if (need <= 0) return [];
 
 		const headroom = Math.ceil((RESOLVE_HEADROOM * target[pace]) / PLAYLIST_SIZE);
-		return scored.filter((c) => c.pace === pace).slice(0, need + headroom);
+		return eligible.filter((c) => c.pace === pace).slice(0, need + headroom);
 	};
 
 	const chosen = new Set([...take('fast'), ...take('slow')]);
@@ -328,6 +352,7 @@ export async function resolveSpotifyTracksToRefs(
 		maxScore: c.maxScore,
 		hitRatio: c.hitRatio,
 		pace: c.pace,
+		artistName: c.artistName,
 	});
 
 	if (provider === 'spotify') {
@@ -406,11 +431,10 @@ export async function finalizeTracks(
 	refs: RankedRef[],
 	{ quotaExhausted, paceMix }: { quotaExhausted: boolean; paceMix?: PaceMix },
 ): Promise<GenerationResult> {
-	const ranked = [...refs].sort(byRankDesc);
 	const finalTracks = (
 		hasPaceMix(paceMix)
-			? interleaveByPace(pickPaceMix(ranked, paceMix, PLAYLIST_SIZE))
-			: ranked.slice(0, PLAYLIST_SIZE)
+			? interleaveByPace(pickPacedTracks(refs, paceMix))
+			: [...refs].sort(byRankDesc).slice(0, PLAYLIST_SIZE)
 	).map(toRef);
 
 	if (quotaExhausted && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
