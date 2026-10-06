@@ -1,3 +1,10 @@
+## [1.51.1](https://github.com/Dun-sin/HearItFresh/compare/v1.51.0...v1.51.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **playlist:** update themed fetch limit for albums per artist ([51dbdf3](https://github.com/Dun-sin/HearItFresh/commit/51dbdf320ad18fc85a878cf525a02f6f5b54214f))
+
 # [1.51.0](https://github.com/Dun-sin/HearItFresh/compare/v1.50.0...v1.51.0) (2026-10-06)
 
 
