@@ -24,10 +24,11 @@ import {
 } from './shared';
 import type { DbMatch } from './dbMatches';
 import { hasPaceMix } from '../pace/mix';
+import { hasActiveThemeFilter } from '../themes/filter';
 import type { PaceBudget } from '../pace/reccobeats';
 
-const PACED_MAX_RELATED_ARTISTS = 160;
-const PACED_ALBUMS_PER_ARTIST = 2;
+const PACED_FETCH = { maxArtists: 160, albumsPerArtist: 2 };
+const THEMED_FETCH = { maxArtists: 160, albumsPerArtist: 3 };
 
 export async function expandWithRelatedArtists({
 	seeds,
@@ -62,9 +63,15 @@ export async function expandWithRelatedArtists({
 
 	const paced = hasPaceMix(options?.paceMix);
 	const attempts = paced ? 1 : 2;
+	const fetchLimits = paced
+		? PACED_FETCH
+		: hasActiveThemeFilter(options?.themeFilters)
+			? THEMED_FETCH
+			: undefined;
 
 	for (let attempt = 0; attempt < attempts; attempt++) {
-		if (fillableCount(accumulatedRefs, options?.paceMix) >= PLAYLIST_SIZE) break;
+		if (fillableCount(accumulatedRefs, options?.paceMix) >= PLAYLIST_SIZE)
+			break;
 		throwIfAborted();
 
 		try {
@@ -78,7 +85,7 @@ export async function expandWithRelatedArtists({
 				options,
 				signal,
 				usedArtistNames,
-				paced ? PACED_MAX_RELATED_ARTISTS : undefined,
+				fetchLimits?.maxArtists,
 			);
 			throwIfAborted();
 
@@ -87,7 +94,7 @@ export async function expandWithRelatedArtists({
 			const albums = await getEveryAlbum(
 				finalList,
 				signal,
-				paced ? PACED_ALBUMS_PER_ARTIST : undefined,
+				fetchLimits?.albumsPerArtist,
 			);
 			throwIfAborted();
 
