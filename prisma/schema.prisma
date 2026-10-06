@@ -41,6 +41,7 @@ model Song {
   themesQuestionVersions Json?
   themesDeriveVersion    Int?
   audioFeatures          Json?
+  releaseYear            Int?
 
   @@index([themes], type: Gin)
 }

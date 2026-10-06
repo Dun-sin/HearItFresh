@@ -1,11 +1,18 @@
-export const LOVE_THEME_SLUGS = [
-	'love_gendered',
+export const LOVE_TYPE_THEME_SLUGS = [
 	'love_earnest',
 	'love_yearning',
 	'love_betrayal',
 	'love_playful',
 	'love_obsessive',
 	'love_bittersweet',
+] as const;
+
+export const LOVE_CATCH_ALL_SLUG = 'love_other';
+
+export const LOVE_THEME_SLUGS = [
+	'love_gendered',
+	...LOVE_TYPE_THEME_SLUGS,
+	LOVE_CATCH_ALL_SLUG,
 ] as const;
 
 export const GENERAL_THEME_SLUGS = [
@@ -16,10 +23,11 @@ export const GENERAL_THEME_SLUGS = [
 	'celebration',
 	'social_political',
 	'platonic',
-	'metaphoric',
 	'nostalgia',
 	'mental_health',
 	'defiant',
+	'violence',
+	'faith',
 ] as const;
 
 export const THEME_SLUGS = [
@@ -43,6 +51,7 @@ export const THEME_LABELS: Record<ThemeSlug, string> = {
 	love_playful: 'Playful / flirtatious',
 	love_obsessive: 'Obsessive / intense',
 	love_bittersweet: 'Bittersweet / conflicted',
+	love_other: 'Other romance',
 	grief: 'Grief / loss',
 	sexual_explicit: 'Sexually explicit',
 	substance_use: 'Substance use',
@@ -50,10 +59,11 @@ export const THEME_LABELS: Record<ThemeSlug, string> = {
 	celebration: 'Celebration / hype',
 	social_political: 'Social / political',
 	platonic: 'Friendship / family',
-	metaphoric: 'Metaphoric / symbolic',
 	nostalgia: 'Nostalgia / memory',
 	mental_health: 'Mental health',
 	defiant: 'Defiant / empowered',
+	violence: 'Violence / aggression',
+	faith: 'Faith / religious',
 };
 
 export function isThemeSlug(value: string): value is ThemeSlug {

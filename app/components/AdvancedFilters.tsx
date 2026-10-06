@@ -4,7 +4,9 @@ import React, { ReactNode, useState } from 'react';
 import { useOptions } from '@/app/context/optionsContext';
 import {
 	GENERAL_THEME_SLUGS,
+	LOVE_CATCH_ALL_SLUG,
 	LOVE_THEME_SLUGS,
+	LOVE_TYPE_THEME_SLUGS,
 	THEME_LABELS,
 	type ThemeFilterState,
 	type ThemeSlug,
@@ -130,6 +132,64 @@ const ResetButton = ({
 	</button>
 );
 
+const REJECTABLE_LOVE_SLUGS = [
+	...LOVE_TYPE_THEME_SLUGS,
+	LOVE_CATCH_ALL_SLUG,
+] as const;
+
+const LoveFilters = () => {
+	const { themeFilters, setThemeFiltersFor } = useOptions();
+	const rejectingAll = themeFilters[LOVE_CATCH_ALL_SLUG] === 'restrict';
+
+	return (
+		<div className='flex flex-col gap-3'>
+			<label className='flex items-center justify-between gap-3 cursor-pointer select-none pl-5 sm:max-w-[50%] sm:pr-3'>
+				<span
+					className={`text-fsm font-semibold transition-colors ${
+						rejectingAll ? 'text-red-600' : 'text-darkest dark:text-lightest'
+					}`}>
+					Reject all romance
+				</span>
+
+				<input
+					type='checkbox'
+					checked={rejectingAll}
+					onChange={(e) =>
+						setThemeFiltersFor(
+							REJECTABLE_LOVE_SLUGS,
+							e.target.checked ? 'restrict' : 'neutral',
+						)
+					}
+					className='sr-only peer'
+				/>
+
+				<span
+					className={`relative h-5 w-9 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-focus-visible:ring-offset-1 ${
+						rejectingAll ? 'bg-red-600' : 'bg-gray'
+					}`}>
+					<span
+						className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-lightest shadow-sm transition-transform ${
+							rejectingAll ? 'translate-x-4' : 'translate-x-0'
+						}`}
+					/>
+				</span>
+			</label>
+
+			{rejectingAll && (
+				<p className='pl-5 text-fxs text-gray'>
+					Turn a type back on below to allow only that kind of love song.
+				</p>
+			)}
+
+			<ThemeGrid themes={LOVE_TYPE_THEME_SLUGS} />
+
+			<div className='border-t border-gray border-opacity-20 pt-2'>
+				<ThemeGrid themes={['love_gendered']} />
+			</div>
+		</div>
+	);
+};
+
 const restrictedIn = (
 	themes: readonly ThemeSlug[],
 	filters: Record<string, ThemeFilterState | undefined>,
@@ -221,7 +281,7 @@ const AdvancedFilters = () => {
 						<Collapsible
 							title='Love'
 							count={restrictedIn(LOVE_THEME_SLUGS, themeFilters)}>
-							<ThemeGrid themes={LOVE_THEME_SLUGS} />
+							<LoveFilters />
 						</Collapsible>
 
 						<Collapsible

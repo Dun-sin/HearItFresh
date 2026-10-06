@@ -2,6 +2,7 @@ import { Song } from './generated/prisma';
 import type { ProviderName } from './lib/providers/types';
 import type { ThemeFilters } from './lib/themes/slugs';
 import type { PaceMix } from './lib/pace/mix';
+import type { YearRange } from './lib/releaseYear/range';
 
 export type {
 	ThemeSlug,
@@ -14,6 +15,7 @@ export type GenerationOptions = {
 	isDifferent: boolean;
 	themeFilters?: ThemeFilters;
 	paceMix?: PaceMix;
+	yearRange?: YearRange;
 };
 
 export type singleTrack = {
@@ -22,6 +24,7 @@ export type singleTrack = {
 	uri: string;
 	id: string;
 	artistName: string;
+	releaseYear?: number;
 };
 
 

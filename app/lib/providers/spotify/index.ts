@@ -95,6 +95,7 @@ async function getArtistDiscographyTracks(
 		name: t.name,
 		albumName: t.albumName,
 		artistName: t.artistName,
+		releaseYear: t.releaseYear,
 	}));
 }
 

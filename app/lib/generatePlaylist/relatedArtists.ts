@@ -23,6 +23,7 @@ import {
 	type SeedInput,
 } from './shared';
 import type { DbMatch } from './dbMatches';
+import type { PlaylistHistory } from './history';
 import { hasPaceMix } from '../pace/mix';
 import { hasActiveThemeFilter } from '../themes/filter';
 import type { PaceBudget } from '../pace/reccobeats';
@@ -36,6 +37,7 @@ export async function expandWithRelatedArtists({
 	options,
 	seedEmbeddings,
 	existing,
+	history,
 	provider,
 	authCtx,
 	paceBudget,
@@ -46,6 +48,7 @@ export async function expandWithRelatedArtists({
 	options: GenerationOptions;
 	seedEmbeddings: number[][];
 	existing: DbMatch[];
+	history: PlaylistHistory;
 	provider: ProviderName;
 	authCtx: ProviderAuthCtx;
 	paceBudget: PaceBudget;
@@ -55,10 +58,14 @@ export async function expandWithRelatedArtists({
 
 	let hitQuotaLimit = false;
 	const accumulatedRefs: RankedRef[] = [...existing];
-	const checkedTrackIds = new Set<string>(existing.map((r) => r.externalId));
-	const checkedTrackTitles = new Set<string>(
-		existing.map((r) => titleKey(r.title, r.artistName)),
-	);
+	const checkedTrackIds = new Set<string>([
+		...history.ids,
+		...existing.map((r) => r.externalId),
+	]);
+	const checkedTrackTitles = new Set<string>([
+		...history.titles,
+		...existing.map((r) => titleKey(r.title, r.artistName)),
+	]);
 	const usedArtistNames: string[] = [];
 
 	const paced = hasPaceMix(options?.paceMix);
@@ -91,11 +98,10 @@ export async function expandWithRelatedArtists({
 
 			usedArtistNames.push(...finalList.map(artistNameOf));
 
-			const albums = await getEveryAlbum(
-				finalList,
-				signal,
-				fetchLimits?.albumsPerArtist,
-			);
+			const albums = await getEveryAlbum(finalList, signal, {
+				maxAlbumsPerArtist: fetchLimits?.albumsPerArtist,
+				yearRange: options?.yearRange,
+			});
 			throwIfAborted();
 
 			const aiTracks = (await getAllTracks(
@@ -119,6 +125,7 @@ export async function expandWithRelatedArtists({
 						name: t.name,
 						artistName: t.artistName,
 						albumName: t.albumName,
+						releaseYear: t.releaseYear,
 					}),
 				);
 
@@ -127,9 +134,12 @@ export async function expandWithRelatedArtists({
 				newTracks,
 				seedEmbeddings,
 				pLimitInstance,
-				signal,
-				options?.themeFilters,
-				paceBudget,
+				{
+					signal,
+					themeFilters: options?.themeFilters,
+					yearRange: options?.yearRange,
+					paceBudget,
+				},
 			);
 			throwIfAborted();
 

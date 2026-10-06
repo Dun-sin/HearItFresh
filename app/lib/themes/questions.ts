@@ -19,7 +19,7 @@ export const NOT_ROMANTIC = 'not_romantic';
 export const LOVE_TYPE_QUESTION: JevQuestion = {
 	type: 'choice',
 	instructions:
-		'Is this song centrally about a romantic relationship between the narrator and another person? If the song uses romantic-sounding language but is not actually about a real interpersonal relationship — addressing an abstract concept, a group of people, an institution, or society at large — answer not_romantic. Only choose a romantic category if there is an actual relationship being described.',
+		'Is this song centrally about romance between the narrator and another person? If the song uses romantic-sounding language but is not actually about a real interpersonal connection — addressing an abstract concept, a group of people, an institution, or society at large — answer not_romantic. If it is genuinely about romance but none of the specific categories fit (e.g. turning down someone\'s advances, a situationship, a crush that never became anything), answer romance_adjacent rather than forcing the closest category.',
 	criteria: {
 		not_romantic:
 			'Not centrally about a romantic relationship between two people, even if romantic-sounding vocabulary appears',
@@ -33,6 +33,8 @@ export const LOVE_TYPE_QUESTION: JevQuestion = {
 		obsessive_intense: 'Possessive or all-consuming romantic intensity',
 		bittersweet_conflicted:
 			"Doubt, pain, or ambivalence within a relationship that's still ongoing",
+		romance_adjacent:
+			'About romance or attraction, but none of the categories above describe it',
 	},
 };
 
@@ -43,6 +45,7 @@ export const LOVE_TYPE_SLUGS = {
 	playful_flirtatious: 'love_playful',
 	obsessive_intense: 'love_obsessive',
 	bittersweet_conflicted: 'love_bittersweet',
+	romance_adjacent: 'love_other',
 } as const satisfies Record<string, ThemeSlug>;
 
 export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
@@ -70,20 +73,20 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'sexual_explicit',
 		instructions:
-			'Does this song contain sexually explicit content as a central focus?',
+			'Does this song contain sexually explicit content — graphic or clearly sexual lyrics — anywhere in it, even if it is not the main subject?',
 		criteria: {
-			yes: 'Sexually explicit content is a central focus',
-			no: 'No sexually explicit content, or only incidental',
+			yes: 'Contains sexually explicit lyrics, whether in one verse or throughout',
+			no: 'No sexually explicit lyrics; at most mild, non-graphic romance or innuendo',
 		},
 	},
 	substance_use: {
 		type: 'choice',
 		slug: 'substance_use',
 		instructions:
-			'Does this song reference drug or alcohol use as a central theme?',
+			'Does this song depict or reference using drugs or alcohol anywhere in it, even if it is not the main subject?',
 		criteria: {
-			yes: 'Drug or alcohol use is a central theme',
-			no: 'No substance use, or only incidental mention',
+			yes: 'Depicts or references drug or alcohol use, whether in one line or throughout',
+			no: 'No reference to anyone using drugs or alcohol',
 		},
 	},
 	self_reflection: {
@@ -93,17 +96,17 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 			'Is this song primarily about the narrator examining their own identity, growth, or internal state?',
 		criteria: {
 			yes: "Primarily about the narrator's own identity, growth, or internal state",
-			no: 'Primarily about an external event or another person',
+			no: "Not primarily about the narrator's own identity, growth, or internal state",
 		},
 	},
 	celebration_hype: {
 		type: 'choice',
 		slug: 'celebration',
 		instructions:
-			'Is this song primarily about celebration, triumph, confidence, or high-energy enjoyment?',
+			'Is this song primarily about celebrating and having a good time — partying, enjoying the moment, or hyping up good times? Overcoming adversity or standing up to someone is not celebration.',
 		criteria: {
-			yes: 'Primarily about celebration, triumph, confidence, or hype',
-			no: 'Not primarily about celebration or hype',
+			yes: 'Primarily about partying, enjoying the moment, or celebrating good times',
+			no: 'Not primarily about celebrating or having a good time',
 		},
 	},
 	social_political: {
@@ -113,7 +116,7 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 			'Does this song primarily address a social, political, or systemic issue?',
 		criteria: {
 			yes: 'Primarily about a social, political, or systemic issue',
-			no: 'Primarily about a personal experience instead',
+			no: 'Not primarily about a social, political, or systemic issue',
 		},
 	},
 	platonic_connection: {
@@ -126,16 +129,6 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 			no: 'Not primarily about a platonic relationship',
 		},
 	},
-	metaphoric_expression: {
-		type: 'choice',
-		slug: 'metaphoric',
-		instructions:
-			"If this song expresses romantic or emotional feeling, is that feeling conveyed primarily through metaphor, symbolism, or imagery (e.g. nature, ritual gestures, extended comparison) rather than being stated plainly and directly (e.g. 'I love you', 'I don't want to live without you')? Consider symbolic use of ordinary objects or actions (like a shared ritual or gesture) as metaphoric, not just poetic or cosmic imagery.",
-		criteria: {
-			yes: 'The feeling is primarily conveyed through metaphor, symbolism, or imagery, not stated directly',
-			no: 'The feeling is stated plainly and directly, with little metaphor or imagery carrying the emotional weight',
-		},
-	},
 	nostalgia_memory: {
 		type: 'choice',
 		slug: 'nostalgia',
@@ -143,7 +136,7 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 			'Is this song primarily about looking back on the past or memory?',
 		criteria: {
 			yes: 'Primarily about the past or memory',
-			no: 'Primarily about the present or future',
+			no: 'Not primarily about the past or memory',
 		},
 	},
 	mental_health_struggle: {
@@ -160,10 +153,30 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'defiant',
 		instructions:
-			'Is this song primarily about defiance, reclaiming power, or empowerment — proving doubters wrong, refusing to be controlled, or asserting strength — regardless of whether it involves a romantic relationship?',
+			'Is this song primarily about overcoming something that held the narrator down — proving doubters wrong, breaking free from control or oppression, or standing up to pressure? Simply turning down someone\'s romantic interest does not count.',
 		criteria: {
-			yes: 'Primarily about defiance, empowerment, or reclaiming power/strength',
-			no: 'Not primarily about defiance or empowerment',
+			yes: 'Primarily about overcoming, breaking free, or standing up to something that held the narrator down',
+			no: "Not primarily about overcoming or standing up to something, including songs that just reject someone's advances",
+		},
+	},
+	violence_aggression: {
+		type: 'choice',
+		slug: 'violence',
+		instructions:
+			'Does this song depict, threaten, or glorify violence or physical aggression anywhere in it, even if it is not the main subject?',
+		criteria: {
+			yes: 'Depicts, threatens, or glorifies violence or physical aggression',
+			no: 'No violence or physical aggression, or only as a clearly figurative turn of phrase',
+		},
+	},
+	faith_religious: {
+		type: 'choice',
+		slug: 'faith',
+		instructions:
+			'Is this song primarily about faith, God, worship, or a religious belief?',
+		criteria: {
+			yes: 'Primarily about faith, God, worship, or religious belief',
+			no: 'Not primarily about faith or religion',
 		},
 	},
 };

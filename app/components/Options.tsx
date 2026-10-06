@@ -5,6 +5,7 @@ import { useOptions } from '@/app/context/optionsContext';
 import { useGeneralState } from '@/app/context/generalStateContext';
 import ArtistSearchInput from './ArtistSearchInput';
 import AdvancedFilters from './AdvancedFilters';
+import YearFilter from './YearFilter';
 
 const Options = () => {
 	const {
@@ -119,6 +120,10 @@ const Options = () => {
 					<ArtistSearchInput />
 				</div>
 			)}
+
+			<div className='pl-4'>
+				<YearFilter />
+			</div>
 
 			<div className='pl-4'>
 				<AdvancedFilters />

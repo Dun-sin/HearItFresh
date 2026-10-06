@@ -7,6 +7,7 @@ import type {
 	ThemeSlug,
 } from '@/app/lib/themes/slugs';
 import type { PaceMix } from '@/app/lib/pace/mix';
+import type { YearRange } from '@/app/lib/releaseYear/range';
 
 export interface SelectedArtist {
 	id: string;
@@ -25,9 +26,15 @@ interface OptionsContextProps {
 	setSelectedArtist: (artist: SelectedArtist | null) => void;
 	themeFilters: ThemeFilters;
 	setThemeFilter: (theme: ThemeSlug, state: ThemeFilterState) => void;
+	setThemeFiltersFor: (
+		themes: readonly ThemeSlug[],
+		state: ThemeFilterState,
+	) => void;
 	resetThemeFilters: () => void;
 	paceMix: PaceMix | null;
 	setPaceMix: (mix: PaceMix | null) => void;
+	yearRange: YearRange;
+	setYearRange: (range: YearRange) => void;
 }
 
 const OptionsContext = createContext<OptionsContextProps | undefined>(
@@ -44,17 +51,26 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 	);
 	const [themeFilters, setThemeFilters] = useState<ThemeFilters>({});
 	const [paceMix, setPaceMix] = useState<PaceMix | null>(null);
+	const [yearRange, setYearRange] = useState<YearRange>({});
 
-	const setThemeFilter = (theme: ThemeSlug, state: ThemeFilterState) =>
+	const setThemeFiltersFor = (
+		themes: readonly ThemeSlug[],
+		state: ThemeFilterState,
+	) =>
 		setThemeFilters((current) => {
 			const next = { ...current };
-			if (state === 'neutral') {
-				delete next[theme];
-			} else {
-				next[theme] = state;
+			for (const theme of themes) {
+				if (state === 'neutral') {
+					delete next[theme];
+				} else {
+					next[theme] = state;
+				}
 			}
 			return next;
 		});
+
+	const setThemeFilter = (theme: ThemeSlug, state: ThemeFilterState) =>
+		setThemeFiltersFor([theme], state);
 
 	const resetThemeFilters = () => setThemeFilters({});
 
@@ -69,9 +85,12 @@ const OptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 				setSelectedArtist,
 				themeFilters,
 				setThemeFilter,
+				setThemeFiltersFor,
 				resetThemeFilters,
 				paceMix,
 				setPaceMix,
+				yearRange,
+				setYearRange,
 			}}>
 			{children}
 		</OptionsContext.Provider>

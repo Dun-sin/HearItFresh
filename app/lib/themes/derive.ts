@@ -7,12 +7,13 @@ import {
 import type { ThemeSlug } from './slugs';
 
 export const THEME_PROBABILITY_CUTOFF = 0.55;
+export const LOVE_PROBABILITY_CUTOFF = 0.45;
 export const MIN_CHOICE_CONFIDENCE = 0.5;
 export const MULTI_LABEL_FLOOR = 0.2;
 
 // bump when the thresholds above or the rules below change; stored themesRaw is
 // re-derived locally, so this never costs a Jev call
-export const DERIVE_VERSION = 1;
+export const DERIVE_VERSION = 2;
 
 export type JevChoiceAnswer = {
 	type?: string;
@@ -59,7 +60,7 @@ function deriveLoveThemes(answers: JevAnswers): ThemeSlug[] {
 	const [topOption, topProbability] = topChoice;
 
 	const isDecisive =
-		topProbability >= THEME_PROBABILITY_CUTOFF &&
+		topProbability >= LOVE_PROBABILITY_CUTOFF &&
 		(answer.confidence ?? 0) >= MIN_CHOICE_CONFIDENCE;
 
 	if (isDecisive) {
@@ -69,9 +70,9 @@ function deriveLoveThemes(answers: JevAnswers): ThemeSlug[] {
 
 	const leansNotRomantic =
 		topOption === NOT_ROMANTIC ||
-		probabilityOf(answer, NOT_ROMANTIC) >= THEME_PROBABILITY_CUTOFF;
+		probabilityOf(answer, NOT_ROMANTIC) >= LOVE_PROBABILITY_CUTOFF;
 
-	if (leansNotRomantic || topProbability >= THEME_PROBABILITY_CUTOFF) return [];
+	if (leansNotRomantic || topProbability >= LOVE_PROBABILITY_CUTOFF) return [];
 
 	const contenders = Object.entries(probabilities)
 		.filter(

@@ -328,7 +328,7 @@ export async function getSong(
 	const row = await prisma.$queryRawUnsafe<
 		Array<Song & { embedding: string | number[] | null }>
 	>(
-		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion", "audioFeatures"
+		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion", "audioFeatures", "releaseYear"
      FROM "Song"
      WHERE "${col}" = $1
      LIMIT 1`,
@@ -494,7 +494,7 @@ export async function findSimilarSongs(
 		`
     SELECT id, title, artist, album, lyrics, "${col}" AS "externalId",
            "spotifyId", themes, "themesRaw", "themesQuestionVersions",
-           "themesDeriveVersion", "audioFeatures",
+           "themesDeriveVersion", "audioFeatures", "releaseYear",
            embedding::text AS embedding,
            embedding <=> $1::vector AS distance
     FROM "Song"
@@ -522,6 +522,46 @@ export async function getSongEmbeddings(
     SELECT embedding::text AS embedding FROM "Song"
     WHERE "${col}" IN (${list}) AND embedding IS NOT NULL
   `);
+}
+
+export async function recordReleaseYears(
+	entries: { songId: string; year: number }[],
+) {
+	if (entries.length === 0) return;
+
+	await prisma.$executeRawUnsafe(
+		`UPDATE "Song" AS s
+     SET "releaseYear" = LEAST(COALESCE(s."releaseYear", v.year), v.year)
+     FROM unnest($1::text[], $2::int[]) AS v(id, year)
+     WHERE s.id = v.id`,
+		entries.map((e) => e.songId),
+		entries.map((e) => e.year),
+	);
+}
+
+export async function getReleaseYearsByArtists(
+	artists: string[],
+): Promise<{ title: string; artist: string; releaseYear: number }[]> {
+	if (artists.length === 0) return [];
+
+	return prisma.$queryRawUnsafe(
+		`SELECT title, artist, "releaseYear" FROM "Song"
+     WHERE artist = ANY($1::text[]) AND "releaseYear" IS NOT NULL`,
+		artists,
+	);
+}
+
+export async function getSongTitles(
+	externalIds: string[],
+	provider: ProviderName = 'spotify',
+): Promise<{ title: string; artist: string }[]> {
+	const safeIds = externalIds.filter((id) => isSafeExternalId(id));
+	if (safeIds.length === 0) return [];
+
+	return prisma.song.findMany({
+		where: { [idColumn(provider)]: { in: safeIds } },
+		select: { title: true, artist: true },
+	});
 }
 
 export async function getUserGeneratedSongIds(

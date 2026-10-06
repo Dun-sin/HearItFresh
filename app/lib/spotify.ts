@@ -12,6 +12,11 @@ import {
 	NON_CANONICAL_RELEASE_KEYWORDS,
 } from './utils';
 import { spotifyErrors, withRetry } from './retry';
+import {
+	inYearRange,
+	yearFromReleaseDate,
+	type YearRange,
+} from './releaseYear/range';
 
 const retrySpotify = <T>(
 	label: string,
@@ -290,12 +295,17 @@ export async function addTracksToPlayList(
  *   objects.
  **/
 
+export type AlbumLookupOptions = {
+	maxAlbumsPerArtist?: number;
+	yearRange?: YearRange;
+};
+
 export async function getArtistAlbumsById(
 	artistId: string,
 	artistName: string,
 	artistsLength: number,
 	signal?: AbortSignal,
-	maxAlbumsPerArtist?: number,
+	{ maxAlbumsPerArtist, yearRange }: AlbumLookupOptions = {},
 ): Promise<string[]> {
 	const maxAlbums =
 		maxAlbumsPerArtist ??
@@ -313,7 +323,9 @@ export async function getArtistAlbumsById(
 			signal,
 		);
 
-		const deduplicated = deduplicateAlbums(data.body.items);
+		const deduplicated = deduplicateAlbums(data.body.items).filter((item) =>
+			inYearRange(yearFromReleaseDate(item.release_date), yearRange),
+		);
 
 		return shuffle(deduplicated)
 			.slice(0, Math.min(maxAlbums, deduplicated.length))
@@ -331,7 +343,7 @@ export async function getArtistsAlbums(
 	artist: string,
 	artistsLength: number,
 	signal?: AbortSignal,
-	maxAlbumsPerArtist?: number,
+	options?: AlbumLookupOptions,
 ): Promise<string[]> {
 	const resolved = await resolveSpotifyArtist(artist, signal);
 	if (!resolved) {
@@ -344,7 +356,7 @@ export async function getArtistsAlbums(
 		resolved.name,
 		artistsLength,
 		signal,
-		maxAlbumsPerArtist,
+		options,
 	);
 }
 
@@ -385,6 +397,38 @@ export async function getArtistDiscographyTracks(
 	}
 }
 
+const MAX_TRACKS_PER_LOOKUP = 50;
+
+/** Album release year per Spotify track id; failed batches are left out. */
+export async function getTrackReleaseYears(
+	trackIds: string[],
+	signal?: AbortSignal,
+): Promise<Map<string, number>> {
+	const years = new Map<string, number>();
+
+	for (let i = 0; i < trackIds.length; i += MAX_TRACKS_PER_LOOKUP) {
+		const batch = trackIds.slice(i, i + MAX_TRACKS_PER_LOOKUP);
+		try {
+			const { body } = await retrySpotify(
+				`track years (${batch.length})`,
+				() => spotifyApi.getTracks(batch),
+				signal,
+			);
+			for (const track of body.tracks) {
+				const year = yearFromReleaseDate(track?.album?.release_date);
+				if (track?.id && year) years.set(track.id, year);
+			}
+		} catch (err) {
+			if (signal?.aborted) throw err;
+			console.warn(
+				`Spotify track year lookup failed for ${batch.length} tracks: ${formatApiError(err)}`,
+			);
+		}
+	}
+
+	return years;
+}
+
 export async function getTracks(
 	albums: string[],
 ): Promise<trackTypes | { isError: boolean; err: any }> {
@@ -411,6 +455,7 @@ export async function getTracks(
 							track.artists?.[0]?.name ||
 							item.artists?.[0]?.name ||
 							'Unknown Artist',
+						releaseYear: yearFromReleaseDate(item.release_date),
 					});
 				}),
 			);

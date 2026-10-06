@@ -43,6 +43,7 @@ import {
 import useGenerationCountdown from '@/app/hooks/useGenerationCountdown';
 import type { ProviderName } from '@/app/lib/providers/types';
 import type { SourcePlaylist } from '@/app/types';
+import { hasYearRange } from '@/app/lib/releaseYear/range';
 
 const providerOfLink = (link: string): ProviderName =>
 	link.includes('youtube.com') || link.includes('youtu.be')
@@ -80,6 +81,7 @@ const SubmitButton = () => {
 		setSelectedArtist,
 		themeFilters,
 		paceMix,
+		yearRange,
 	} = useOptions();
 
 	const {
@@ -495,6 +497,7 @@ const SubmitButton = () => {
 						isDifferent: isDifferentTypesOfArtists,
 						themeFilters,
 						paceMix: paceMix ?? undefined,
+						yearRange: hasYearRange(yearRange) ? yearRange : undefined,
 					},
 					artistId: selectedArtist?.id,
 					artistName: selectedArtist?.name,
@@ -558,6 +561,7 @@ const SubmitButton = () => {
 							isDifferent: isDifferentTypesOfArtists,
 							themeFilters,
 							paceMix: paceMix ?? undefined,
+							yearRange: hasYearRange(yearRange) ? yearRange : undefined,
 						},
 						artistId: selectedArtist?.id,
 						artistName: selectedArtist?.name,

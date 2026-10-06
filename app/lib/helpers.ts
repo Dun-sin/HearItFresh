@@ -5,7 +5,9 @@ import {
 	resolveArtistsWithFollowers,
 	ResolvedSpotifyArtist,
 	isPopularArtistByFollowers,
+	type AlbumLookupOptions,
 } from './spotify';
+import { hasYearRange } from './releaseYear/range';
 import { singleTrack, trackTypes } from '../types';
 import type { ProviderName } from './providers/types';
 
@@ -228,14 +230,14 @@ const BATCH_RETRY_DELAY_MS = 5000;
  * @param artists - Array of artist names or resolved Spotify artists. Resolved
  * artists reuse their cached id for the album lookup; plain names search once.
  * @param signal - Optional abort signal
- * @param maxAlbumsPerArtist - Overrides the per-artist album count derived from the artist total
+ * @param options - Per-artist album count override and release-year window
  * @param attempt - Internal batch retry counter; callers should not pass this
  * @returns Array of unique album IDs
  */
 export const getEveryAlbum = async (
 	artists: AlbumLookupArtist[],
 	signal?: AbortSignal,
-	maxAlbumsPerArtist?: number,
+	options: AlbumLookupOptions = {},
 	attempt = 0,
 ): Promise<string[]> => {
 	if (signal?.aborted) throw new Error('Aborted');
@@ -247,18 +249,13 @@ export const getEveryAlbum = async (
 		shuffled.map((artist) =>
 			limit(() =>
 				typeof artist === 'string'
-					? getArtistsAlbums(
-							artist,
-							shuffled.length,
-							signal,
-							maxAlbumsPerArtist,
-						)
+					? getArtistsAlbums(artist, shuffled.length, signal, options)
 					: getArtistAlbumsById(
 							artist.id,
 							artist.name,
 							shuffled.length,
 							signal,
-							maxAlbumsPerArtist,
+							options,
 						),
 			),
 		),
@@ -284,13 +281,14 @@ export const getEveryAlbum = async (
 	if (
 		albums.length < MIN_USEFUL_ALBUMS &&
 		artists.length > 0 &&
-		attempt === 0
+		attempt === 0 &&
+		!hasYearRange(options.yearRange)
 	) {
 		console.log(
 			`getEveryAlbum: only ${albums.length} album(s) from ${artists.length} artist(s), retrying batch in ${BATCH_RETRY_DELAY_MS}ms`,
 		);
 		await sleep(BATCH_RETRY_DELAY_MS, signal);
-		return getEveryAlbum(artists, signal, maxAlbumsPerArtist, attempt + 1);
+		return getEveryAlbum(artists, signal, options, attempt + 1);
 	}
 
 	return albums;

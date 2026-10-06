@@ -10,6 +10,9 @@ import {
 	DB_SIMILAR_SONGS_LIMIT,
 } from '../utils';
 import { YOUTUBE_QUOTA_EXHAUSTED_ERROR } from '../helpers';
+import { titleKey } from '../songKey';
+import { inYearRange, hasYearRange, type YearRange } from '../releaseYear/range';
+import { earliestReleaseYears, recordCandidateYears } from '../releaseYear/persist';
 import { getProvider } from '../providers';
 import { hasActiveThemeFilter, passesThemeFilter } from '../themes/filter';
 import { syncSongThemes, type ClassifiableRow } from '../themes/persist';
@@ -48,7 +51,10 @@ const MIN_SEEDS = 5;
 const MIN_PACE_MIX_TRACKS = 10;
 const MAX_TRACKS_PER_ARTIST_WITH_PACE = 2;
 
-const paceMixUnmetError = (found: number) =>
+const YEAR_RANGE_UNMET_ERROR =
+	'None of the matching songs were released in the years you picked. Try a wider range.';
+
+const paceMixUnmetError =(found: number) =>
 	`Only ${found} matching songs fit the fast/slow mix you picked, and at least ${MIN_PACE_MIX_TRACKS} are needed. Try a different mix or turn the pace filter off.`;
 
 export type SeedInput = {
@@ -65,6 +71,12 @@ export type CandidateTrack = {
 	name: string;
 	artistName: string;
 	albumName?: string;
+	releaseYear?: number;
+};
+
+const earliestOf = (...years: (number | null | undefined)[]) => {
+	const known = years.filter((y): y is number => typeof y === 'number');
+	return known.length > 0 ? Math.min(...known) : null;
 };
 
 export type Score = { maxScore: number; hitRatio: number };
@@ -89,8 +101,24 @@ export function createAbortGuard(signal?: AbortSignal) {
 	};
 }
 
-export const titleKey = (title: string, artist: string) =>
-	title.toLowerCase().trim() + '|' + artist.toLowerCase().trim();
+export { titleKey };
+
+/** Keeps the first (best-ranked) version of each song; expects rank order. */
+export function uniqueSongs<T>(
+	ranked: T[],
+	titleOf: (t: T) => string,
+	artistOf: (t: T) => string,
+): T[] {
+	const seen = new Set<string>();
+
+	return ranked.filter((t) => {
+		const key = titleKey(titleOf(t), artistOf(t));
+		if (seen.has(key)) return false;
+
+		seen.add(key);
+		return true;
+	});
+}
 
 export function parseEmbedding(value: unknown): number[] | null {
 	if (Array.isArray(value)) return value;
@@ -206,13 +234,36 @@ export async function prepareSeedEmbeddings(
 	return { seedEmbeddings };
 }
 
+export type ScoringFilters = {
+	signal?: AbortSignal;
+	themeFilters?: ThemeFilters;
+	yearRange?: YearRange;
+	paceBudget?: PaceBudget;
+};
+
+/** Drops songs whose earliest known release falls outside the range. */
+export async function keepInYearRange<
+	T extends { song: { id: string; spotifyId: string | null; title: string; artist: string; releaseYear?: number | null } },
+>(rows: T[], yearRange: YearRange | undefined, signal?: AbortSignal): Promise<T[]> {
+	if (!hasYearRange(yearRange)) return rows;
+
+	const years = await earliestReleaseYears(
+		rows.map(({ song }) => song),
+		signal,
+	);
+	return rows.filter(({ song }) => inYearRange(years.get(song.id), yearRange));
+}
+
 export async function scoreTracks(
 	newTracks: CandidateTrack[],
 	seedEmbeddings: number[][],
 	pLimitInstance: ReturnType<typeof pLimit>,
-	signal?: AbortSignal,
-	themeFilters?: ThemeFilters,
-	paceBudget: PaceBudget = createPaceBudget(),
+	{
+		signal,
+		themeFilters,
+		yearRange,
+		paceBudget = createPaceBudget(),
+	}: ScoringFilters = {},
 ): Promise<ScoredCandidate[]> {
 	const filtering = hasActiveThemeFilter(themeFilters);
 
@@ -265,14 +316,35 @@ export async function scoreTracks(
 		(t): t is ScoredWithSong => t !== null,
 	);
 
-	const kept = filtering
+	await recordCandidateYears(
+		survivors.map(({ song, releaseYear }) => ({
+			songId: song.id,
+			year: releaseYear,
+		})),
+	);
+
+	const themed = filtering
 		? await keepMatchingThemes(survivors, themeFilters, signal)
 		: survivors;
 
-	const droppedOnThemes = survivors.length - kept.length;
+	const kept = await keepInYearRange(
+		themed.map((c) => ({
+			...c,
+			song: {
+				...c.song,
+				releaseYear: earliestOf(c.song.releaseYear, c.releaseYear),
+			},
+		})),
+		yearRange,
+		signal,
+	);
+
 	console.log(
 		`[Scoring Summary] ${survivors.length}/${newTracks.length} tracks passed cutoff` +
-			(filtering ? ` (${droppedOnThemes} dropped on themes)` : ''),
+			(filtering ? ` (${survivors.length - themed.length} dropped on themes)` : '') +
+			(hasYearRange(yearRange)
+				? ` (${themed.length - kept.length} dropped on release year)`
+				: ''),
 	);
 
 	const features = await syncAudioFeatures(
@@ -281,13 +353,19 @@ export async function scoreTracks(
 		signal,
 	);
 
-	return kept
+	const ranked = kept
 		.filter(({ name, song }) => !isInstrumental(name, features.get(song.id)))
 		.map(({ song, ...candidate }) => ({
 			...candidate,
 			pace: paceOf(features.get(song.id)),
 		}))
 		.sort(byRankDesc);
+
+	return uniqueSongs(
+		ranked,
+		(c) => c.name,
+		(c) => c.artistName,
+	);
 }
 
 /** Keeps each artist's best-ranked tracks up to the cap; expects rank order. */
@@ -458,7 +536,11 @@ export async function resolveSpotifyTracksToRefs(
 
 export async function finalizeTracks(
 	refs: RankedRef[],
-	{ quotaExhausted, paceMix }: { quotaExhausted: boolean; paceMix?: PaceMix },
+	{
+		quotaExhausted,
+		paceMix,
+		yearRange,
+	}: { quotaExhausted: boolean; paceMix?: PaceMix; yearRange?: YearRange },
 ): Promise<GenerationResult> {
 	const finalTracks = (
 		hasPaceMix(paceMix)
@@ -472,6 +554,10 @@ export async function finalizeTracks(
 
 	if (hasPaceMix(paceMix) && finalTracks.length < MIN_PACE_MIX_TRACKS) {
 		return { tracks: [], error: paceMixUnmetError(finalTracks.length) };
+	}
+
+	if (finalTracks.length === 0 && hasYearRange(yearRange)) {
+		return { tracks: [], error: YEAR_RANGE_UNMET_ERROR };
 	}
 
 	return { tracks: finalTracks };

@@ -20,6 +20,7 @@ import {
 	type GenerationResult,
 	type SeedInput,
 } from './shared';
+import { loadPlaylistHistory } from './history';
 
 /**
  * Artist-only generation path. Instead of expanding through related artists,
@@ -34,7 +35,7 @@ export async function generateArtistPlaylist(
 	provider: ProviderName = 'spotify',
 	signal?: AbortSignal,
 	youtubeGuestCredentials?: ProviderAuthCtx['youtubeGuestCredentials'],
-	filters?: Pick<GenerationOptions, 'themeFilters' | 'paceMix'>,
+	filters?: Pick<GenerationOptions, 'themeFilters' | 'paceMix' | 'yearRange'>,
 ): Promise<GenerationResult> {
 	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = createAbortGuard(signal);
@@ -76,8 +77,12 @@ export async function generateArtistPlaylist(
 				error: `No tracks could be fetched for ${artist.name}.`,
 			};
 		}
-		const checkedTrackIds = new Set<string>(seedSpotifyIds);
-		const checkedTrackTitles = new Set<string>();
+		const history = await loadPlaylistHistory(userId, provider);
+		const checkedTrackIds = new Set<string>([
+			...seedSpotifyIds,
+			...history.ids,
+		]);
+		const checkedTrackTitles = new Set<string>(history.titles);
 		const newTracks: CandidateTrack[] = discography
 			.filter((t) => {
 				const excluded =
@@ -90,14 +95,18 @@ export async function generateArtistPlaylist(
 				name: t.name,
 				artistName: t.artistName,
 				albumName: t.albumName,
+				releaseYear: t.releaseYear,
 			}));
 		const pLimitInstance = pLimit(15);
 		const scoredTracks = await scoreTracks(
 			newTracks,
 			seedEmbeddings,
 			pLimitInstance,
-			signal,
-			filters?.themeFilters,
+			{
+				signal,
+				themeFilters: filters?.themeFilters,
+				yearRange: filters?.yearRange,
+			},
 		);
 		throwIfAborted();
 
@@ -110,6 +119,7 @@ export async function generateArtistPlaylist(
 		return await finalizeTracks(refs, {
 			quotaExhausted,
 			paceMix: filters?.paceMix,
+			yearRange: filters?.yearRange,
 		});
 	} catch (error: any) {
 		console.error('Error generating artist playlist:', formatApiError(error));

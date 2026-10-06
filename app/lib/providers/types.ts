@@ -20,6 +20,7 @@ export type ProviderTrack = ProviderTrackRef & {
 	albumName?: string;
 	artistName: string;
 	imageUrl?: string | null;
+	releaseYear?: number;
 };
 
 export type ProviderPlaylist = {

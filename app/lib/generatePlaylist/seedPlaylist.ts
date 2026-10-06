@@ -16,6 +16,7 @@ import {
 } from './shared';
 import { findDbMatches } from './dbMatches';
 import { expandWithRelatedArtists } from './relatedArtists';
+import { loadPlaylistHistory } from './history';
 import { createPaceBudget } from '../pace/reccobeats';
 
 export async function generateSeedPlaylist(
@@ -47,15 +48,19 @@ export async function generateSeedPlaylist(
 		}
 		const { seedEmbeddings } = prepared;
 		const paceBudget = createPaceBudget();
+		const history = await loadPlaylistHistory(userId, provider);
 
 		const dbMatches = await findDbMatches(
 			seedEmbeddings,
 			seeds.map((s) => s.id),
-			userId,
+			history,
 			provider,
-			options?.themeFilters,
-			signal,
-			paceBudget,
+			{
+				signal,
+				themeFilters: options?.themeFilters,
+				yearRange: options?.yearRange,
+				paceBudget,
+			},
 		);
 		throwIfAborted();
 
@@ -65,6 +70,7 @@ export async function generateSeedPlaylist(
 			return await finalizeTracks(dbMatches, {
 				quotaExhausted: false,
 				paceMix,
+				yearRange: options?.yearRange,
 			});
 		}
 
@@ -74,13 +80,18 @@ export async function generateSeedPlaylist(
 			options,
 			seedEmbeddings,
 			existing: dbMatches,
+			history,
 			provider,
 			authCtx,
 			paceBudget,
 			signal,
 		});
 
-		return await finalizeTracks(refs, { quotaExhausted, paceMix });
+		return await finalizeTracks(refs, {
+			quotaExhausted,
+			paceMix,
+			yearRange: options?.yearRange,
+		});
 	} catch (error: any) {
 		console.error('Error generating seed playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };
