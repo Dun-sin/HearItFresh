@@ -1,3 +1,10 @@
+# [1.51.0](https://github.com/Dun-sin/HearItFresh/compare/v1.50.0...v1.51.0) (2026-10-06)
+
+
+### Features
+
+* **playlist:** integrate theme filters into seed embedding preparation ([4591b37](https://github.com/Dun-sin/HearItFresh/commit/4591b37cec06cb7541da60e6ad3eee2abef77e9b))
+
 # [1.50.0](https://github.com/Dun-sin/HearItFresh/compare/v1.49.0...v1.50.0) (2026-10-04)
 
 
