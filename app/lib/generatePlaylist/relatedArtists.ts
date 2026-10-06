@@ -28,7 +28,7 @@ import { hasActiveThemeFilter } from '../themes/filter';
 import type { PaceBudget } from '../pace/reccobeats';
 
 const PACED_FETCH = { maxArtists: 160, albumsPerArtist: 2 };
-const THEMED_FETCH = { maxArtists: 160, albumsPerArtist: 3 };
+const THEMED_FETCH = { maxArtists: 160, albumsPerArtist: 6 };
 
 export async function expandWithRelatedArtists({
 	seeds,
