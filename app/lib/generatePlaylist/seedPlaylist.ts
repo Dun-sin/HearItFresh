@@ -36,7 +36,12 @@ export async function generateSeedPlaylist(
 		setAccessToken(token);
 		console.log(`Generating seed playlist (provider=${provider})...`);
 
-		const prepared = await prepareSeedEmbeddings(seeds, provider, signal);
+		const prepared = await prepareSeedEmbeddings(
+			seeds,
+			provider,
+			signal,
+			options?.themeFilters,
+		);
 		if ('error' in prepared) {
 			return { tracks: [], error: prepared.error };
 		}

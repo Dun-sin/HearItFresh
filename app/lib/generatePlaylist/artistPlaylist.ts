@@ -49,7 +49,12 @@ export async function generateArtistPlaylist(
 
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
-		const prepared = await prepareSeedEmbeddings(seeds, provider, signal);
+		const prepared = await prepareSeedEmbeddings(
+			seeds,
+			provider,
+			signal,
+			filters?.themeFilters,
+		);
 		if ('error' in prepared) {
 			return { tracks: [], error: prepared.error };
 		}

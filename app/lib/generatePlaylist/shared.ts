@@ -44,6 +44,7 @@ export const PLAYLIST_SIZE = 100;
 // resolving to YouTube spends search quota, so only the best of each batch is resolved
 export const RESOLVE_HEADROOM = 20;
 
+const MIN_SEEDS = 5;
 const MIN_PACE_MIX_TRACKS = 10;
 const MAX_TRACKS_PER_ARTIST_WITH_PACE = 2;
 
@@ -138,14 +139,42 @@ export async function getAndParseSeedEmbeddings(
 		.filter(Boolean) as number[][];
 }
 
+function matchingSeedIds(
+	seeds: SeedInput[],
+	processed: ({ themes?: string[] | null } | null)[],
+	themeFilters?: ThemeFilters,
+): string[] {
+	const allIds = seeds.map((s) => s.id);
+	if (!hasActiveThemeFilter(themeFilters)) return allIds;
+
+	const allowed = seeds
+		.filter((_, i) => passesThemeFilter(processed[i]?.themes, themeFilters))
+		.map((s) => s.id);
+
+	if (allowed.length < MIN_SEEDS) {
+		console.log(
+			`Only ${allowed.length}/${seeds.length} seeds clear the theme filter, matching on all of them`,
+		);
+		return allIds;
+	}
+
+	if (allowed.length < allIds.length) {
+		console.log(
+			`Matching on ${allowed.length}/${seeds.length} seeds; the rest carry a restricted theme`,
+		);
+	}
+	return allowed;
+}
+
 export async function prepareSeedEmbeddings(
 	seeds: SeedInput[],
 	provider: ProviderName,
 	signal?: AbortSignal,
+	themeFilters?: ThemeFilters,
 ): Promise<{ seedEmbeddings: number[][] } | { error: string }> {
 	const throwIfAborted = createAbortGuard(signal);
 
-	await Promise.all(
+	const processed = await Promise.all(
 		seeds.map(async (seed) => {
 			throwIfAborted();
 			return await processSong(
@@ -163,11 +192,11 @@ export async function prepareSeedEmbeddings(
 
 	throwIfAborted();
 	const seedEmbeddings = await getAndParseSeedEmbeddings(
-		seeds.map((s) => s.id),
+		matchingSeedIds(seeds, processed, themeFilters),
 		provider,
 	);
 
-	if (!seeds || seeds.length < 5 || seedEmbeddings.length === 0) {
+	if (!seeds || seeds.length < MIN_SEEDS || seedEmbeddings.length === 0) {
 		return {
 			error:
 				'At least 5 seed songs with valid lyrics embeddings are required to generate a playlist.',
