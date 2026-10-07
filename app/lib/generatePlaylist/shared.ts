@@ -42,7 +42,7 @@ import { processSong } from '../processSong';
 const THRESHOLD = 0.8;
 const CLASSIFY_CONCURRENCY = 8;
 export const CUTOFF = 0.55;
-const HIT_BONUS = 0.02;
+const HIT_BONUS = 0.05;
 export const PLAYLIST_SIZE = 100;
 // resolving to YouTube spends search quota, so only the best of each batch is resolved
 export const RESOLVE_HEADROOM = 20;

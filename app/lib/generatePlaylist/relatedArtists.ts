@@ -2,8 +2,10 @@ import { formatApiError } from '../utils';
 import {
 	getAllTracks,
 	getEveryAlbum,
-	relatedArists,
+	fetchRelatedArtistPool,
+	pickRelatedArtists,
 	artistNameOf,
+	type RelatedArtistPool,
 } from '../helpers';
 import type { GenerationOptions } from '@/app/types';
 import type { ProviderAuthCtx, ProviderName } from '../providers/types';
@@ -66,7 +68,12 @@ export async function expandWithRelatedArtists({
 		...history.titles,
 		...existing.map((r) => titleKey(r.title, r.artistName)),
 	]);
-	const usedArtistNames: string[] = [];
+	const targetArtists =
+		seeds.length > 0
+			? Array.from(new Set(seeds.flatMap((s) => s.artist)))
+			: artistNames;
+	const usedArtistNames: string[] = [...targetArtists];
+	let artistPool: RelatedArtistPool | null = null;
 
 	const paced = hasPaceMix(options?.paceMix);
 	const attempts = paced ? 1 : 2;
@@ -82,19 +89,19 @@ export async function expandWithRelatedArtists({
 		throwIfAborted();
 
 		try {
-			const targetArtists =
-				seeds.length > 0
-					? Array.from(new Set(seeds.flatMap((s) => s.artist)))
-					: artistNames;
-
-			const finalList = await relatedArists(
+			artistPool ??= await fetchRelatedArtistPool(
 				targetArtists,
 				options,
 				signal,
+			);
+			throwIfAborted();
+
+			const finalList = pickRelatedArtists(
+				artistPool,
 				usedArtistNames,
 				fetchLimits?.maxArtists,
 			);
-			throwIfAborted();
+			if (finalList.length === 0) break;
 
 			usedArtistNames.push(...finalList.map(artistNameOf));
 

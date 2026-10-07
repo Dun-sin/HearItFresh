@@ -54,8 +54,8 @@ const MAX_PLAYLIST_TRACKS_TO_FETCH = 500;
 export const FOLLOWER_LOOKUP_CONCURRENCY = 10;
 export const FOLLOWER_LOOKUP_CHUNK_SIZE = 20;
 /**
- * `relatedArists` only round-robins ~65 artists across every seed, so resolving
- * more than this per seed just burns Spotify quota.
+ * `pickRelatedArtists` spreads its picks across every seed, so resolving more
+ * than this per seed just burns Spotify quota.
  */
 export const MAX_MATCHING_ARTISTS_PER_SEED = 40;
 const SPOTIFY_ARTIST_CACHE_LIMIT = 5000;

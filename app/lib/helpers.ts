@@ -417,85 +417,58 @@ export type RelatedArtistCandidate = string | ResolvedSpotifyArtist;
 export const artistNameOf = (artist: RelatedArtistCandidate) =>
 	typeof artist === 'string' ? artist : artist.name;
 
-/**
- * `relatedArists` only round-robins ~65 artists across every seed, so resolving
- * more than this per seed just burns Spotify quota.
- */
-export async function relatedArists(
+/** Similar artists per seed artist, each list shuffled; fetched once and shared by every round. */
+export type RelatedArtistPool = RelatedArtistCandidate[][];
+
+export async function fetchRelatedArtistPool(
 	artistNames: string[],
 	options: { isNotPopular: boolean; isDifferent: boolean },
 	signal?: AbortSignal,
-	extraExcludedArtists?: string[],
-	maxAmountOfArtists = 80,
-) {
-	const relatedArtistsPerSeed: RelatedArtistCandidate[][] = [];
-	const batches = [];
+): Promise<RelatedArtistPool> {
+	const relatedArtistsPerSeed: RelatedArtistPool = [];
 
 	for (let i = 0; i < artistNames.length; i += 3) {
-		batches.push(artistNames.slice(i, i + 3));
-	}
-
-	for (const batch of batches) {
 		if (signal?.aborted) throw new Error('Aborted');
 		const results = await Promise.all(
-			batch.map(async (name) => {
-				const related = await getRelatedArtists(name, options, signal);
-				return shuffle(related);
-			}),
+			artistNames.slice(i, i + 3).map(async (name) =>
+				shuffle(await getRelatedArtists(name, options, signal)),
+			),
 		);
 		relatedArtistsPerSeed.push(...results);
 		if (signal?.aborted) throw new Error('Aborted');
 		await new Promise((r) => setTimeout(r, 300));
 	}
 
-	// Round robin — take one from each artist at a time until we have 65
-	shuffle(relatedArtistsPerSeed);
-	// Mutable working copies — we splice from these
-	const workingLists: RelatedArtistCandidate[][] = relatedArtistsPerSeed.map(
-		(arr) => [...arr],
-	);
+	return shuffle(relatedArtistsPerSeed);
+}
 
-	const finalList: RelatedArtistCandidate[] = [];
-	// Use a Set for O(1) duplicate checks instead of .map().includes() (O(n) per lookup)
-	const finalSet = new Set<string>();
-	const excluded = new Set([
-		...artistNames.map((n) => n.toLowerCase()),
-		...(extraExcludedArtists || []).map((n) => n.toLowerCase()),
-	]);
+/** Round-robins across the seeds' lists, skipping excluded names, until `max` are picked or the pool runs dry. */
+export function pickRelatedArtists(
+	pool: RelatedArtistPool,
+	excludedNames: string[],
+	max = 80,
+): RelatedArtistCandidate[] {
+	const taken = new Set(excludedNames.map((n) => n.toLowerCase()));
+	const lists = pool.map((list) => [...list]);
+	const picked: RelatedArtistCandidate[] = [];
 
-	while (finalList.length < maxAmountOfArtists && workingLists.length > 0) {
-		// Iterate in reverse so we can safely splice exhausted lists out
-		for (let i = workingLists.length - 1; i >= 0; i--) {
-			if (finalList.length >= maxAmountOfArtists) break;
+	while (picked.length < max && lists.some((list) => list.length > 0)) {
+		for (const list of lists) {
+			if (picked.length >= max) break;
 
-			const pool = workingLists[i];
-			// Find a valid candidate at a random position within this seed's remaining list
-			// Shuffle the pool indices so we don't always start from index 0
-			let picked = false;
-			const startIdx = Math.floor(Math.random() * pool.length);
-			for (let offset = 0; offset < pool.length; offset++) {
-				const idx = (startIdx + offset) % pool.length;
-				const candidate = pool[idx];
-				const candidateName = artistNameOf(candidate);
-				if (
-					!excluded.has(candidateName.toLowerCase()) &&
-					!finalSet.has(candidateName.toLowerCase())
-				) {
-					finalList.push(candidate);
-					finalSet.add(candidateName.toLowerCase());
-					pool.splice(idx, 1); // remove so it can't be re-picked
-					picked = true;
-					break;
-				}
-			}
-			// Prune this seed's list from the rotation if it's now empty
-			if (pool.length === 0) {
-				workingLists.splice(i, 1);
+			while (list.length > 0) {
+				const candidate = list.shift()!;
+				const name = artistNameOf(candidate).toLowerCase();
+				if (taken.has(name)) continue;
+
+				taken.add(name);
+				picked.push(candidate);
+				break;
 			}
 		}
 	}
 
-	return finalList;
+	return picked;
 }
 
 export async function getRelatedArtists(
