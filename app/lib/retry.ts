@@ -37,6 +37,7 @@ export type RetryOptions = {
 
 const RATE_LIMIT_BASE_MS = 2000;
 const DEFAULT_BASE_MS = 300;
+const RETRY_AFTER_PADDING_MS = 500;
 
 /**
  * Retries `fn` while the error's status is in `retryOn`, honouring a
@@ -60,9 +61,11 @@ export async function withRetry<T>(
 			if (status === undefined || !retryable.has(status)) throw err;
 
 			const base = status === 429 ? RATE_LIMIT_BASE_MS : DEFAULT_BASE_MS;
+			const retryAfter = errors.retryAfterMs(err);
 			const delay =
-				errors.retryAfterMs(err) ??
-				base * 2 ** attempt + Math.floor(Math.random() * 250);
+				retryAfter !== undefined
+					? retryAfter + RETRY_AFTER_PADDING_MS
+					: base * 2 ** attempt + Math.floor(Math.random() * 250);
 
 			console.warn(
 				`${label}: ${status}, retrying in ${delay}ms (attempt ${attempt + 1}/${attempts})`,

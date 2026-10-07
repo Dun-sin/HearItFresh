@@ -29,60 +29,60 @@ export const LOVE_TYPE_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'love_earnest',
 		instructions:
-			'Does this song express sincere, tender devotion to or contentment with a romantic partner?',
+			'Is the romance in this song mainly sincere, tender devotion to or contentment with a partner? If the song is not about romance, answer no.',
 		criteria: {
-			yes: 'Expresses sincere, tender devotion or contentment with a romantic partner',
-			no: 'Does not express devotion or contentment with a romantic partner',
+			yes: 'The romance is mainly sincere, tender devotion or contentment with a partner',
+			no: 'The romance is mainly something else, or the song is not about romance',
 		},
 	},
 	love_yearning_unresolved: {
 		type: 'choice',
 		slug: 'love_yearning',
 		instructions:
-			'Does this song express longing for a romantic partner or love interest who is not fully attained or present?',
+			'Is the romance in this song mainly longing for a partner or love interest who is out of reach or absent? If the song is not about romance, answer no.',
 		criteria: {
-			yes: 'Expresses longing for a partner or love interest who is out of reach or absent',
-			no: 'Does not express longing for an unattained or absent partner',
+			yes: 'The romance is mainly longing for a partner or love interest who is out of reach or absent',
+			no: 'The romance is mainly something else, or the song is not about romance',
 		},
 	},
 	love_betrayal_or_breakup: {
 		type: 'choice',
 		slug: 'love_betrayal',
 		instructions:
-			'Does this song deal with being wronged or betrayed by a romantic partner, or a romantic relationship ending — whether still raw or already healing?',
+			'Is the romance in this song mainly about being wronged or betrayed by a partner, or a relationship ending — whether still raw or already healing? If the song is not about romance, answer no.',
 		criteria: {
-			yes: 'Deals with romantic betrayal or a relationship ending',
-			no: 'Does not deal with romantic betrayal or a relationship ending',
+			yes: 'The romance is mainly about betrayal by a partner or a relationship ending',
+			no: 'The romance is mainly something else, or the song is not about romance',
 		},
 	},
 	love_playful_flirtatious: {
 		type: 'choice',
 		slug: 'love_playful',
 		instructions:
-			'Does this song express light, teasing flirtation or playful attraction?',
+			'Is the romance in this song mainly light, teasing flirtation or playful attraction? If the song is not about romance, answer no.',
 		criteria: {
-			yes: 'Expresses light, teasing flirtation or playful attraction',
-			no: 'Does not express playful flirtation',
+			yes: 'The romance is mainly light, teasing flirtation or playful attraction',
+			no: 'The romance is mainly something else, or the song is not about romance',
 		},
 	},
 	love_obsessive_intense: {
 		type: 'choice',
 		slug: 'love_obsessive',
 		instructions:
-			'Does this song express possessive or all-consuming romantic intensity?',
+			'Does the romance in this song mainly turn possessive, controlling, or unhealthily fixated — jealousy that controls a partner, being unable to function without them, or stalking-like behaviour? Strong desire, lust, intense attraction, or devotion on its own is not obsessive. If the song is not about romance, answer no.',
 		criteria: {
-			yes: 'Expresses possessive or all-consuming romantic intensity',
-			no: 'Does not express possessive or all-consuming romantic intensity',
+			yes: 'The romance is mainly possessive, controlling, or an unhealthy fixation',
+			no: 'The romance is not possessive or unhealthily fixated (desire, lust, or devotion alone does not count), or the song is not about romance',
 		},
 	},
 	love_bittersweet_conflicted: {
 		type: 'choice',
 		slug: 'love_bittersweet',
 		instructions:
-			'Does this song express doubt, pain, or ambivalence within a romantic relationship that is still ongoing?',
+			'Is the couple in this song still together, with the song mainly about doubt, unhappiness, or mixed feelings within that relationship? Breakups, longing for someone absent, and pure lust are not bittersweet. If the song is not about romance, answer no.',
 		criteria: {
-			yes: 'Expresses doubt, pain, or ambivalence within an ongoing relationship',
-			no: 'Does not express conflict within an ongoing relationship',
+			yes: 'The couple is still together and the song is mainly about doubt, unhappiness, or mixed feelings in the relationship',
+			no: 'Not an ongoing relationship with mixed feelings (breakups, longing, and lust do not count), or the song is not about romance',
 		},
 	},
 };
@@ -182,10 +182,10 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'mental_health',
 		instructions:
-			'Does this song center on anxiety, depression, trauma, or emotional struggle as its primary theme?',
+			'Does this song explicitly deal with anxiety, depression, trauma, self-harm, suicidal thoughts, addiction recovery, or another mental-health struggle? General sadness, heartbreak, or feeling hurt by someone is not a mental-health struggle.',
 		criteria: {
-			yes: 'Centers on anxiety, depression, trauma, or emotional struggle',
-			no: 'Does not center on these',
+			yes: 'Explicitly deals with anxiety, depression, trauma, self-harm, suicidal thoughts, addiction recovery, or another mental-health struggle',
+			no: 'No explicit mental-health struggle; general sadness, heartbreak, or hurt does not count',
 		},
 	},
 	defiant_empowered: {

@@ -27,7 +27,7 @@ const retrySpotify = <T>(
 		errors: spotifyErrors,
 		label: `Spotify ${label}`,
 		retryOn: [429],
-		attempts: 3,
+		attempts: 2,
 		signal,
 	});
 
