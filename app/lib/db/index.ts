@@ -499,6 +499,7 @@ export async function findSimilarSongs(
            embedding <=> $1::vector AS distance
     FROM "Song"
     WHERE embedding IS NOT NULL
+      AND lyrics IS NOT NULL AND btrim(lyrics) <> ''
       AND "${col}" IS NOT NULL
       ${excludeClause}
     ORDER BY distance ASC
@@ -521,6 +522,7 @@ export async function getSongEmbeddings(
 	return await prisma.$queryRawUnsafe(`
     SELECT embedding::text AS embedding FROM "Song"
     WHERE "${col}" IN (${list}) AND embedding IS NOT NULL
+      AND lyrics IS NOT NULL AND btrim(lyrics) <> ''
   `);
 }
 

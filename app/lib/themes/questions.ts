@@ -7,46 +7,85 @@ export type JevQuestion = {
 	criteria: Record<string, string>;
 };
 
-type BinaryThemeQuestion = JevQuestion & {
+export type BinaryThemeQuestion = JevQuestion & {
 	slug: ThemeSlug;
 	criteria: { yes: string; no: string };
 };
 
-export const LOVE_TYPE_QUESTION_ID = 'love_type';
+export const ROMANCE_QUESTION_ID = 'romance_any';
 
-export const NOT_ROMANTIC = 'not_romantic';
-
-export const LOVE_TYPE_QUESTION: JevQuestion = {
+export const ROMANCE_QUESTION: JevQuestion = {
 	type: 'choice',
 	instructions:
-		'Is this song centrally about romance between the narrator and another person? If the song uses romantic-sounding language but is not actually about a real interpersonal connection — addressing an abstract concept, a group of people, an institution, or society at large — answer not_romantic. If it is genuinely about romance but none of the specific categories fit (e.g. turning down someone\'s advances, a situationship, a crush that never became anything), answer romance_adjacent rather than forcing the closest category.',
+		'Does this song involve romance, attraction, or a love interest between the narrator and another person in any way — including relationships, crushes, flirting, situationships, longing, breakups, or turning someone down — even if romance is not the main subject? Romantic-sounding language aimed at an abstract concept, a place, a group of people, or society at large does not count.',
 	criteria: {
-		not_romantic:
-			'Not centrally about a romantic relationship between two people, even if romantic-sounding vocabulary appears',
-		earnest_devotional:
-			'A real relationship, expressed with sincere, tender devotion or contentment',
-		yearning_unresolved:
-			'Longing for a real partner not fully attained or present',
-		betrayal_or_breakup:
-			'Being wronged, hurt, or betrayed by a partner, or a relationship ending — whether still raw or already healing',
-		playful_flirtatious: 'Light, teasing flirtation or attraction',
-		obsessive_intense: 'Possessive or all-consuming romantic intensity',
-		bittersweet_conflicted:
-			"Doubt, pain, or ambivalence within a relationship that's still ongoing",
-		romance_adjacent:
-			'About romance or attraction, but none of the categories above describe it',
+		yes: 'Involves romance, attraction, or a love interest between the narrator and another person',
+		no: 'No romance or attraction between people, even if romantic-sounding vocabulary appears',
 	},
 };
 
-export const LOVE_TYPE_SLUGS = {
-	earnest_devotional: 'love_earnest',
-	yearning_unresolved: 'love_yearning',
-	betrayal_or_breakup: 'love_betrayal',
-	playful_flirtatious: 'love_playful',
-	obsessive_intense: 'love_obsessive',
-	bittersweet_conflicted: 'love_bittersweet',
-	romance_adjacent: 'love_other',
-} as const satisfies Record<string, ThemeSlug>;
+export const LOVE_TYPE_QUESTIONS: Record<string, BinaryThemeQuestion> = {
+	love_earnest_devotional: {
+		type: 'choice',
+		slug: 'love_earnest',
+		instructions:
+			'Does this song express sincere, tender devotion to or contentment with a romantic partner?',
+		criteria: {
+			yes: 'Expresses sincere, tender devotion or contentment with a romantic partner',
+			no: 'Does not express devotion or contentment with a romantic partner',
+		},
+	},
+	love_yearning_unresolved: {
+		type: 'choice',
+		slug: 'love_yearning',
+		instructions:
+			'Does this song express longing for a romantic partner or love interest who is not fully attained or present?',
+		criteria: {
+			yes: 'Expresses longing for a partner or love interest who is out of reach or absent',
+			no: 'Does not express longing for an unattained or absent partner',
+		},
+	},
+	love_betrayal_or_breakup: {
+		type: 'choice',
+		slug: 'love_betrayal',
+		instructions:
+			'Does this song deal with being wronged or betrayed by a romantic partner, or a romantic relationship ending — whether still raw or already healing?',
+		criteria: {
+			yes: 'Deals with romantic betrayal or a relationship ending',
+			no: 'Does not deal with romantic betrayal or a relationship ending',
+		},
+	},
+	love_playful_flirtatious: {
+		type: 'choice',
+		slug: 'love_playful',
+		instructions:
+			'Does this song express light, teasing flirtation or playful attraction?',
+		criteria: {
+			yes: 'Expresses light, teasing flirtation or playful attraction',
+			no: 'Does not express playful flirtation',
+		},
+	},
+	love_obsessive_intense: {
+		type: 'choice',
+		slug: 'love_obsessive',
+		instructions:
+			'Does this song express possessive or all-consuming romantic intensity?',
+		criteria: {
+			yes: 'Expresses possessive or all-consuming romantic intensity',
+			no: 'Does not express possessive or all-consuming romantic intensity',
+		},
+	},
+	love_bittersweet_conflicted: {
+		type: 'choice',
+		slug: 'love_bittersweet',
+		instructions:
+			'Does this song express doubt, pain, or ambivalence within a romantic relationship that is still ongoing?',
+		criteria: {
+			yes: 'Expresses doubt, pain, or ambivalence within an ongoing relationship',
+			no: 'Does not express conflict within an ongoing relationship',
+		},
+	},
+};
 
 export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 	love_person_gendered: {
@@ -184,12 +223,13 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 export function buildJevQuestions(
 	questionIds?: readonly string[],
 ): Record<string, JevQuestion> {
-	const binaries = Object.entries(BINARY_THEME_QUESTIONS).map(
-		([id, { slug, ...question }]) => [id, question] as const,
-	);
+	const binaries = Object.entries({
+		...LOVE_TYPE_QUESTIONS,
+		...BINARY_THEME_QUESTIONS,
+	}).map(([id, { slug, ...question }]) => [id, question] as const);
 
 	const all: Record<string, JevQuestion> = {
-		[LOVE_TYPE_QUESTION_ID]: LOVE_TYPE_QUESTION,
+		[ROMANCE_QUESTION_ID]: ROMANCE_QUESTION,
 		...Object.fromEntries(binaries),
 	};
 

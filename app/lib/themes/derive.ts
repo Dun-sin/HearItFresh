@@ -1,19 +1,15 @@
 import {
 	BINARY_THEME_QUESTIONS,
-	LOVE_TYPE_QUESTION_ID,
-	LOVE_TYPE_SLUGS,
-	NOT_ROMANTIC,
+	LOVE_TYPE_QUESTIONS,
+	ROMANCE_QUESTION_ID,
 } from './questions';
-import type { ThemeSlug } from './slugs';
+import { LOVE_CATCH_ALL_SLUG, type ThemeSlug } from './slugs';
 
 export const THEME_PROBABILITY_CUTOFF = 0.55;
-export const LOVE_PROBABILITY_CUTOFF = 0.45;
-export const MIN_CHOICE_CONFIDENCE = 0.5;
-export const MULTI_LABEL_FLOOR = 0.2;
 
 // bump when the thresholds above or the rules below change; stored themesRaw is
 // re-derived locally, so this never costs a Jev call
-export const DERIVE_VERSION = 2;
+export const DERIVE_VERSION = 3;
 
 export type JevChoiceAnswer = {
 	type?: string;
@@ -24,65 +20,28 @@ export type JevChoiceAnswer = {
 
 export type JevAnswers = Record<string, JevChoiceAnswer>;
 
-function probabilityOf(answer: JevChoiceAnswer | undefined, option: string) {
-	return answer?.probabilities?.[option] ?? 0;
-}
-
-function mostLikelyOption(probabilities: Record<string, number>) {
-	return Object.entries(probabilities).sort(
-		([optionA, a], [optionB, b]) =>
-			b - a ||
-			Number(optionB === NOT_ROMANTIC) - Number(optionA === NOT_ROMANTIC),
-	)[0];
-}
-
-function loveSlugFor(option: string): ThemeSlug | undefined {
-	return LOVE_TYPE_SLUGS[option as keyof typeof LOVE_TYPE_SLUGS];
-}
+const saysYes = (answers: JevAnswers, questionId: string, cutoff: number) =>
+	(answers[questionId]?.probabilities?.yes ?? 0) >= cutoff;
 
 function deriveBinaryThemes(answers: JevAnswers): ThemeSlug[] {
 	return Object.entries(BINARY_THEME_QUESTIONS)
-		.filter(
-			([questionId]) =>
-				probabilityOf(answers[questionId], 'yes') >= THEME_PROBABILITY_CUTOFF,
+		.filter(([questionId]) =>
+			saysYes(answers, questionId, THEME_PROBABILITY_CUTOFF),
 		)
 		.map(([, question]) => question.slug);
 }
 
 function deriveLoveThemes(answers: JevAnswers): ThemeSlug[] {
-	const answer = answers[LOVE_TYPE_QUESTION_ID];
-	const probabilities = answer?.probabilities;
-	if (!probabilities) return [];
+	if (!saysYes(answers, ROMANCE_QUESTION_ID, THEME_PROBABILITY_CUTOFF))
+		return [];
 
-	const topChoice = mostLikelyOption(probabilities);
-	if (!topChoice) return [];
-
-	const [topOption, topProbability] = topChoice;
-
-	const isDecisive =
-		topProbability >= LOVE_PROBABILITY_CUTOFF &&
-		(answer.confidence ?? 0) >= MIN_CHOICE_CONFIDENCE;
-
-	if (isDecisive) {
-		const slug = loveSlugFor(topOption);
-		return slug ? [slug] : [];
-	}
-
-	const leansNotRomantic =
-		topOption === NOT_ROMANTIC ||
-		probabilityOf(answer, NOT_ROMANTIC) >= LOVE_PROBABILITY_CUTOFF;
-
-	if (leansNotRomantic || topProbability >= LOVE_PROBABILITY_CUTOFF) return [];
-
-	const contenders = Object.entries(probabilities)
-		.filter(
-			([option, probability]) =>
-				option !== NOT_ROMANTIC && probability >= MULTI_LABEL_FLOOR,
+	const types = Object.entries(LOVE_TYPE_QUESTIONS)
+		.filter(([questionId]) =>
+			saysYes(answers, questionId, THEME_PROBABILITY_CUTOFF),
 		)
-		.map(([option]) => loveSlugFor(option))
-		.filter((slug): slug is ThemeSlug => Boolean(slug));
+		.map(([, question]) => question.slug);
 
-	return contenders.length >= 2 ? contenders : [];
+	return types.length > 0 ? types : [LOVE_CATCH_ALL_SLUG];
 }
 
 export function deriveThemes(answers: JevAnswers | null): ThemeSlug[] {

@@ -144,6 +144,9 @@ export async function processSong(
 				);
 			}
 		}
+
+		if (!existing.lyrics?.trim()) return null;
+
 		return { ...existing, themes, embeddingData };
 	}
 
