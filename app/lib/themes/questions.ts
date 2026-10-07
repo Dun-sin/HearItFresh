@@ -17,10 +17,10 @@ export const ROMANCE_QUESTION_ID = 'romance_any';
 export const ROMANCE_QUESTION: JevQuestion = {
 	type: 'choice',
 	instructions:
-		'Does this song involve romance, attraction, or a love interest between the narrator and another person in any way — including relationships, crushes, flirting, situationships, longing, breakups, or turning someone down — even if romance is not the main subject? Romantic-sounding language aimed at an abstract concept, a place, a group of people, or society at large does not count.',
+		'Is romance, attraction, or a love interest between the narrator and another person a significant part of this song — including relationships, crushes, flirting, situationships, longing, breakups, or turning someone down? A passing line or a single mention does not count, and romantic-sounding language aimed at an abstract concept, a place, a group of people, or society at large does not count.',
 	criteria: {
-		yes: 'Involves romance, attraction, or a love interest between the narrator and another person',
-		no: 'No romance or attraction between people, even if romantic-sounding vocabulary appears',
+		yes: 'Romance, attraction, or a love interest between the narrator and another person is a significant part of the song',
+		no: 'Romance is absent or only a passing mention, even if romantic-sounding vocabulary appears',
 	},
 };
 
