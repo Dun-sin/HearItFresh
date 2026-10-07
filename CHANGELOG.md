@@ -1,3 +1,10 @@
+## [1.52.1](https://github.com/Dun-sin/HearItFresh/compare/v1.52.0...v1.52.1) (2026-10-07)
+
+
+### Performance Improvements
+
+* **playlist:** optimize related artist fetch limits ([d56be79](https://github.com/Dun-sin/HearItFresh/commit/d56be79bc6860d6b7c1240722c786cdfb2a2763f))
+
 # [1.52.0](https://github.com/Dun-sin/HearItFresh/compare/v1.51.1...v1.52.0) (2026-10-06)
 
 
