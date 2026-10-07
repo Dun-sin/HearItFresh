@@ -1,3 +1,10 @@
+# [1.52.0](https://github.com/Dun-sin/HearItFresh/compare/v1.51.1...v1.52.0) (2026-10-06)
+
+
+### Features
+
+* **playlist:** add release year filtering and history-aware generation ([ac440bb](https://github.com/Dun-sin/HearItFresh/commit/ac440bba85ba0f7380d6d7a24ff11c469d3b8e58))
+
 ## [1.51.1](https://github.com/Dun-sin/HearItFresh/compare/v1.51.0...v1.51.1) (2026-10-06)
 
 
