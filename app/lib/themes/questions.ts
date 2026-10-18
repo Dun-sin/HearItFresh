@@ -126,10 +126,10 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'substance_use',
 		instructions:
-			'Does this song depict or reference using drugs or alcohol anywhere in it, even if it is not the main subject?',
+			'Does this song depict someone actually drinking alcohol or taking drugs, anywhere in it, even if it is not the main subject? Figurative use does not count: comparing a person or their love to a drug, a high, a fix, a prescription, a bottle or a cigarette, or saying someone "gets you higher" or leaves you "buzzing", is imagery about a feeling, not substance use. Judge whether a substance is actually being consumed.',
 		criteria: {
-			yes: 'Depicts or references drug or alcohol use, whether in one line or throughout',
-			no: 'No reference to anyone using drugs or alcohol',
+			yes: 'Someone is actually drinking or taking drugs, whether in one line or throughout',
+			no: 'Nobody is actually consuming anything; drug or drink words used as metaphor for a person, a feeling, or love do not count',
 		},
 	},
 	self_reflection: {
@@ -206,10 +206,10 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'violence',
 		instructions:
-			'Does this song depict, threaten, or glorify violence or physical aggression anywhere in it, even if it is not the main subject?',
+			'Does this song depict, threaten, or glorify real physical violence anywhere in it, even if it is not the main subject? Figurative violence does not count: a broken or aching heart, being torn apart, burning or drowning as a description of feeling, "you killed me", "hold a gun to my head" as a plea, or fighting used to mean arguing. Judge whether physical harm is actually being done, threatened, or celebrated.',
 		criteria: {
-			yes: 'Depicts, threatens, or glorifies violence or physical aggression',
-			no: 'No violence or physical aggression, or only as a clearly figurative turn of phrase',
+			yes: 'Real physical violence is depicted, threatened, or glorified',
+			no: 'No real physical violence; violent words used figuratively for heartbreak, emotional pain, or arguing do not count',
 		},
 	},
 	faith_religious: {
