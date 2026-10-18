@@ -7,8 +7,8 @@ import {
 import { type ThemeSlug } from './slugs';
 
 // Jev's own decision boundary. `confidence` is just |yes - no|, so any higher
-// floor overrides the model's answer rather than gating on certainty. Strictly
-// greater: an exact 0.5 tie asserts nothing.
+// floor overrides the model's answer rather than gating on certainty. Inclusive
+// because stored probabilities are rounded to 2dp, so 0.50 spans 0.495-0.505.
 export const THEME_PROBABILITY_CUTOFF = 0.5;
 
 // bump when the thresholds above or the rules below change; stored themesRaw is
@@ -25,7 +25,7 @@ export type JevChoiceAnswer = {
 export type JevAnswers = Record<string, JevChoiceAnswer>;
 
 const saysYes = (answers: JevAnswers, questionId: string, cutoff: number) =>
-	(answers[questionId]?.probabilities?.yes ?? 0) > cutoff;
+	(answers[questionId]?.probabilities?.yes ?? 0) >= cutoff;
 
 function deriveBinaryThemes(answers: JevAnswers, cutoff: number): ThemeSlug[] {
 	return Object.entries(BINARY_THEME_QUESTIONS)
