@@ -471,7 +471,7 @@ export async function getRelatedArtists(
 	signal?: AbortSignal,
 ): Promise<RelatedArtistCandidate[]> {
 	try {
-		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=60`;
+		const url = `https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=${encodeURIComponent(artistName)}&api_key=${process.env.LASTFM_API_KEY}&format=json&limit=80`;
 
 		const { data } = await axios.get(url, { signal });
 
