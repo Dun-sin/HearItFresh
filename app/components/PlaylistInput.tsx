@@ -20,20 +20,22 @@ const SEED_ROLE_UI: Record<
 		card: 'border-brand bg-brand dark:bg-opacity-20 bg-opacity-10',
 		dot: 'bg-brand',
 		label: 'Similar artists',
-		description: 'Adds songs from artists like everyone on this track.',
+		description:
+			"Also searches artists similar to this song's artists for songs with matching lyrics.",
 	},
 	skipMain: {
 		card: 'border-yellow-400 bg-yellow-400 dark:bg-opacity-20 bg-opacity-10',
 		dot: 'bg-yellow-400',
 		label: 'Features only',
 		description:
-			'Adds songs from artists like the featured artists, not the main one.',
+			'Same, but only starts from the featured artists, not the main one.',
 	},
 	skipAll: {
 		card: 'border-darkest bg-darkest text-lightest dark:border-lightest',
 		dot: 'bg-darkest dark:ring-1 dark:ring-lightest',
 		label: 'Lyrics only',
-		description: 'Only matches the lyrics. No similar artists.',
+		description:
+			"Only its lyrics are used. Its artists aren't used to find similar ones.",
 	},
 };
 
