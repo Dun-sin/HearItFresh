@@ -8,6 +8,7 @@ import {
 } from '../lib/helpers';
 import { SeedTrackHistory, playlistSongDetails } from '../types';
 import type { ProviderName } from '../lib/providers/types';
+import { isSeedRole } from '../lib/seedRoles';
 
 import { toast } from 'react-toastify';
 import { useRef } from 'react';
@@ -145,6 +146,11 @@ const useReuseSeeds = () => {
 		applySourcePlaylist(sourcePlaylistId, provider);
 
 		const seedIds = new Set(seedSongs.map((song) => song.id));
+		const seedRoles = Object.fromEntries(
+			seeds.flatMap((seed) =>
+				seed.id && isSeedRole(seed.role) ? [[seed.id, seed.role]] : [],
+			),
+		);
 		let songs = seedSongs;
 		let artistNames = [
 			...new Set(seedSongs.flatMap((song) => song.artist.slice(0, 2))),
@@ -161,7 +167,7 @@ const useReuseSeeds = () => {
 
 		setExtractedSongs(songs);
 		setExtractedArtists(artistNames);
-		selectSeeds([...seedIds]);
+		selectSeeds([...seedIds], seedRoles);
 		scrollToInput();
 	};
 

@@ -28,6 +28,7 @@ import type { DbMatch } from './dbMatches';
 import type { PlaylistHistory } from './history';
 import { hasPaceMix } from '../pace/mix';
 import { hasActiveThemeFilter } from '../themes/filter';
+import { relatedSourceArtists } from '../seedRoles';
 import type { PaceBudget } from '../pace/reccobeats';
 
 const PACED_FETCH = { maxArtists: 160, albumsPerArtist: 2 };
@@ -68,11 +69,15 @@ export async function expandWithRelatedArtists({
 		...history.titles,
 		...existing.map((r) => titleKey(r.title, r.artistName)),
 	]);
-	const targetArtists =
+	const seedArtists =
 		seeds.length > 0
 			? Array.from(new Set(seeds.flatMap((s) => s.artist)))
 			: artistNames;
-	const usedArtistNames: string[] = [...targetArtists];
+	const targetArtists =
+		seeds.length > 0
+			? Array.from(new Set(seeds.flatMap(relatedSourceArtists)))
+			: artistNames;
+	const usedArtistNames: string[] = [...seedArtists];
 	let artistPool: RelatedArtistPool | null = null;
 
 	const paced = hasPaceMix(options?.paceMix);

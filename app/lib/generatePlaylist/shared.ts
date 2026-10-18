@@ -17,6 +17,7 @@ import { getProvider } from '../providers';
 import { hasActiveThemeFilter, passesThemeFilter } from '../themes/filter';
 import { syncSongThemes, type ClassifiableRow } from '../themes/persist';
 import type { ThemeFilters } from '../themes/slugs';
+import type { SeedRole } from '../seedRoles';
 import {
 	hasPaceMix,
 	interleaveByPace,
@@ -62,6 +63,7 @@ export type SeedInput = {
 	name: string;
 	artist: string[];
 	album?: string;
+	role?: SeedRole;
 };
 
 export type GenerationResult = { tracks: ProviderTrackRef[]; error?: string };

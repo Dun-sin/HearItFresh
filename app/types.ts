@@ -3,6 +3,7 @@ import type { ProviderName } from './lib/providers/types';
 import type { ThemeFilters } from './lib/themes/slugs';
 import type { PaceMix } from './lib/pace/mix';
 import type { YearRange } from './lib/releaseYear/range';
+import type { SeedRole } from './lib/seedRoles';
 
 export type {
 	ThemeSlug,
@@ -93,6 +94,7 @@ export type SeedTrackHistory = {
 	artist?: string[] | string;
 	album?: string;
 	image?: string;
+	role?: SeedRole;
 };
 
 export type SpotifyTrack = SongInput;

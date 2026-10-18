@@ -88,6 +88,7 @@ const SubmitButton = () => {
 		extractedSongs,
 		setExtractedSongs,
 		selectedSeedIds,
+		seedRoles,
 		extractedArtists,
 		setExtractedArtists,
 		clearSeeds,
@@ -479,9 +480,12 @@ const SubmitButton = () => {
 		setGenerationArtistName(selectedArtist?.name ?? null);
 
 		try {
-			const selectedSongsData = extractedSongs.filter((s: any) =>
-				selectedSeedIds.has(s.id),
-			);
+			const selectedSongsData = extractedSongs
+				.filter((s) => seedRoles.has(s.id))
+				.map((s) => ({
+					...s,
+					role: selectedArtist ? undefined : seedRoles.get(s.id),
+				}));
 
 			if (process.env.NODE_ENV === 'production') {
 				// Inngest path

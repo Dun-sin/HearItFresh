@@ -8,12 +8,8 @@ import AdvancedFilters from './AdvancedFilters';
 import YearFilter from './YearFilter';
 
 const Options = () => {
-	const {
-		setIsDifferentTypesOfArtists,
-		setIsNotPopularArtists,
-		selectedArtist,
-		setSelectedArtist,
-	} = useOptions();
+	const { setIsNotPopularArtists, selectedArtist, setSelectedArtist } =
+		useOptions();
 	const { provider } = useGeneralState();
 	const [searchOpen, setSearchOpen] = useState(false);
 
@@ -38,20 +34,6 @@ const Options = () => {
 						<span>Get non-popular artists</span>
 					</label>
 				</div>
-				<div className='flex items-center pl-4'>
-					<label
-						htmlFor='differentGenre'
-						className='cursor-pointer select-none text-sm flex items-center gap-2'>
-						<input
-							type='checkbox'
-							name='differentGenre'
-							onChange={(e) => setIsDifferentTypesOfArtists(e.target.checked)}
-							className='form-checkbox w-4 h-4 text-brand rounded'
-						/>
-						<span>Get a different genre</span>
-					</label>
-				</div>
-
 				{selectedArtist ? (
 					<div className='flex items-center pl-4'>
 						<div className='flex items-center gap-2 rounded-full border border-gray border-opacity-50 bg-lightest pl-1.5 pr-1 py-1 shadow-sm'>
