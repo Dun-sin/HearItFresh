@@ -1,3 +1,10 @@
+## [1.54.1](https://github.com/Dun-sin/HearItFresh/compare/v1.54.0...v1.54.1) (2026-10-18)
+
+
+### Bug Fixes
+
+* **spotify:** increase limit for related artists retrieval ([bdeb6dd](https://github.com/Dun-sin/HearItFresh/commit/bdeb6ddd2fd5c1e7119cfc5e4259a93b8990f8ef))
+
 # [1.54.0](https://github.com/Dun-sin/HearItFresh/compare/v1.53.0...v1.54.0) (2026-10-18)
 
 
