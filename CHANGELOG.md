@@ -1,3 +1,10 @@
+# [1.55.0](https://github.com/Dun-sin/HearItFresh/compare/v1.54.1...v1.55.0) (2026-10-18)
+
+
+### Features
+
+* **themes:** add love desire theme and adjust derivation logic ([89d4b30](https://github.com/Dun-sin/HearItFresh/commit/89d4b30b845f2f536e63b7cad5dbb3e6a0966255))
+
 ## [1.54.1](https://github.com/Dun-sin/HearItFresh/compare/v1.54.0...v1.54.1) (2026-10-18)
 
 
