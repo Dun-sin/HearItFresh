@@ -206,10 +206,16 @@ function safeParseJson(value: string) {
 }
 
 export function formatApiError(err: any): string {
-	const status = err?.response?.status;
-	const data = err?.response?.data;
-	const message = data?.error?.message ?? data?.error ?? err?.message;
-	const text = typeof message === 'string' ? message : JSON.stringify(message);
+	const status = err?.response?.status ?? err?.statusCode;
+	const data = err?.response?.data ?? err?.body;
+	const message =
+		data?.error?.message ??
+		data?.error ??
+		(typeof data === 'string' && data ? data : undefined) ??
+		err?.message;
+	const raw = typeof message === 'string' ? message : JSON.stringify(message);
+	// spotify-web-api-node stringifies an unparsed (non-JSON) body into the message
+	const text = raw === '[object Object]' ? undefined : raw;
 	return status ? `${status} ${text ?? ''}`.trim() : (text ?? String(err));
 }
 

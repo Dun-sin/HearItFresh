@@ -11,24 +11,48 @@ import {
 	formatApiError,
 	NON_CANONICAL_RELEASE_KEYWORDS,
 } from './utils';
-import { spotifyErrors, withRetry } from './retry';
+import { createCooldown, spotifyErrors, withRetry } from './retry';
 import {
 	inYearRange,
 	yearFromReleaseDate,
 	type YearRange,
 } from './releaseYear/range';
 
+/** Spotify's rate limit is per app, so every lookup shares one cap and one 429 pause. */
+const SPOTIFY_REQUEST_CONCURRENCY = 10;
+const spotifyRequestLimit = pLimit(SPOTIFY_REQUEST_CONCURRENCY);
+const spotifyCooldown = createCooldown();
+
+/** Process-wide counters, so a caller can diff two snapshots to see what a step cost. */
+export type SpotifyStats = { calls: number; rateLimited: number; failed: number };
+const spotifyStats: SpotifyStats = { calls: 0, rateLimited: 0, failed: 0 };
+export const getSpotifyStats = (): SpotifyStats => ({ ...spotifyStats });
+
+const countedCall = async <T>(fn: () => Promise<T>): Promise<T> => {
+	spotifyStats.calls++;
+	try {
+		return await fn();
+	} catch (err) {
+		if (spotifyErrors.status(err) === 429) spotifyStats.rateLimited++;
+		throw err;
+	}
+};
+
 const retrySpotify = <T>(
 	label: string,
 	fn: () => Promise<T>,
 	signal?: AbortSignal,
 ) =>
-	withRetry(fn, {
+	withRetry(() => spotifyRequestLimit(() => countedCall(fn)), {
 		errors: spotifyErrors,
 		label: `Spotify ${label}`,
 		retryOn: [429],
-		attempts: 2,
+		attempts: 3,
 		signal,
+		cooldown: spotifyCooldown,
+	}).catch((err) => {
+		if (!signal?.aborted) spotifyStats.failed++;
+		throw err;
 	});
 
 const EDITION_KEYWORDS = [
@@ -345,7 +369,14 @@ export async function getArtistsAlbums(
 	signal?: AbortSignal,
 	options?: AlbumLookupOptions,
 ): Promise<string[]> {
-	const resolved = await resolveSpotifyArtist(artist, signal);
+	let resolved: ResolvedSpotifyArtist | null;
+	try {
+		resolved = await resolveSpotifyArtist(artist, signal);
+	} catch (err) {
+		if (signal?.aborted) throw err;
+		logLookupFailure(artist, err);
+		return [];
+	}
 	if (!resolved) {
 		console.log(`Artist not found: ${artist}`);
 		return [];
@@ -442,7 +473,9 @@ export async function getTracks(
 		for (const subArray of subArrays) {
 			let subTracks: singleTrack[] = [];
 			// Call the Spotify Web API's getAlbums method with the subarray of IDs
-			const data = await spotifyApi.getAlbums(subArray);
+			const data = await retrySpotify(`albums (${subArray.length})`, () =>
+				spotifyApi.getAlbums(subArray),
+			);
 
 			data.body.albums.forEach((item) =>
 				item.tracks.items.forEach((track) => {
@@ -534,8 +567,9 @@ export async function getUser() {
  * match. Follower filtering and album fetching therefore always talk about the
  * exact same artist, and the id lets the album fetch skip a second search.
  *
- * Returns null when the artist can't be resolved (unknown to Spotify, or the
- * lookup kept failing), and 429s are retried in place honouring `retry-after`.
+ * Returns null only when Spotify has no such artist. A lookup that keeps
+ * failing (e.g. still rate-limited after retries) throws and is not cached, so
+ * a later round can try the name again.
  */
 async function resolveSpotifyArtist(
 	artistName: string,
@@ -545,29 +579,28 @@ async function resolveSpotifyArtist(
 	const cached = spotifyArtistCache.get(cacheKey);
 	if (cached !== undefined) return cached;
 
-	try {
-		const data = await retrySpotify(
-			`resolve artist ${artistName}`,
-			() => spotifyApi.searchArtists(artistName, { limit: 1, offset: 0 }),
-			signal,
-		);
-		const match = data.body.artists?.items?.[0];
-		const resolved: ResolvedSpotifyArtist | null = match
-			? {
-					id: match.id,
-					name: match.name,
-					followers: match.followers?.total ?? 0,
-				}
-			: null;
+	const data = await retrySpotify(
+		`resolve artist ${artistName}`,
+		() => spotifyApi.searchArtists(artistName, { limit: 1, offset: 0 }),
+		signal,
+	);
+	const match = data.body.artists?.items?.[0];
+	const resolved: ResolvedSpotifyArtist | null = match
+		? {
+				id: match.id,
+				name: match.name,
+				followers: match.followers?.total ?? 0,
+			}
+		: null;
 
-		cacheSpotifyArtist(cacheKey, resolved);
-		return resolved;
-	} catch (err: any) {
-		if (signal?.aborted) throw err;
-		console.error(`Error resolving ${artistName}: ${formatApiError(err)}`);
-		return null;
-	}
+	cacheSpotifyArtist(cacheKey, resolved);
+	return resolved;
 }
+
+const logLookupFailure = (artistName: string, err: unknown) =>
+	console.error(
+		`Spotify lookup failed for ${artistName}: ${formatApiError(err)}`,
+	);
 
 /**
  * Resolves candidate artist names to real Spotify artists, returning only the
@@ -601,7 +634,13 @@ export async function resolveArtistsWithFollowers(
 		const chunk = artistNames.slice(i, i + FOLLOWER_LOOKUP_CHUNK_SIZE);
 		const resolvedArtists = await Promise.all(
 			chunk.map((name) => {
-				const result = limit(() => resolveSpotifyArtist(name, signal));
+				const result = limit(() =>
+					resolveSpotifyArtist(name, signal).catch((err) => {
+						if (signal?.aborted) throw err;
+						logLookupFailure(name, err);
+						return null;
+					}),
+				);
 				setTimeout(() => {
 					if (signal?.aborted) {
 						console.log(`Aborted lookup for ${name}`);

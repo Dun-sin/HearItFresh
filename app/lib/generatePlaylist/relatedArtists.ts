@@ -29,6 +29,7 @@ import type { PlaylistHistory } from './history';
 import { hasPaceMix } from '../pace/mix';
 import { hasActiveThemeFilter } from '../themes/filter';
 import { relatedSourceArtists } from '../seedRoles';
+import { getSpotifyStats } from '../spotify';
 import type { PaceBudget } from '../pace/reccobeats';
 
 const PACED_FETCH = { maxArtists: 160, albumsPerArtist: 2 };
@@ -88,6 +89,9 @@ export async function expandWithRelatedArtists({
 			break;
 		throwIfAborted();
 
+		const roundStartedAt = Date.now();
+		const statsBefore = getSpotifyStats();
+
 		try {
 			artistPool ??= await fetchRelatedArtistPool(
 				targetArtists,
@@ -117,6 +121,11 @@ export async function expandWithRelatedArtists({
 				true,
 				signal,
 			)) as any[];
+
+			const stats = getSpotifyStats();
+			console.log(
+				`Round ${attempt + 1}: ${finalList.length} artists, ${albums.length} albums, ${aiTracks?.length ?? 0} tracks in ${((Date.now() - roundStartedAt) / 1000).toFixed(1)}s (Spotify: ${stats.calls - statsBefore.calls} calls, ${stats.rateLimited - statsBefore.rateLimited} rate-limited, ${stats.failed - statsBefore.failed} failed)`,
+			);
 
 			if (!aiTracks || aiTracks.length === 0) continue;
 
