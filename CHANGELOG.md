@@ -1,3 +1,10 @@
+# [1.54.0](https://github.com/Dun-sin/HearItFresh/compare/v1.53.0...v1.54.0) (2026-10-18)
+
+
+### Features
+
+* **spotify:** implement shared cooldown and request concurrency control ([b5ce09f](https://github.com/Dun-sin/HearItFresh/commit/b5ce09f5286f6bcad00603dd8a4dce1874fb01ac))
+
 # [1.53.0](https://github.com/Dun-sin/HearItFresh/compare/v1.52.1...v1.53.0) (2026-10-18)
 
 
