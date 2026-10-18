@@ -1,5 +1,6 @@
 export const LOVE_TYPE_THEME_SLUGS = [
 	'love_earnest',
+	'love_desire',
 	'love_yearning',
 	'love_betrayal',
 	'love_playful',
@@ -46,6 +47,7 @@ export const DEFAULT_THEME_FILTER_STATE: ThemeFilterState = 'neutral';
 export const THEME_LABELS: Record<ThemeSlug, string> = {
 	love_gendered: 'Gendered partner',
 	love_earnest: 'Earnest / devotional',
+	love_desire: 'Desire / attraction',
 	love_yearning: 'Yearning / unresolved',
 	love_betrayal: 'Betrayal / breakup',
 	love_playful: 'Playful / flirtatious',

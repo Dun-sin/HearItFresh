@@ -39,6 +39,16 @@ export const LOVE_TYPE_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 			no: 'The romance is mainly something else, or the song is not about romance',
 		},
 	},
+	love_desire_attraction: {
+		type: 'choice',
+		slug: 'love_desire',
+		instructions:
+			'Is the romance in this song mainly desire — wanting someone, being drawn to them physically or romantically, seducing them, or the rush of a new infatuation? This covers confident, direct wanting as well as the giddy early stage. It is still desire even when the attraction is unwise or the narrator knows it is bad for them. Do not answer yes if the person is absent or out of reach (that is yearning), if the song is about a settled relationship, a breakup, or doubt within an ongoing one. If the song is not about romance, answer no.',
+		criteria: {
+			yes: 'The romance is mainly wanting, attraction, seduction, or infatuation with someone who is present or reachable',
+			no: 'The romance is mainly something else — longing for someone absent, a settled relationship, a breakup, or doubt within one — or the song is not about romance',
+		},
+	},
 	love_yearning_unresolved: {
 		type: 'choice',
 		slug: 'love_yearning',
