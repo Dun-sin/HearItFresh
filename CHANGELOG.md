@@ -1,3 +1,11 @@
+# [1.53.0](https://github.com/Dun-sin/HearItFresh/compare/v1.52.1...v1.53.0) (2026-10-18)
+
+
+### Features
+
+* **playlist:** implement seed roles for granular song selection ([e4cc8f3](https://github.com/Dun-sin/HearItFresh/commit/e4cc8f367304effa524bc2d5f4e100715f70fda4))
+* **theme:** update color scheme for theme toggle and filters; add caution and blocked colors ([23a0ba5](https://github.com/Dun-sin/HearItFresh/commit/23a0ba5804fbaa50df3baf39e033a68cc3fb20f7))
+
 ## [1.52.1](https://github.com/Dun-sin/HearItFresh/compare/v1.52.0...v1.52.1) (2026-10-07)
 
 
