@@ -21,10 +21,10 @@ export const ROMANCE_GATED_BINARY_IDS = ['love_person_gendered'];
 export const ROMANCE_QUESTION: JevQuestion = {
 	type: 'choice',
 	instructions:
-		'Is romance, attraction, or a love interest between the narrator and another person a significant part of this song — including relationships, crushes, flirting, situationships, longing, breakups, or turning someone down? A passing line or a single mention does not count, and romantic-sounding language aimed at an abstract concept, a place, a group of people, or society at large does not count.',
+		'Is romance, attraction, or a love interest between the narrator and another person a significant part of this song — including relationships, crushes, flirting, situationships, longing, breakups, or turning someone down? Love, devotion, or grief directed at a person who is not a romantic interest does not count: a parent, child, sibling, friend, bandmate, hero, or someone who is ill, dying, or being mourned. Disillusionment with a person, admiring them, or being hurt by them is not romance unless they are a romantic interest. Romantic-sounding language aimed at an abstract concept, a place, a group of people, or society at large does not count. A passing line or a single mention does not count, even one that names a partner — the romance has to be a significant part of what the song is about.',
 	criteria: {
 		yes: 'Romance, attraction, or a love interest between the narrator and another person is a significant part of the song',
-		no: 'Romance is absent or only a passing mention, even if romantic-sounding vocabulary appears',
+		no: 'Romance is absent or only a passing mention; devotion to a friend or relative, grief for someone dying, or being hurt by a non-romantic person do not count, however loving the language',
 	},
 };
 
@@ -116,7 +116,7 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'sexual_explicit',
 		instructions:
-			'Does this song describe sex — sex acts, bodies, or arousal in graphic or clearly sexual terms — anywhere in it, even if it is not the main subject? Judge what is described, not how crude the language is. Profanity is not sexual content: swearing, and words like "fuck" used as an insult, an intensifier, or to describe anger or violence, do not count.',
+			'Does this song describe sex — sex acts, bodies, or arousal in graphic or clearly sexual terms — anywhere in it, even if it is not the main subject? Judge what is described, not how crude the language is. Profanity is never sexual content on its own. The word "fuck" is only sexual when it names a sex act; used as an insult, an intensifier, or to mean beat, ruin, destroy or defeat someone — "I\'m about to fuck that", "they\'re gonna fuck you up", "fucked it up" — it is not sexual and must not count. A song can swear constantly and still describe no sex at all.',
 		criteria: {
 			yes: 'Describes sex acts, bodies, or arousal in graphic or clearly sexual terms, whether in one line or throughout',
 			no: 'Describes no sex, even if the song is profane, crude, aggressive or violent; at most mild romance or innuendo',
