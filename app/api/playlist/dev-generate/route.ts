@@ -8,7 +8,6 @@ import { isProviderName } from '@/app/lib/providers';
 export async function POST(req: Request) {
   const {
     seeds,
-    artistNames,
     options,
     userId,
     artistId,
@@ -31,7 +30,6 @@ export async function POST(req: Request) {
 			)
 		: await generateSeedPlaylist(
 				seeds,
-				artistNames,
 				options,
 				userId,
 				resolvedProvider,

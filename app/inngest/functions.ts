@@ -31,7 +31,6 @@ export const generatePlaylist = inngest.createFunction(
 	async ({ event, step, runId }) => {
 		const {
 			seeds,
-			artistNames,
 			options,
 			userId,
 			generatedPlaylistId,
@@ -85,7 +84,6 @@ export const generatePlaylist = inngest.createFunction(
 			}
 			return await generateSeedPlaylist(
 				seeds,
-				artistNames,
 				options,
 				userId,
 				provider,
@@ -104,9 +102,7 @@ export const generatePlaylist = inngest.createFunction(
 			const musicProvider = getProvider(provider);
 			const playlistName = isArtistMode
 				? buildArtistPlaylistName(artistName)
-				: (seeds.length > 0
-						? 'HearItFresh - Lyrics Inspired'
-						: 'HearItFresh - Similar to Playlist') + '@hearitfresh.favour.dev';
+				: 'HearItFresh - Lyrics Inspired@hearitfresh.favour.dev';
 
 			return await musicProvider.createPlaylist(
 				playlistName,

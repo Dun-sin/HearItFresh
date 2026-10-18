@@ -21,7 +21,6 @@ import { createPaceBudget } from '../pace/reccobeats';
 
 export async function generateSeedPlaylist(
 	seeds: SeedInput[],
-	artistNames: string[],
 	options: GenerationOptions,
 	userId?: string,
 	provider: ProviderName = 'spotify',
@@ -76,7 +75,6 @@ export async function generateSeedPlaylist(
 
 		const { refs, quotaExhausted } = await expandWithRelatedArtists({
 			seeds,
-			artistNames,
 			options,
 			seedEmbeddings,
 			existing: dbMatches,

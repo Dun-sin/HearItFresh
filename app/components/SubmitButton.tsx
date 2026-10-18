@@ -89,8 +89,6 @@ const SubmitButton = () => {
 		setExtractedSongs,
 		selectedSeedIds,
 		seedRoles,
-		extractedArtists,
-		setExtractedArtists,
 		clearSeeds,
 	} = useSeedSongs();
 
@@ -499,7 +497,6 @@ const SubmitButton = () => {
 
 				const payload = {
 					seeds: selectedSongsData,
-					artistNames: extractedArtists,
 					options: {
 						isNotPopular: isNotPopularArtists,
 						isDifferent: isDifferentTypesOfArtists,
@@ -563,7 +560,6 @@ const SubmitButton = () => {
 					'/api/playlist/dev-generate',
 					{
 						seeds: selectedSongsData,
-						artistNames: extractedArtists,
 						options: {
 							isNotPopular: isNotPopularArtists,
 							isDifferent: isDifferentTypesOfArtists,
@@ -964,10 +960,7 @@ const SubmitButton = () => {
 				return;
 
 			// Phase 1: Set extracted songs into context for the UI picker
-			const { songs, artistNames } = formatPlaylistTracks(playlistTracks);
-
-			setExtractedSongs(songs);
-			setExtractedArtists(artistNames);
+			setExtractedSongs(formatPlaylistTracks(playlistTracks));
 		} catch (err) {
 			if (
 				activeGeneratedPlaylistIdRef.current !== currentPlaylistId ||

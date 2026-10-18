@@ -88,7 +88,7 @@ export const PlaylistViewProvider: React.FC<{ children: React.ReactNode }> = ({
 		const tracks = data.map((item: any) => ({
 			id: item.externalId,
 			name: item.name,
-			artist: [item.artistName],
+			artist: item.artistNames,
 			image: item.imageUrl,
 		}));
 

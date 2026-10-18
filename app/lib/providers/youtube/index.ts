@@ -157,7 +157,7 @@ async function getArtistDiscographyTracks(
 				provider: 'youtube',
 				externalId: v.videoId,
 				name: normalizeTrackName(v.title),
-				artistName: normalizeArtistName(v.channelTitle),
+				artistNames: [normalizeArtistName(v.channelTitle)],
 				imageUrl: v.thumbnailUrl,
 			});
 		}
@@ -194,7 +194,7 @@ async function getAllTracksInPlaylist(
 				provider: 'youtube',
 				externalId: item.videoId,
 				name: normalizeTrackName(item.title),
-				artistName: normalizeArtistName(item.channelTitle),
+				artistNames: [normalizeArtistName(item.channelTitle)],
 				imageUrl: item.thumbnailUrl,
 			});
 		}

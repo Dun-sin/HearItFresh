@@ -194,19 +194,13 @@ export const getPlaylistTracks = async (
 	}
 };
 
-export const formatPlaylistTracks = (playlistTracks: any[]) => {
-	const songs = playlistTracks.map((item: any) => ({
+export const formatPlaylistTracks = (playlistTracks: any[]) =>
+	playlistTracks.map((item: any) => ({
 		id: item.externalId as string,
 		name: item.name as string,
-		artist: [item.artistName] as string[],
+		artist: item.artistNames as string[],
 		image: item.imageUrl as string | undefined,
 	}));
-	const artistNames: string[] = playlistTracks.map(
-		(item: any) => item.artistName,
-	);
-
-	return { songs, artistNames: [...new Set(artistNames)] };
-};
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY as string);

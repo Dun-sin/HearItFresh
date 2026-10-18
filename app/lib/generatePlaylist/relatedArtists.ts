@@ -36,7 +36,6 @@ const THEMED_FETCH = { maxArtists: 130, albumsPerArtist: 2 };
 
 export async function expandWithRelatedArtists({
 	seeds,
-	artistNames,
 	options,
 	seedEmbeddings,
 	existing,
@@ -47,7 +46,6 @@ export async function expandWithRelatedArtists({
 	signal,
 }: {
 	seeds: SeedInput[];
-	artistNames: string[];
 	options: GenerationOptions;
 	seedEmbeddings: number[][];
 	existing: DbMatch[];
@@ -69,15 +67,12 @@ export async function expandWithRelatedArtists({
 		...history.titles,
 		...existing.map((r) => titleKey(r.title, r.artistName)),
 	]);
-	const seedArtists =
-		seeds.length > 0
-			? Array.from(new Set(seeds.flatMap((s) => s.artist)))
-			: artistNames;
-	const targetArtists =
-		seeds.length > 0
-			? Array.from(new Set(seeds.flatMap(relatedSourceArtists)))
-			: artistNames;
-	const usedArtistNames: string[] = [...seedArtists];
+	const targetArtists = Array.from(
+		new Set(seeds.flatMap(relatedSourceArtists)),
+	);
+	const usedArtistNames: string[] = Array.from(
+		new Set(seeds.flatMap((s) => s.artist)),
+	);
 	let artistPool: RelatedArtistPool | null = null;
 
 	const paced = hasPaceMix(options?.paceMix);

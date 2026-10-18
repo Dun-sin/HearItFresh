@@ -87,13 +87,13 @@ export async function generateArtistPlaylist(
 			.filter((t) => {
 				const excluded =
 					checkedTrackIds.has(t.externalId) ||
-					checkedTrackTitles.has(titleKey(t.name, t.artistName));
+					checkedTrackTitles.has(titleKey(t.name, t.artistNames[0]));
 				return !excluded;
 			})
 			.map((t) => ({
 				spotifyId: t.externalId,
 				name: t.name,
-				artistName: t.artistName,
+				artistName: t.artistNames[0],
 				albumName: t.albumName,
 				releaseYear: t.releaseYear,
 			}));

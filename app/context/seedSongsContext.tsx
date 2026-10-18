@@ -24,8 +24,6 @@ interface SeedSongsContextProps {
 	selectSeeds: (ids: string[], roles?: Record<string, SeedRole>) => void;
 	clearSeeds: () => void;
 	selectAllSeeds: () => void;
-	extractedArtists: string[];
-	setExtractedArtists: (artists: string[]) => void;
 }
 
 const SeedSongsContext = createContext<SeedSongsContextProps | undefined>(
@@ -39,7 +37,6 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 		[],
 	);
 	const [seedRoles, setSeedRoles] = useState<Map<string, SeedRole>>(new Map());
-	const [extractedArtists, setExtractedArtists] = useState<string[]>([]);
 
 	const selectedSeedIds = useMemo(() => new Set(seedRoles.keys()), [seedRoles]);
 
@@ -83,7 +80,6 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 	const clearSeeds = useCallback(() => {
 		setSeedRoles(new Map());
 		setExtractedSongs([]);
-		setExtractedArtists([]);
 	}, []);
 
 	const selectAllSeeds = useCallback(() => {
@@ -107,8 +103,6 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 			selectSeeds,
 			clearSeeds,
 			selectAllSeeds,
-			extractedArtists,
-			setExtractedArtists,
 		}),
 		[
 			extractedSongs,
@@ -119,7 +113,6 @@ const SeedSongsProvider: React.FC<{ children: ReactNode }> = ({
 			selectSeeds,
 			clearSeeds,
 			selectAllSeeds,
-			extractedArtists,
 		],
 	);
 

@@ -5,7 +5,6 @@ import { isProviderName } from '@/app/lib/providers';
 export async function POST(req: Request) {
 	const {
 		seeds,
-		artistNames,
 		options,
 		userId,
 		sourcePlaylistId,
@@ -26,7 +25,6 @@ export async function POST(req: Request) {
 			name: 'playlist/generate',
 			data: {
 				seeds,
-				artistNames,
 				options,
 				userId: null,
 				sourcePlaylistId,
@@ -71,7 +69,6 @@ export async function POST(req: Request) {
 	try {
 		const eventData = {
 			seeds,
-			artistNames,
 			options,
 			userId,
 			sourcePlaylistId,

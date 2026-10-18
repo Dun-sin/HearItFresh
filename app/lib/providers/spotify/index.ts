@@ -94,7 +94,7 @@ async function getArtistDiscographyTracks(
 		externalId: t.id,
 		name: t.name,
 		albumName: t.albumName,
-		artistName: t.artistName,
+		artistNames: [t.artistName],
 		releaseYear: t.releaseYear,
 	}));
 }
@@ -125,14 +125,19 @@ async function getAllTracksInPlaylist(
 	return items
 		.map((item: any) => item?.track)
 		.filter(Boolean)
-		.map((track: any) => ({
-			provider: 'spotify' as const,
-			externalId: track.id,
-			name: track.name,
-			albumName: track.album?.name,
-			artistName: track.artists?.[0]?.name ?? 'Unknown Artist',
-			imageUrl: track.album?.images?.[0]?.url ?? null,
-		}));
+		.map((track: any) => {
+			const artistNames: string[] = (track.artists ?? [])
+				.map((artist: any) => artist?.name)
+				.filter(Boolean);
+			return {
+				provider: 'spotify' as const,
+				externalId: track.id,
+				name: track.name,
+				albumName: track.album?.name,
+				artistNames: artistNames.length > 0 ? artistNames : ['Unknown Artist'],
+				imageUrl: track.album?.images?.[0]?.url ?? null,
+			};
+		});
 }
 
 export const spotifyProvider: MusicProvider = {

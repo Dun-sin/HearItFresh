@@ -43,16 +43,14 @@ const useReuseSeeds = () => {
 	const { user } = useAuth();
 	const { setSelectedArtist } = useOptions();
 	const { spotifyPlaylist } = useInput();
-	const { setExtractedSongs, setExtractedArtists, selectSeeds } =
-		useSeedSongs();
+	const { setExtractedSongs, selectSeeds } = useSeedSongs();
 	const { ensureYoutubeChannel } = useYoutubeChannel();
 
-	const loadedPlaylistRef = useRef<
-		| ({ playlistId: string; provider: ProviderName } & ReturnType<
-				typeof formatPlaylistTracks
-		  >)
-		| null
-	>(null);
+	const loadedPlaylistRef = useRef<{
+		playlistId: string;
+		provider: ProviderName;
+		songs: playlistSongDetails[];
+	} | null>(null);
 
 	const isReuseDisabled = loading || buttonClick;
 
@@ -75,7 +73,7 @@ const useReuseSeeds = () => {
 			loadedPlaylistRef.current = {
 				playlistId,
 				provider,
-				...formatPlaylistTracks(playlistData.tracks),
+				songs: formatPlaylistTracks(playlistData.tracks),
 			};
 			return loadedPlaylistRef.current;
 		} catch (err) {
@@ -126,7 +124,6 @@ const useReuseSeeds = () => {
 		if (!playlist) return;
 
 		setExtractedSongs(playlist.songs);
-		setExtractedArtists(playlist.artistNames);
 		selectSeeds([]);
 		scrollToInput();
 	};
@@ -152,9 +149,6 @@ const useReuseSeeds = () => {
 			),
 		);
 		let songs = seedSongs;
-		let artistNames = [
-			...new Set(seedSongs.flatMap((song) => song.artist.slice(0, 2))),
-		];
 
 		const playlist = await loadPlaylist(sourcePlaylistId, provider);
 		if (playlist) {
@@ -162,11 +156,9 @@ const useReuseSeeds = () => {
 				...seedSongs,
 				...playlist.songs.filter((song) => !seedIds.has(song.id)),
 			];
-			artistNames = [...new Set([...playlist.artistNames, ...artistNames])];
 		}
 
 		setExtractedSongs(songs);
-		setExtractedArtists(artistNames);
 		selectSeeds([...seedIds], seedRoles);
 		scrollToInput();
 	};

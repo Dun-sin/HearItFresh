@@ -18,7 +18,7 @@ export type ProviderTrackRef = { provider: ProviderName; externalId: string };
 export type ProviderTrack = ProviderTrackRef & {
 	name: string;
 	albumName?: string;
-	artistName: string;
+	artistNames: string[];
 	imageUrl?: string | null;
 	releaseYear?: number;
 };
