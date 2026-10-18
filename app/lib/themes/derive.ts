@@ -4,7 +4,7 @@ import {
 	ROMANCE_GATED_BINARY_IDS,
 	ROMANCE_QUESTION_ID,
 } from './questions';
-import { LOVE_CATCH_ALL_SLUG, type ThemeSlug } from './slugs';
+import { type ThemeSlug } from './slugs';
 
 export const THEME_PROBABILITY_CUTOFF = 0.55;
 
@@ -41,13 +41,14 @@ function deriveLoveThemes(answers: JevAnswers, cutoff: number): ThemeSlug[] {
 		.filter(([questionId]) => saysYes(answers, questionId, cutoff))
 		.map(([, question]) => question.slug);
 
+	// a confident gate with no subtype behind it is a bad gate, not a 7th love type
+	if (types.length === 0) return [];
+
 	const attributes: ThemeSlug[] = ROMANCE_GATED_BINARY_IDS.filter(
 		(questionId) => saysYes(answers, questionId, cutoff),
 	).map((questionId) => BINARY_THEME_QUESTIONS[questionId].slug);
 
-	const love: ThemeSlug[] = types.length > 0 ? types : [LOVE_CATCH_ALL_SLUG];
-
-	return [...love, ...attributes];
+	return [...types, ...attributes];
 }
 
 export function deriveThemes(

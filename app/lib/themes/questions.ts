@@ -21,10 +21,10 @@ export const ROMANCE_GATED_BINARY_IDS = ['love_person_gendered'];
 export const ROMANCE_QUESTION: JevQuestion = {
 	type: 'choice',
 	instructions:
-		'Is romance, attraction, or a love interest between the narrator and another person a significant part of this song — including relationships, crushes, flirting, situationships, longing, breakups, or turning someone down? Love, devotion, or grief directed at a person who is not a romantic interest does not count: a parent, child, sibling, friend, bandmate, hero, or someone who is ill, dying, or being mourned. Disillusionment with a person, admiring them, or being hurt by them is not romance unless they are a romantic interest. Romantic-sounding language aimed at an abstract concept, a place, a group of people, or society at large does not count. A passing line or a single mention does not count, even one that names a partner — the romance has to be a significant part of what the song is about.',
+		'Is there positive evidence in this song of a romantic or sexual relationship between the narrator and another person — attraction, desire, dating, kissing or sex, a partner, a crush, an ex, flirting, or a breakup? Emotional closeness on its own is not evidence. Caring deeply about someone, missing them, needing them, supporting them through something, being hurt or betrayed by them, or grieving them all happen between friends, family and bandmates too, and none of them make a song romantic. If the song names the relationship as something else — a friend, a parent, a sibling, a child — take it at its word. Romantic-sounding language aimed at a place, an idea, a group of people, or society at large does not count, and a single passing mention of a partner is not enough.',
 	criteria: {
-		yes: 'Romance, attraction, or a love interest between the narrator and another person is a significant part of the song',
-		no: 'Romance is absent or only a passing mention; devotion to a friend or relative, grief for someone dying, or being hurt by a non-romantic person do not count, however loving the language',
+		yes: 'The song gives positive evidence of a romantic or sexual relationship — attraction, desire, a partner, a crush, an ex, flirting, or a breakup',
+		no: 'No positive evidence of romance, only emotional closeness, longing, support, hurt or grief toward someone the song never shows to be a romantic interest',
 	},
 };
 
