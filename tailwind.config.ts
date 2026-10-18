@@ -17,6 +17,8 @@ const config: Config = {
 				medium: '#1A664F',
 				gray: '#798683',
 				lightest: '#FAFFFD',
+				blocked: '#B05E5A',
+				caution: '#9A6A22',
 			},
 			fontSize: {
 				fxs: 'var(--step--2)',

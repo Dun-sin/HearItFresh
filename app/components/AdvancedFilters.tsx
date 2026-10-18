@@ -81,7 +81,7 @@ const ThemeToggle = ({ theme }: { theme: ThemeSlug }) => {
 				className={`text-fsm truncate transition-colors ${
 					allowed
 						? 'text-darkest dark:text-lightest'
-						: 'text-red-600 line-through'
+						: 'text-blocked line-through'
 				}`}>
 				{THEME_LABELS[theme]}
 			</span>
@@ -97,7 +97,7 @@ const ThemeToggle = ({ theme }: { theme: ThemeSlug }) => {
 
 			<span
 				className={`relative h-5 w-9 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-focus-visible:ring-offset-1 ${
-					allowed ? 'bg-green-600' : 'bg-red-600'
+					allowed ? 'bg-brand' : 'bg-blocked'
 				}`}>
 				<span
 					className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-lightest shadow-sm transition-transform ${
@@ -146,7 +146,7 @@ const LoveFilters = () => {
 			<label className='flex items-center justify-between gap-3 cursor-pointer select-none pl-5 sm:max-w-[50%] sm:pr-3'>
 				<span
 					className={`text-fsm font-semibold transition-colors ${
-						rejectingAll ? 'text-red-600' : 'text-darkest dark:text-lightest'
+						rejectingAll ? 'text-blocked' : 'text-darkest dark:text-lightest'
 					}`}>
 					Reject all romance
 				</span>
@@ -165,7 +165,7 @@ const LoveFilters = () => {
 
 				<span
 					className={`relative h-5 w-9 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand peer-focus-visible:ring-offset-1 ${
-						rejectingAll ? 'bg-red-600' : 'bg-gray'
+						rejectingAll ? 'bg-blocked' : 'bg-gray'
 					}`}>
 					<span
 						className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-lightest shadow-sm transition-transform ${
@@ -245,7 +245,7 @@ const PaceFilter = () => {
 						<span>{100 - fast}% slow</span>
 					</div>
 
-					<p className='text-fxs text-amber-600 dark:text-amber-400'>
+					<p className='text-fxs text-caution'>
 						Heads up: only songs we have pace data for can be used, and the
 						playlist shrinks to keep this exact split, so you may get far
 						fewer songs than usual.

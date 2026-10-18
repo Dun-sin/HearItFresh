@@ -278,7 +278,11 @@ const SubmitButton = () => {
 			);
 
 			if (completed) {
-				createSpotifyPlaylist(completed.output.link, completed.output.name);
+				createSpotifyPlaylist(
+					completed.output.link,
+					completed.output.name,
+					userId,
+				);
 			}
 
 			if (data.updated?.length) {
@@ -613,7 +617,7 @@ const SubmitButton = () => {
 					throw new Error(createData.error || 'Failed to create playlist');
 				}
 
-				createSpotifyPlaylist(createData.link, createData.name);
+				createSpotifyPlaylist(createData.link, createData.name, user?.user_id);
 			}
 		} catch (err: any) {
 			// Swallow errors that occurred after a user-initiated cancel
@@ -708,7 +712,11 @@ const SubmitButton = () => {
 			console.log('[pollForCompletion] Completed!');
 			const playlist = data.output;
 			if (playlist?.link && playlist?.name) {
-				await createSpotifyPlaylist(playlist.link, playlist.name);
+				await createSpotifyPlaylist(
+					playlist.link,
+					playlist.name,
+					payload.userId,
+				);
 				return;
 			}
 			setFailed(true);
@@ -810,7 +818,11 @@ const SubmitButton = () => {
 		connectPromptResolveRef.current = null;
 	};
 
-	const createSpotifyPlaylist = async (link: string, name: string) => {
+	const createSpotifyPlaylist = async (
+		link: string,
+		name: string,
+		ownerUserId: string | null | undefined,
+	) => {
 		const derivedProvider = providerOfLink(link);
 		addToUrl('link', link.split('/').at(-1) as string);
 		setPlayListData({ link, name, provider: derivedProvider });
@@ -818,7 +830,7 @@ const SubmitButton = () => {
 		endGeneration();
 		toast.success('Playlist Created');
 
-		if (!user?.user_id) {
+		if (!ownerUserId) {
 			patchGuestGeneration({ link, name });
 			if (derivedProvider === 'spotify') {
 				toast.warning(

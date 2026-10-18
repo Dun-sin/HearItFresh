@@ -63,7 +63,7 @@ const YearFilter = () => {
 			</div>
 
 			{reversed && (
-				<p className='text-fxs text-amber-600 dark:text-amber-400'>
+				<p className='text-fxs text-caution'>
 					&quot;From&quot; is after &quot;To&quot;, so the years will be
 					swapped.
 				</p>
