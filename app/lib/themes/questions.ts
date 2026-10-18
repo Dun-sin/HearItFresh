@@ -14,6 +14,10 @@ export type BinaryThemeQuestion = JevQuestion & {
 
 export const ROMANCE_QUESTION_ID = 'romance_any';
 
+// attributes of a romance rather than kinds of one: they describe how a love
+// interest is referred to, so they only mean anything once romance_any passes
+export const ROMANCE_GATED_BINARY_IDS = ['love_person_gendered'];
+
 export const ROMANCE_QUESTION: JevQuestion = {
 	type: 'choice',
 	instructions:
@@ -92,30 +96,30 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'love_gendered',
 		instructions:
-			"Does this song use gendered pronouns (he/she/him/her) or a name to refer to a romantic partner or love interest who is a separate person from the narrator? Do not answer yes if the name/pronoun refers to the narrator's own self, an alter-ego, or is used in self-address (e.g. an artist singing to themselves by name).",
+			"Does this song reveal the gender of a romantic partner or love interest who is a separate person from the narrator — through gendered pronouns (he/she/him/her), gendered words such as man, woman, boy, girl, guy or lady, or by naming them? Do not answer yes if the gendered word or name refers to the narrator's own self, an alter-ego, or is used in self-address (e.g. an artist singing to themselves by name), or if it refers to someone who is not a love interest, such as a rival, a friend, or a family member.",
 		criteria: {
-			yes: 'Uses gendered pronouns or a name to refer to a separate romantic partner or love interest, distinct from the narrator',
-			no: "Uses only ungendered address like 'you', refers to the narrator's own self/alter-ego by name, or doesn't reference a specific romantic partner's identity at all",
+			yes: "Reveals a separate love interest's gender, by pronoun, gendered word, or name",
+			no: "Never reveals the love interest's gender — only ungendered address like 'you' — or the gendered word refers to the narrator themselves or to someone who is not a love interest",
 		},
 	},
 	grief_nonromantic: {
 		type: 'choice',
 		slug: 'grief',
 		instructions:
-			'Is this song about loss, death, or grief unrelated to a romantic relationship?',
+			'Is this song about mourning someone who has died, or a comparable bereavement, outside of a romantic breakup? Figurative loss does not count: losing youth, innocence, a job, a home, or a former version of yourself is not grief unless someone is actually being mourned as dead or gone for good.',
 		criteria: {
-			yes: 'About non-romantic loss, death, or grief',
-			no: 'Not about non-romantic loss or grief',
+			yes: 'About mourning someone who has died or is gone for good, outside a romantic breakup',
+			no: 'Not about mourning a person; figurative loss such as lost youth, innocence, or opportunity does not count',
 		},
 	},
 	sexual_explicit: {
 		type: 'choice',
 		slug: 'sexual_explicit',
 		instructions:
-			'Does this song contain sexually explicit content — graphic or clearly sexual lyrics — anywhere in it, even if it is not the main subject?',
+			'Does this song describe sex — sex acts, bodies, or arousal in graphic or clearly sexual terms — anywhere in it, even if it is not the main subject? Judge what is described, not how crude the language is. Profanity is not sexual content: swearing, and words like "fuck" used as an insult, an intensifier, or to describe anger or violence, do not count.',
 		criteria: {
-			yes: 'Contains sexually explicit lyrics, whether in one verse or throughout',
-			no: 'No sexually explicit lyrics; at most mild, non-graphic romance or innuendo',
+			yes: 'Describes sex acts, bodies, or arousal in graphic or clearly sexual terms, whether in one line or throughout',
+			no: 'Describes no sex, even if the song is profane, crude, aggressive or violent; at most mild romance or innuendo',
 		},
 	},
 	substance_use: {
@@ -132,10 +136,10 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'self_reflection',
 		instructions:
-			'Is this song primarily about the narrator examining their own identity, growth, or internal state?',
+			'Is this song primarily the narrator examining themselves — questioning who they are, taking stock of how they have changed, or working out what they believe? Expressing an emotion is not self-examination: being sad, angry, lonely, or in love is a feeling, not an inspection of the self.',
 		criteria: {
-			yes: "Primarily about the narrator's own identity, growth, or internal state",
-			no: "Not primarily about the narrator's own identity, growth, or internal state",
+			yes: 'Primarily the narrator questioning or taking stock of who they are or who they are becoming',
+			no: 'Not primarily self-examination, even if the song is emotional, introspective in tone, or written in first person',
 		},
 	},
 	celebration_hype: {
@@ -162,30 +166,30 @@ export const BINARY_THEME_QUESTIONS: Record<string, BinaryThemeQuestion> = {
 		type: 'choice',
 		slug: 'platonic',
 		instructions:
-			'Is this song primarily about a platonic relationship — friendship, family, or community?',
+			'Is a specific non-romantic bond — a friendship, a family relationship, or belonging to a community — the actual subject of this song? Mentioning friends or family in passing does not count, nor does addressing a crowd, nor does "we" used to mean people in general.',
 		criteria: {
-			yes: 'Primarily about friendship, family, or community bond',
-			no: 'Not primarily about a platonic relationship',
+			yes: 'The friendship, family relationship, or sense of belonging is what the song is about',
+			no: 'Not about a non-romantic bond, even if friends, family, or "we" are mentioned along the way',
 		},
 	},
 	nostalgia_memory: {
 		type: 'choice',
 		slug: 'nostalgia',
 		instructions:
-			'Is this song primarily about looking back on the past or memory?',
+			'Is this song primarily about the past itself — remembering an earlier time, person, or version of life, and feeling its pull? Telling a story in past tense is not nostalgia: the past has to be the subject, not just the timeframe. Recounting a recent breakup, argument, or event does not count.',
 		criteria: {
-			yes: 'Primarily about the past or memory',
-			no: 'Not primarily about the past or memory',
+			yes: 'Primarily about remembering an earlier time and feeling its pull',
+			no: 'Not primarily about the past, even if the song narrates past events or is written in past tense',
 		},
 	},
 	mental_health_struggle: {
 		type: 'choice',
 		slug: 'mental_health',
 		instructions:
-			'Does this song explicitly deal with anxiety, depression, trauma, self-harm, suicidal thoughts, addiction recovery, or another mental-health struggle? General sadness, heartbreak, or feeling hurt by someone is not a mental-health struggle.',
+			'Does this song deal with the narrator or someone in it living with a mental-health condition or crisis — anxiety, depression, trauma, self-harm, suicidal thoughts, an eating disorder, or addiction and recovery? Ordinary painful emotion is not a mental-health struggle: sadness, heartbreak, loneliness, longing, jealousy, insecurity, or feeling low after a breakup do not count, however intensely they are expressed. Words like crazy, insane, mad, sick, or dying used as insult, hyperbole, or metaphor do not count either.',
 		criteria: {
-			yes: 'Explicitly deals with anxiety, depression, trauma, self-harm, suicidal thoughts, addiction recovery, or another mental-health struggle',
-			no: 'No explicit mental-health struggle; general sadness, heartbreak, or hurt does not count',
+			yes: 'Deals with an actual mental-health condition or crisis — depression, anxiety, trauma, self-harm, suicidal thoughts, disordered eating, or addiction',
+			no: 'Only ordinary emotional pain such as sadness, heartbreak, loneliness or insecurity, or mental-health words used as metaphor, hyperbole or insult',
 		},
 	},
 	defiant_empowered: {
