@@ -10,7 +10,7 @@ export const THEME_PROBABILITY_CUTOFF = 0.55;
 
 // bump when the thresholds above or the rules below change; stored themesRaw is
 // re-derived locally, so this never costs a Jev call
-export const DERIVE_VERSION = 6;
+export const DERIVE_VERSION = 7;
 
 export type JevChoiceAnswer = {
 	type?: string;

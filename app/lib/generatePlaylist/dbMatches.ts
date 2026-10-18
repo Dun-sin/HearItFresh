@@ -65,6 +65,7 @@ async function scoreDbMatches(
 			artistName: song.artist ?? '',
 			...scored,
 			pace: paceOf(features.get(song.id)),
+			fromDb: true,
 		}))
 		.sort(byRankDesc);
 

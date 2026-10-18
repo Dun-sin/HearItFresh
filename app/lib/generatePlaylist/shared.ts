@@ -87,7 +87,7 @@ export type ScoredCandidate = CandidateTrack & Score & Paced;
 
 export type RankedRef = ProviderTrackRef &
 	Score &
-	Paced & { artistName: string };
+	Paced & { artistName: string; fromDb?: boolean };
 
 export type ResolvedRefs = { refs: RankedRef[]; quotaExhausted: boolean };
 
@@ -536,6 +536,18 @@ export async function resolveSpotifyTracksToRefs(
 	return { refs, quotaExhausted };
 }
 
+/**
+ * Runs after selection, so the same tracks make the playlist either way — db
+ * matches are pgvector nearest neighbours and would otherwise take every top
+ * slot on similarity alone.
+ */
+function dbMatchesLast(tracks: RankedRef[]): RankedRef[] {
+	return [
+		...tracks.filter((t) => !t.fromDb),
+		...tracks.filter((t) => t.fromDb),
+	];
+}
+
 export async function finalizeTracks(
 	refs: RankedRef[],
 	{
@@ -544,11 +556,11 @@ export async function finalizeTracks(
 		yearRange,
 	}: { quotaExhausted: boolean; paceMix?: PaceMix; yearRange?: YearRange },
 ): Promise<GenerationResult> {
-	const finalTracks = (
-		hasPaceMix(paceMix)
-			? interleaveByPace(pickPacedTracks(refs, paceMix))
-			: [...refs].sort(byRankDesc).slice(0, PLAYLIST_SIZE)
-	).map(toRef);
+	const selected = hasPaceMix(paceMix)
+		? interleaveByPace(pickPacedTracks(refs, paceMix))
+		: [...refs].sort(byRankDesc).slice(0, PLAYLIST_SIZE);
+
+	const finalTracks = dbMatchesLast(selected).map(toRef);
 
 	if (quotaExhausted && finalTracks.length <= DB_SIMILAR_SONGS_LIMIT) {
 		return { tracks: [], error: YOUTUBE_QUOTA_EXHAUSTED_ERROR };
