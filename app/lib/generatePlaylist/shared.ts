@@ -18,6 +18,7 @@ import { hasActiveThemeFilter, passesThemeFilter } from '../themes/filter';
 import { syncSongThemes, type ClassifiableRow } from '../themes/persist';
 import type { ThemeFilters } from '../themes/slugs';
 import type { SeedRole } from '../seedRoles';
+import { MIN_SEEDS } from '../seedLimits';
 import {
 	hasPaceMix,
 	interleaveByPace,
@@ -48,7 +49,6 @@ export const PLAYLIST_SIZE = 100;
 // resolving to YouTube spends search quota, so only the best of each batch is resolved
 export const RESOLVE_HEADROOM = 20;
 
-const MIN_SEEDS = 5;
 const MIN_PACE_MIX_TRACKS = 10;
 const MAX_TRACKS_PER_ARTIST_WITH_PACE = 2;
 
@@ -82,6 +82,8 @@ const earliestOf = (...years: (number | null | undefined)[]) => {
 };
 
 export type Score = { maxScore: number; hitRatio: number };
+
+const UNRANKED: Score = { maxScore: 0, hitRatio: 0 };
 
 export type ScoredCandidate = CandidateTrack & Score & Paced;
 
@@ -268,6 +270,7 @@ export async function scoreTracks(
 	}: ScoringFilters = {},
 ): Promise<ScoredCandidate[]> {
 	const filtering = hasActiveThemeFilter(themeFilters);
+	const ranking = seedEmbeddings.length > 0;
 
 	const scoredTracks = await Promise.all(
 		newTracks
@@ -296,6 +299,10 @@ export async function scoreTracks(
 					const emb = processed?.embeddingData;
 					if (!emb) {
 						return null;
+					}
+
+					if (!ranking) {
+						return { ...track, ...UNRANKED, song: processed };
 					}
 
 					const scored = scoreAgainstSeeds(emb, seedEmbeddings);
@@ -342,7 +349,7 @@ export async function scoreTracks(
 	);
 
 	console.log(
-		`[Scoring Summary] ${survivors.length}/${newTracks.length} tracks passed cutoff` +
+		`[Scoring Summary] ${survivors.length}/${newTracks.length} tracks ${ranking ? 'passed cutoff' : 'have lyrics'}` +
 			(filtering ? ` (${survivors.length - themed.length} dropped on themes)` : '') +
 			(hasYearRange(yearRange)
 				? ` (${themed.length - kept.length} dropped on release year)`

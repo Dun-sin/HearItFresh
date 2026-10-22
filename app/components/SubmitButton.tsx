@@ -14,6 +14,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import axios from 'axios';
 import SubmitButtionContainer from './SubmitButtonContainer';
 import ConnectYoutubePrompt from './ConnectYoutubePrompt';
+import ArtistModeGuide from './ArtistModeGuide';
 import {
 	addToUrl,
 	consumeYoutubeConnectRedirect,
@@ -44,6 +45,11 @@ import useGenerationCountdown from '@/app/hooks/useGenerationCountdown';
 import type { ProviderName } from '@/app/lib/providers/types';
 import type { SourcePlaylist } from '@/app/types';
 import { hasYearRange } from '@/app/lib/releaseYear/range';
+import {
+	artistModeStatus,
+	canGenerateArtistPlaylist,
+} from '@/app/lib/artistMode';
+import { MAX_SEEDS, MIN_SEEDS } from '@/app/lib/seedLimits';
 
 const providerOfLink = (link: string): ProviderName =>
 	link.includes('youtube.com') || link.includes('youtu.be')
@@ -51,7 +57,7 @@ const providerOfLink = (link: string): ProviderName =>
 		: 'spotify';
 
 const SubmitButton = () => {
-	const { setLoading } = useLoading();
+	const { loading, setLoading } = useLoading();
 	const {
 		setErrorMessages,
 		errorMessages,
@@ -72,7 +78,7 @@ const SubmitButton = () => {
 		setYoutubeGuestCredentials,
 	} = useAuth();
 	const { setLoadingMessage } = useLoading();
-	const { spotifyPlaylist } = useInput();
+	const { spotifyPlaylist, hasPlaylistLink, setPlaylistLink } = useInput();
 	const { setHistory } = useHistory();
 	const {
 		isNotPopularArtists,
@@ -91,6 +97,18 @@ const SubmitButton = () => {
 		seedRoles,
 		clearSeeds,
 	} = useSeedSongs();
+
+	const artistStatus = selectedArtist
+		? artistModeStatus({
+				extractedCount: extractedSongs.length,
+				seedCount: selectedSeedIds.size,
+				hasPlaylistLink,
+				restrictedThemes: Object.values(themeFilters).filter(
+					(state) => state === 'restrict',
+				).length,
+			})
+		: null;
+	const themesOnly = artistStatus?.kind === 'ready' && artistStatus.seeds === 0;
 
 	const isGuest = !user?.user_id;
 	const failedMessage = "We couldn't create your playlist. Please try again.";
@@ -163,9 +181,7 @@ const SubmitButton = () => {
 		}
 
 		const pendingLink = takePendingPlaylistLink();
-		if (pendingLink && spotifyPlaylist.current) {
-			spotifyPlaylist.current.value = pendingLink;
-		}
+		if (pendingLink) setPlaylistLink(pendingLink);
 
 		if (result.guestCredentials) {
 			youtubeGuestCredentialsRef.current = result.guestCredentials;
@@ -443,9 +459,12 @@ const SubmitButton = () => {
 		if (buttonClick === true) return;
 
 		const seedCount = selectedSeedIds.size;
-		// Strictly enforce selecting between 5 and 10 seed songs.
-		if (seedCount < 5 || seedCount > 10) {
-			toast.error('Please select between 5 and 10 seed songs.');
+		if (!themesOnly && (seedCount < MIN_SEEDS || seedCount > MAX_SEEDS)) {
+			toast.error(
+				selectedArtist
+					? 'Please select between 5 and 10 seed songs, or switch off a theme to skip seeds.'
+					: 'Please select between 5 and 10 seed songs.',
+			);
 			return;
 		}
 
@@ -980,7 +999,7 @@ const SubmitButton = () => {
 	}
 
 	const handleSubmit = async () => {
-		if (extractedSongs.length > 0) {
+		if (extractedSongs.length > 0 || themesOnly) {
 			handleSeedPlaylistGeneration();
 		} else {
 			setLoading(true);
@@ -1018,21 +1037,32 @@ const SubmitButton = () => {
 	// when a playlist has been uploaded and fewer than 5 songs
 	// are selected (0-4), the button should be disabled and greyed out.
 	// 5+ seeds reverts to the normal green generate button.
-	const isLowSeedCount = extractedSongs.length > 0 && selectedSeedIds.size < 5;
+	const isBlocked = artistStatus
+		? !canGenerateArtistPlaylist(artistStatus)
+		: extractedSongs.length > 0 && selectedSeedIds.size < MIN_SEEDS;
 
-	const btnClass = isLowSeedCount ? 'bg-gray-400 text-lightest' : undefined;
+	const btnClass = isBlocked ? 'bg-gray-400 text-lightest' : undefined;
 
 	return (
 		<>
+			{artistStatus && selectedArtist && !loading && !failed && !buttonClick && (
+				<ArtistModeGuide
+					status={artistStatus}
+					artistName={selectedArtist.name}
+				/>
+			)}
 			<SubmitButtionContainer
 				handleSubmit={handleSubmit}
 				onCancel={handleCancel}
 				onReset={handleReset}
 				failed={failed}
 				errorMessage={errorMessage}
-				canRetry={extractedSongs.length > 0 && selectedSeedIds.size >= 5}
+				canRetry={
+					themesOnly ||
+					(extractedSongs.length > 0 && selectedSeedIds.size >= MIN_SEEDS)
+				}
 				btnClass={btnClass}
-				disabled={isLowSeedCount}
+				disabled={isBlocked}
 				startedAt={generationStartedAt}
 				artistName={generationArtistName}
 			/>

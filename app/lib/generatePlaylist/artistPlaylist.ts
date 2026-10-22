@@ -21,12 +21,16 @@ import {
 	type SeedInput,
 } from './shared';
 import { loadPlaylistHistory } from './history';
+import { hasActiveThemeFilter } from '../themes/filter';
+import { NO_SEEDS_OR_THEMES_ERROR } from './validate';
 
 /**
  * Artist-only generation path. Instead of expanding through related artists,
  * this pulls the selected artist's full discography, scores those tracks
  * against the provided lyric/embedding seeds, keeps the tracks that pass the
  * similarity cutoff, ranks by strongest match, and returns up to 100 refs.
+ * With no seeds, the theme filters alone narrow the discography, which keeps
+ * its original order.
  */
 export async function generateArtistPlaylist(
 	artist: { id: string; name: string },
@@ -40,26 +44,34 @@ export async function generateArtistPlaylist(
 	const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 	const throwIfAborted = createAbortGuard(signal);
 
+	const seeded = seeds.length > 0;
+	if (!seeded && !hasActiveThemeFilter(filters?.themeFilters)) {
+		return { tracks: [], error: NO_SEEDS_OR_THEMES_ERROR };
+	}
+
 	try {
 		throwIfAborted();
 		const token = await getDummyAccessToken();
 		setAccessToken(token);
 		console.log(
-			`Generating artist playlist for ${artist.name} (provider=${provider})...`,
+			`Generating artist playlist for ${artist.name} (provider=${provider}, ${seeded ? `${seeds.length} seeds` : 'themes only'})...`,
 		);
 
 		const seedSpotifyIds = seeds.map((s) => s.id);
 
-		const prepared = await prepareSeedEmbeddings(
-			seeds,
-			provider,
-			signal,
-			filters?.themeFilters,
-		);
-		if ('error' in prepared) {
-			return { tracks: [], error: prepared.error };
+		let seedEmbeddings: number[][] = [];
+		if (seeded) {
+			const prepared = await prepareSeedEmbeddings(
+				seeds,
+				provider,
+				signal,
+				filters?.themeFilters,
+			);
+			if ('error' in prepared) {
+				return { tracks: [], error: prepared.error };
+			}
+			seedEmbeddings = prepared.seedEmbeddings;
 		}
-		const { seedEmbeddings } = prepared;
 
 		throwIfAborted();
 		// For Spotify, `artist.id` is the Spotify artist id. For YouTube the same

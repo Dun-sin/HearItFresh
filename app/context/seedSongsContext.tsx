@@ -11,8 +11,7 @@ import React, {
 
 import { playlistSongDetails } from '@/app/types';
 import { nextSeedRole, type SeedRole } from '@/app/lib/seedRoles';
-
-const MAX_SEEDS = 10;
+import { MAX_SEEDS } from '@/app/lib/seedLimits';
 
 interface SeedSongsContextProps {
 	extractedSongs: playlistSongDetails[];

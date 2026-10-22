@@ -1,20 +1,32 @@
 import { inngest } from '@/app/inngest/client';
 import prisma from '@/app/lib/prisma';
 import { isProviderName } from '@/app/lib/providers';
+import { validateGenerationRequest } from '@/app/lib/generatePlaylist/validate';
 
 export async function POST(req: Request) {
+	let body: any;
+	try {
+		body = await req.json();
+	} catch {
+		return Response.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+	}
+
+	const request = validateGenerationRequest(body);
+	if (!request.ok) {
+		return Response.json({ error: request.error }, { status: 400 });
+	}
+
+	const { seeds, options } = request.value;
+	const artistId = request.value.artist?.id;
+	const artistName = request.value.artist?.name;
 	const {
-		seeds,
-		options,
 		userId,
 		sourcePlaylistId,
-		artistId,
-		artistName,
 		artistImage,
 		provider,
 		youtubeGuestCredentials,
 		cancellationId,
-	} = await req.json();
+	} = body;
 
 	const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
 

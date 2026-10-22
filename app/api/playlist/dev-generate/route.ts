@@ -3,24 +3,30 @@ import {
 	generateArtistPlaylist,
 	generateSeedPlaylist,
 } from '@/app/lib/generatePlaylist';
+import { validateGenerationRequest } from '@/app/lib/generatePlaylist/validate';
 import { isProviderName } from '@/app/lib/providers';
 
 export async function POST(req: Request) {
-  const {
-    seeds,
-    options,
-    userId,
-    artistId,
-    artistName,
-    provider,
-    youtubeGuestCredentials,
-  } = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+  }
+
+  const request = validateGenerationRequest(body);
+  if (!request.ok) {
+    return NextResponse.json({ error: request.error }, { status: 400 });
+  }
+
+  const { seeds, options, artist } = request.value;
+  const { userId, provider, youtubeGuestCredentials } = body;
 
   const resolvedProvider = isProviderName(provider) ? provider : 'spotify';
 
-  const result = artistId
+  const result = artist
 		? await generateArtistPlaylist(
-				{ id: artistId, name: artistName },
+				artist,
 				seeds,
 				userId,
 				resolvedProvider,

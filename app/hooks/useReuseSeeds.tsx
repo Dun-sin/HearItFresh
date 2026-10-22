@@ -42,7 +42,7 @@ const useReuseSeeds = () => {
 		useGeneralState();
 	const { user } = useAuth();
 	const { setSelectedArtist } = useOptions();
-	const { spotifyPlaylist } = useInput();
+	const { spotifyPlaylist, setPlaylistLink } = useInput();
 	const { setExtractedSongs, selectSeeds } = useSeedSongs();
 	const { ensureYoutubeChannel } = useYoutubeChannel();
 
@@ -93,12 +93,11 @@ const useReuseSeeds = () => {
 		sourcePlaylistId: string,
 		provider: ProviderName,
 	) => {
-		if (spotifyPlaylist.current) {
-			spotifyPlaylist.current.value =
-				provider === 'youtube'
-					? addYoutubePlaylistFullLinkFromID(sourcePlaylistId)
-					: addPlaylistFullLinkFromID(sourcePlaylistId);
-		}
+		setPlaylistLink(
+			provider === 'youtube'
+				? addYoutubePlaylistFullLinkFromID(sourcePlaylistId)
+				: addPlaylistFullLinkFromID(sourcePlaylistId),
+		);
 		setErrorMessages({ ...errorMessages, notCorrectSpotifyLink: false });
 		setProvider(provider);
 		if (provider === 'youtube') setSelectedArtist(null);

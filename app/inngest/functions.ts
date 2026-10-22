@@ -10,6 +10,7 @@ import prisma from '../lib/prisma';
 import spotifyApi from '../lib/spotifyApi';
 import { addGeneratedSongsForUser } from '../lib/db';
 import { buildArtistPlaylistName } from '../lib/helpers';
+import { validateGenerationRequest } from '../lib/generatePlaylist/validate';
 
 const STALE_PLAYLIST_BATCH_SIZE = 25;
 const SPOTIFY_PLAYLIST_PAGE_SIZE = 50;
@@ -30,19 +31,20 @@ export const generatePlaylist = inngest.createFunction(
 	{ event: 'playlist/generate' },
 	async ({ event, step, runId }) => {
 		const {
-			seeds,
-			options,
 			userId,
 			generatedPlaylistId,
-			artistId,
-			artistName,
 			provider = 'spotify' as ProviderName,
 			persistResult = true,
 			youtubeGuestCredentials,
 		} = event.data;
 
-		const isArtistMode = Boolean(artistId);
-		
+		const request = validateGenerationRequest(event.data);
+		if (!request.ok) throw new NonRetriableError(request.error);
+
+		const { seeds, options, artist } = request.value;
+		const isArtistMode = artist !== null;
+		const artistName = artist?.name ?? '';
+
 		const authCtx: ProviderAuthCtx = { userId, youtubeGuestCredentials };
 
 		if (persistResult && generatedPlaylistId) {
@@ -71,9 +73,9 @@ export const generatePlaylist = inngest.createFunction(
 		}
 
 		const result = await step.run('generate-playlist-tracks', async () => {
-			if (isArtistMode) {
+			if (artist) {
 				return await generateArtistPlaylist(
-					{ id: artistId, name: artistName },
+					artist,
 					seeds,
 					userId,
 					provider,

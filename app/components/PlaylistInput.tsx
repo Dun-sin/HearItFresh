@@ -42,7 +42,7 @@ const SEED_ROLE_UI: Record<
 const PlaylistInput = () => {
 	const { loading } = useLoading();
 	const { errorMessages } = useGeneralState();
-	const { spotifyPlaylist } = useInput();
+	const { spotifyPlaylist, setPlaylistLink } = useInput();
 	const { selectedArtist } = useOptions();
 	const isArtistMode = Boolean(selectedArtist);
 
@@ -69,6 +69,9 @@ const PlaylistInput = () => {
 					<span className={`w-full flex items-center gap-2`}>
 						<h2 className={`text-fmd md:text-fsm`}>
 							Enter a Spotify or YouTube Music Playlist Link
+							{isArtistMode && (
+								<span className='text-gray font-normal'> (optional)</span>
+							)}
 						</h2>
 						<span
 							className='relative flex items-center group cursor-help'
@@ -98,6 +101,7 @@ const PlaylistInput = () => {
 						name='spotifyPlaylist'
 						className='h-8 rounded p-2 outline-none border-2 focus:border-brand w-full text-darkest'
 						ref={spotifyPlaylist}
+						onChange={(e) => setPlaylistLink(e.target.value)}
 						aria-label='playlistLink'
 					/>
 				</span>
@@ -110,7 +114,10 @@ const PlaylistInput = () => {
 
 			{extractedSongs.length > 0 && (
 				<div className='flex flex-col gap-2 w-full animate-fade-in'>
-					<h3 className='text-fmd font-bold'>Select Seed Songs (5-10)</h3>
+					<h3 className='text-fmd font-bold'>
+						Select Seed Songs (5-10
+						{isArtistMode && <span className='font-normal'>, optional</span>})
+					</h3>
 					<p className='text-fsm text-gray dark:text-gray'>
 						{selectedSeedIds.size} selected. We use these to find lyrically
 						similar songs.
