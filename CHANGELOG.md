@@ -1,3 +1,10 @@
+# [1.56.0](https://github.com/Dun-sin/HearItFresh/compare/v1.55.0...v1.56.0) (2026-10-22)
+
+
+### Features
+
+* **playlist:** implement artist mode with theme-only generation and request validation ([b4ac5d0](https://github.com/Dun-sin/HearItFresh/commit/b4ac5d0703dba9f67799ba0bd5140bf9a495391c))
+
 # [1.55.0](https://github.com/Dun-sin/HearItFresh/compare/v1.54.1...v1.55.0) (2026-10-18)
 
 
