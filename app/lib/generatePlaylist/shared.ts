@@ -19,6 +19,7 @@ import { syncSongThemes, type ClassifiableRow } from '../themes/persist';
 import type { ThemeFilters } from '../themes/slugs';
 import type { SeedRole } from '../seedRoles';
 import { MIN_SEEDS } from '../seedLimits';
+import type { ArtistMatchSummary } from '../artistSummary';
 import {
 	hasPaceMix,
 	interleaveByPace,
@@ -66,7 +67,11 @@ export type SeedInput = {
 	role?: SeedRole;
 };
 
-export type GenerationResult = { tracks: ProviderTrackRef[]; error?: string };
+export type GenerationResult = {
+	tracks: ProviderTrackRef[];
+	error?: string;
+	summary?: ArtistMatchSummary;
+};
 
 export type CandidateTrack = {
 	spotifyId: string;

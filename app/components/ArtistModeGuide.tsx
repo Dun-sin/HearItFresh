@@ -3,6 +3,8 @@
 import React from 'react';
 import type { ArtistModeStatus } from '@/app/lib/artistMode';
 
+type PendingStatus = Exclude<ArtistModeStatus, { kind: 'ready' }>;
+
 const plural = (count: number, word: string) =>
 	`${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -14,7 +16,7 @@ const Message = ({
 	status,
 	artistName,
 }: {
-	status: ArtistModeStatus;
+	status: PendingStatus;
 	artistName: string;
 }) => {
 	switch (status.kind) {
@@ -60,25 +62,6 @@ const Message = ({
 						' Or use Clear selection to go with your themes only.'}
 				</p>
 			);
-		case 'ready':
-			if (status.seeds === 0) {
-				return (
-					<p>
-						Ready: {artistName}&apos;s songs, leaving out{' '}
-						{plural(status.restrictedThemes, 'theme')} you switched off. Add seed
-						songs if you want them ranked by lyric match.
-					</p>
-				);
-			}
-			return (
-				<p>
-					Ready: {artistName}&apos;s songs ranked by lyric match to your{' '}
-					{plural(status.seeds, 'seed')}
-					{status.restrictedThemes > 0 &&
-						`, leaving out ${plural(status.restrictedThemes, 'theme')}`}
-					.
-				</p>
-			);
 	}
 };
 
@@ -86,29 +69,19 @@ const ArtistModeGuide = ({
 	status,
 	artistName,
 }: {
-	status: ArtistModeStatus;
+	status: PendingStatus;
 	artistName: string;
-}) => {
-	const ready = status.kind === 'ready';
-
-	return (
-		<div
-			role='status'
-			aria-live='polite'
-			className={`flex items-start gap-2 rounded border-2 px-3 py-2 text-fsm ${
-				ready ? 'border-brand' : 'border-gray border-opacity-30'
-			}`}>
-			<span
-				aria-hidden='true'
-				className={`mt-0.5 shrink-0 text-fbase ${
-					ready
-						? 'icon-[uil--check-circle] text-brand'
-						: 'icon-[uil--info-circle] text-gray'
-				}`}
-			/>
-			<Message status={status} artistName={artistName} />
-		</div>
-	);
-};
+}) => (
+	<div
+		role='status'
+		aria-live='polite'
+		className='flex items-start gap-2 rounded border-2 border-gray border-opacity-30 px-3 py-2 text-fsm'>
+		<span
+			aria-hidden='true'
+			className='icon-[uil--info-circle] mt-0.5 shrink-0 text-fbase text-gray'
+		/>
+		<Message status={status} artistName={artistName} />
+	</div>
+);
 
 export default ArtistModeGuide;

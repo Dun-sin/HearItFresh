@@ -134,7 +134,7 @@ export const generatePlaylist = inngest.createFunction(
 		}
 
 		const playlistOutput = await step.run('finalize-playlist-output', async () => {
-			return { link, name };
+			return { link, name, ...(result.summary ? { summary: result.summary } : {}) };
 		});
 
 		if (persistResult && generatedPlaylistId) {

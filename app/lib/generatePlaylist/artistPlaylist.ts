@@ -16,6 +16,7 @@ import {
 	scoreTracks,
 	selectForResolve,
 	titleKey,
+	uniqueSongs,
 	type CandidateTrack,
 	type GenerationResult,
 	type SeedInput,
@@ -95,13 +96,19 @@ export async function generateArtistPlaylist(
 			...history.ids,
 		]);
 		const checkedTrackTitles = new Set<string>(history.titles);
+		const isExcluded = (t: (typeof discography)[number]) =>
+			checkedTrackIds.has(t.externalId) ||
+			checkedTrackTitles.has(titleKey(t.name, t.artistNames[0]));
+
+		const uniqueTracks = uniqueSongs(
+			discography,
+			(t) => t.name,
+			(t) => t.artistNames[0],
+		);
+		const considered = uniqueTracks.filter((t) => !isExcluded(t)).length;
+
 		const newTracks: CandidateTrack[] = discography
-			.filter((t) => {
-				const excluded =
-					checkedTrackIds.has(t.externalId) ||
-					checkedTrackTitles.has(titleKey(t.name, t.artistNames[0]));
-				return !excluded;
-			})
+			.filter((t) => !isExcluded(t))
 			.map((t) => ({
 				spotifyId: t.externalId,
 				name: t.name,
@@ -128,11 +135,22 @@ export async function generateArtistPlaylist(
 			authCtx,
 		);
 
-		return await finalizeTracks(refs, {
+		const result = await finalizeTracks(refs, {
 			quotaExhausted,
 			paceMix: filters?.paceMix,
 			yearRange: filters?.yearRange,
 		});
+		if (result.error || result.tracks.length === 0) return result;
+
+		return {
+			...result,
+			summary: {
+				artistName: artist.name,
+				considered,
+				alreadyHeard: uniqueTracks.length - considered,
+				matched: scoredTracks.length,
+			},
+		};
 	} catch (error: any) {
 		console.error('Error generating artist playlist:', formatApiError(error));
 		return { tracks: [], error: error?.message || 'Unknown error' };

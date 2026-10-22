@@ -6,6 +6,7 @@ import ViewPlaylist from './OpenOnSpotify/ViewPlaylist';
 import { toast } from 'react-toastify';
 import { useGeneralState } from '../context/generalStateContext';
 import type { ProviderName } from '@/app/lib/providers/types';
+import { describeArtistSummary } from '@/app/lib/artistSummary';
 
 export const PROVIDER_META: Record<
 	ProviderName,
@@ -76,6 +77,16 @@ function OpenOnSpotify({ provider = 'spotify' }: { provider?: ProviderName }) {
 						View Playlist
 					</button>
 				</div>
+				{playListData.artistSummary && (
+					<p className='flex items-start gap-2 border-t border-gray border-opacity-20 pt-3 text-fxs text-gray'>
+						<Icon
+							icon='uil:lightbulb-alt'
+							aria-hidden='true'
+							className='h-4 w-4 shrink-0 text-brand'
+						/>
+						<span>{describeArtistSummary(playListData.artistSummary)}</span>
+					</p>
+				)}
 			</div>
 
 			<PlaylistViewProvider>

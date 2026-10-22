@@ -50,6 +50,7 @@ import {
 	canGenerateArtistPlaylist,
 } from '@/app/lib/artistMode';
 import { MAX_SEEDS, MIN_SEEDS } from '@/app/lib/seedLimits';
+import { parseArtistSummary } from '@/app/lib/artistSummary';
 
 const providerOfLink = (link: string): ProviderName =>
 	link.includes('youtube.com') || link.includes('youtu.be')
@@ -297,6 +298,7 @@ const SubmitButton = () => {
 					completed.output.link,
 					completed.output.name,
 					userId,
+					completed.output.summary,
 				);
 			}
 
@@ -328,6 +330,7 @@ const SubmitButton = () => {
 				link: record.link,
 				name: record.name,
 				provider: providerOfLink(record.link),
+				artistSummary: parseArtistSummary(record.artistSummary),
 			});
 			addToUrl('link', record.link.split('/').at(-1) as string);
 			return;
@@ -348,15 +351,18 @@ const SubmitButton = () => {
 					data.output?.link &&
 					data.output?.name
 				) {
+					const artistSummary = parseArtistSummary(data.output.summary);
 					patchGuestGeneration({
 						link: data.output.link,
 						name: data.output.name,
+						artistSummary,
 						runId: data.runId ?? record.runId,
 					});
 					setPlayListData({
 						link: data.output.link,
 						name: data.output.name,
 						provider: providerOfLink(data.output.link),
+						artistSummary,
 					});
 					addToUrl('link', data.output.link.split('/').at(-1) as string);
 					toast.info('Showing the last playlist we made for you.');
@@ -442,6 +448,7 @@ const SubmitButton = () => {
 					link: completedPlaylist.output.link,
 					name: completedPlaylist.output.name,
 					provider: providerOfLink(completedPlaylist.output.link),
+					artistSummary: parseArtistSummary(completedPlaylist.output.summary),
 				});
 				await refreshHistory();
 			}
@@ -636,7 +643,12 @@ const SubmitButton = () => {
 					throw new Error(createData.error || 'Failed to create playlist');
 				}
 
-				createSpotifyPlaylist(createData.link, createData.name, user?.user_id);
+				createSpotifyPlaylist(
+					createData.link,
+					createData.name,
+					user?.user_id,
+					resultData.summary,
+				);
 			}
 		} catch (err: any) {
 			// Swallow errors that occurred after a user-initiated cancel
@@ -735,6 +747,7 @@ const SubmitButton = () => {
 					playlist.link,
 					playlist.name,
 					payload.userId,
+					playlist.summary,
 				);
 				return;
 			}
@@ -841,16 +854,18 @@ const SubmitButton = () => {
 		link: string,
 		name: string,
 		ownerUserId: string | null | undefined,
+		summary?: unknown,
 	) => {
 		const derivedProvider = providerOfLink(link);
+		const artistSummary = parseArtistSummary(summary);
 		addToUrl('link', link.split('/').at(-1) as string);
-		setPlayListData({ link, name, provider: derivedProvider });
+		setPlayListData({ link, name, provider: derivedProvider, artistSummary });
 		clearSeeds();
 		endGeneration();
 		toast.success('Playlist Created');
 
 		if (!ownerUserId) {
-			patchGuestGeneration({ link, name });
+			patchGuestGeneration({ link, name, artistSummary });
 			if (derivedProvider === 'spotify') {
 				toast.warning(
 					'Add this playlist to your Spotify library now, or you may lose access to it later.',
@@ -1045,7 +1060,12 @@ const SubmitButton = () => {
 
 	return (
 		<>
-			{artistStatus && selectedArtist && !loading && !failed && !buttonClick && (
+			{artistStatus &&
+				artistStatus.kind !== 'ready' &&
+				selectedArtist &&
+				!loading &&
+				!failed &&
+				!buttonClick && (
 				<ArtistModeGuide
 					status={artistStatus}
 					artistName={selectedArtist.name}

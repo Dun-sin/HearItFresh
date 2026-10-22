@@ -1,6 +1,7 @@
 import crypto from 'crypto-js';
 
 import { LRCLibResult } from '../types';
+import { parseArtistSummary, type ArtistMatchSummary } from './artistSummary';
 
 const key = process.env.SECRET_KEY as string;
 
@@ -29,6 +30,7 @@ function timeOf(value?: Date | string | null) {
 export type PlaylistOutput = {
 	link: string;
 	name: string;
+	summary?: ArtistMatchSummary;
 };
 
 /**
@@ -177,8 +179,14 @@ function extractPlaylistOutput(
 		const link = String((value as any).link || '');
 		const name = String((value as any).name || '');
 		const warning = (value as any).warning;
+		const summary = parseArtistSummary((value as any).summary);
 		return link && name
-			? { link, name, ...(warning ? { warning: String(warning) } : {}) }
+			? {
+					link,
+					name,
+					...(warning ? { warning: String(warning) } : {}),
+					...(summary ? { summary } : {}),
+				}
 			: null;
 	}
 

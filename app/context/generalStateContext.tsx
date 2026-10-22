@@ -9,11 +9,13 @@ import React, {
 } from 'react';
 
 import type { ProviderName } from '@/app/lib/providers/types';
+import type { ArtistMatchSummary } from '@/app/lib/artistSummary';
 
 interface PlayListData {
 	link: string;
 	name: string;
 	provider?: ProviderName;
+	artistSummary?: ArtistMatchSummary | null;
 }
 
 interface ErrorMessages {

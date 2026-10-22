@@ -4,6 +4,7 @@ import type { ThemeFilters } from './lib/themes/slugs';
 import type { PaceMix } from './lib/pace/mix';
 import type { YearRange } from './lib/releaseYear/range';
 import type { SeedRole } from './lib/seedRoles';
+import type { ArtistMatchSummary } from './lib/artistSummary';
 
 export type {
 	ThemeSlug,
@@ -110,5 +111,6 @@ export type GuestGeneration = {
 	eventId: string | null;
 	link?: string | null;
 	name?: string | null;
+	artistSummary?: ArtistMatchSummary | null;
 	startedAt: number;
 };
