@@ -283,6 +283,47 @@ export function getCentroid(embeddings: number[][]): number[] {
 	return centroid;
 }
 
+/** Takes rank 1 from every seed's list, then rank 2, and so on, skipping repeats, until `limit` items are picked. */
+export function interleaveBySeed<T>(
+	perSeed: T[][],
+	limit: number,
+	keyOf: (item: T) => string,
+): T[] {
+	const picked: T[] = [];
+	const seen = new Set<string>();
+	const depth = Math.max(0, ...perSeed.map((list) => list.length));
+
+	for (let rank = 0; rank < depth && picked.length < limit; rank++) {
+		for (const list of perSeed) {
+			const item = list[rank];
+			if (item === undefined) continue;
+
+			const key = keyOf(item);
+			if (seen.has(key)) continue;
+
+			seen.add(key);
+			picked.push(item);
+			if (picked.length >= limit) break;
+		}
+	}
+	return picked;
+}
+
+export function getWeightedCentroid(
+	embeddings: number[][],
+	weights: number[],
+): number[] {
+	const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+	if (embeddings.length === 0 || totalWeight <= 0) return getCentroid(embeddings);
+	const dim = embeddings[0].length;
+	const centroid = new Array(dim).fill(0);
+	embeddings.forEach((emb, j) => {
+		for (let i = 0; i < dim; i++) centroid[i] += emb[i] * weights[j];
+	});
+	for (let i = 0; i < dim; i++) centroid[i] /= totalWeight;
+	return centroid;
+}
+
 export function isLRCLibResult(value: unknown): value is LRCLibResult {
 	return (
 		typeof value === 'object' &&

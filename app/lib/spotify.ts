@@ -12,6 +12,7 @@ import {
 	NON_CANONICAL_RELEASE_KEYWORDS,
 } from './utils';
 import { createCooldown, spotifyErrors, withRetry } from './retry';
+import { isAlternateVersion } from './songKey';
 import {
 	inYearRange,
 	yearFromReleaseDate,
@@ -492,26 +493,17 @@ export async function getTracks(
 					});
 				}),
 			);
-			subTracks = subTracks.filter((track, index, self) => {
-				const trackName = cleanMusicMetadata(track.name).toLowerCase();
-				const trackKey = normalizeTrackKey(track.name, track.artistName);
-
-				// Check if the track is a remix or a mix or an edit or a radio mix
-				if (
-					NON_CANONICAL_RELEASE_KEYWORDS.some((word) =>
-						trackName.includes(word),
-					)
-				) {
-					return false;
-				}
-
-				// Collapse duplicate versioned releases by normalized title + artist.
-				return !self.some(
-					(existing, existingIndex) =>
-						existingIndex < index &&
-						normalizeTrackKey(existing.name, existing.artistName) === trackKey,
-				);
-			});
+			// drop versions first, or a live cut listed before the original wins the dedupe
+			subTracks = subTracks
+				.filter((track) => !isAlternateVersion(track.name))
+				.filter((track, index, self) => {
+					const trackKey = normalizeTrackKey(track.name, track.artistName);
+					return !self.some(
+						(existing, existingIndex) =>
+							existingIndex < index &&
+							normalizeTrackKey(existing.name, existing.artistName) === trackKey,
+					);
+				});
 
 			tracks.push(subTracks.flat());
 		}

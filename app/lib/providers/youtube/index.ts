@@ -10,6 +10,7 @@ import {
 	getPlaylistItems as ytGetPlaylistItems,
 } from './client';
 import { cleanMusicMetadata, formatApiError } from '../../utils';
+import { isAlternateVersion } from '../../songKey';
 import type {
 	MusicProvider,
 	ProviderAuthCtx,
@@ -152,7 +153,7 @@ async function getArtistDiscographyTracks(
 			pageToken,
 		);
 		for (const v of videos) {
-			if (!v.videoId) continue;
+			if (!v.videoId || isAlternateVersion(v.title)) continue;
 			tracks.push({
 				provider: 'youtube',
 				externalId: v.videoId,

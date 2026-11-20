@@ -3,21 +3,11 @@ import { Song } from '../generated/prisma';
 import { LRCLibResult, SpotifyTrack } from '../types';
 import { addEmbeddingToSong, addSong, setSongThemes, updateSong } from './db';
 import { getEmbedding } from './processSong';
+import { EMBEDDING_VERSION, prepareLyricsForEmbedding } from './embedding/prepare';
 import { classifySongThemes } from './themes/classify';
 import { deriveThemes, DERIVE_VERSION } from './themes/derive';
 import { QUESTION_VERSIONS } from './themes/questions';
 import { cleanMusicMetadata, isLRCLibResult } from './utils';
-
-function cleanLyrics(raw: string): string | null {
-	if (!raw) return null;
-
-	const cleanedLyrics = raw
-		.replace(/\[.*?\]/g, '')
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
-
-	return cleanedLyrics;
-}
 
 function filterBestPlainTrack(
 	results: LRCLibResult[] | null,
@@ -118,7 +108,7 @@ async function getLyricsOvh(
 			return null;
 		}
 
-		return cleanLyrics((data as { lyrics: string }).lyrics);
+		return (data as { lyrics: string }).lyrics.trim() || null;
 	} catch (err: any) {
 		if (signal?.aborted) throw new Error('Aborted');
 		return null;
@@ -142,7 +132,7 @@ export async function embedSong(
 		spotifyTrack.title,
 	);
 
-	let lyrics = cleanLyrics(bestTrack?.plainLyrics?.trim() ?? '');
+	let lyrics = bestTrack?.plainLyrics?.trim() || null;
 	if (!lyrics) {
 		lyrics = await getLyricsOvh(
 			spotifyTrack.artist,
@@ -150,7 +140,7 @@ export async function embedSong(
 			signal,
 		);
 	}
-	if (!lyrics) return null;
+	if (!lyrics || !prepareLyricsForEmbedding(lyrics)) return null;
 
 	if (signal?.aborted) throw new Error('Aborted');
 
@@ -164,6 +154,7 @@ export async function embedSong(
 			: null,
 	]);
 	if (signal?.aborted) throw new Error('Aborted');
+	if (!embeddingData) return null;
 
 	let song;
 
@@ -172,7 +163,7 @@ export async function embedSong(
 	} else {
 		song = await addSong(spotifyTrack, lyrics, undefined, spotifyTrack.provider ?? 'spotify');
 	}
-	await addEmbeddingToSong(song.id, embeddingData);
+	await addEmbeddingToSong(song.id, embeddingData, EMBEDDING_VERSION);
 
 	const themes = deriveThemes(answers);
 	if (answers) {

@@ -2,7 +2,7 @@
 
 import { SpotifyTrack, HistoryKind } from '@/app/types';
 import type { ProviderName } from '../providers/types';
-import { getCentroid, compareGeneratedPlaylists } from '../utils';
+import { compareGeneratedPlaylists, interleaveBySeed } from '../utils';
 import prisma from '../prisma';
 import { Song } from '../../generated/prisma';
 import { getProvider, isProviderName } from '../providers';
@@ -328,7 +328,7 @@ export async function getSong(
 	const row = await prisma.$queryRawUnsafe<
 		Array<Song & { embedding: string | number[] | null }>
 	>(
-		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion", "audioFeatures", "releaseYear"
+		`SELECT id, title, artist, album, lyrics, summary, embedding::text AS embedding, "embeddingVersion", "isComplete", "createdAt", "spotifyId", "youtubeId", themes, "themesRaw", "themesQuestionVersions", "themesDeriveVersion", "audioFeatures", "releaseYear"
      FROM "Song"
      WHERE "${col}" = $1
      LIMIT 1`,
@@ -463,14 +463,25 @@ export async function setAudioFeatures(
 	);
 }
 
-export async function addEmbeddingToSong(songId: string, embedding: number[]) {
+export async function addEmbeddingToSong(
+	songId: string,
+	embedding: number[],
+	version: number,
+) {
 	return await prisma.$queryRawUnsafe(
-		`UPDATE "Song" SET embedding = $1::vector WHERE id = $2 RETURNING id`,
+		`UPDATE "Song" SET embedding = $1::vector, "embeddingVersion" = $3 WHERE id = $2 RETURNING id`,
 		embedding,
 		songId,
+		version,
 	);
 }
 
+export async function clearSongEmbedding(songId: string) {
+	return await prisma.$executeRawUnsafe(
+		`UPDATE "Song" SET embedding = NULL, "embeddingVersion" = NULL WHERE id = $1`,
+		songId,
+	);
+}
 export async function findSimilarSongs(
 	seedEmbeddings: number[][],
 	excludeIds: string[],
@@ -480,34 +491,56 @@ export async function findSimilarSongs(
 	if (seedEmbeddings.length === 0) return [];
 
 	const col = idColumn(provider);
-	const centroid = getCentroid(seedEmbeddings);
+	const perSeedLimit = Math.ceil(limit / seedEmbeddings.length) * 2;
 
-	// 1. Build the safe exclusion list
 	const safeExcludes = excludeIds.filter((id) => isSafeExternalId(id));
 	const excludeClause =
 		safeExcludes.length > 0
-			? `AND "${col}" NOT IN (${safeExcludes.map((id) => `'${id}'`).join(',')})`
+			? `AND s."${col}" NOT IN (${safeExcludes.map((id) => `'${id}'`).join(',')})`
 			: '';
 
-	// 2. Use Parameterized Query ($1) instead of string injection
-	return await prisma.$queryRawUnsafe(
+	// one pass ranking every seed beats a LATERAL scan per seed by ~10x
+	const rows = await prisma.$queryRawUnsafe<any[]>(
 		`
-    SELECT id, title, artist, album, lyrics, "${col}" AS "externalId",
-           "spotifyId", themes, "themesRaw", "themesQuestionVersions",
-           "themesDeriveVersion", "audioFeatures", "releaseYear",
-           embedding::text AS embedding,
-           embedding <=> $1::vector AS distance
-    FROM "Song"
-    WHERE embedding IS NOT NULL
-      AND lyrics IS NOT NULL AND btrim(lyrics) <> ''
-      AND "${col}" IS NOT NULL
-      ${excludeClause}
-    ORDER BY distance ASC
-    LIMIT $2
+    WITH seed AS MATERIALIZED (
+      SELECT ord::int AS ord, vec::vector AS v
+      FROM unnest($1::text[]) WITH ORDINALITY AS t(vec, ord)
+    ),
+    scored AS (
+      SELECT seed.ord, s.id, s.embedding <=> seed.v AS distance
+      FROM "Song" s CROSS JOIN seed
+      WHERE s.embedding IS NOT NULL
+        AND s.lyrics IS NOT NULL AND btrim(s.lyrics) <> ''
+        AND s."${col}" IS NOT NULL
+        ${excludeClause}
+    ),
+    nearest AS MATERIALIZED (
+      SELECT ord, id, distance, rank
+      FROM (
+        SELECT ord, id, distance,
+               row_number() OVER (PARTITION BY ord ORDER BY distance) AS rank
+        FROM scored
+      ) ranked
+      WHERE rank <= $2
+    )
+    SELECT nearest.ord AS "seedIndex", nearest.distance,
+           s.id, s.title, s.artist, s.album, s.lyrics, s."${col}" AS "externalId",
+           s."spotifyId", s.themes, s."themesRaw", s."themesQuestionVersions",
+           s."themesDeriveVersion", s."audioFeatures", s."releaseYear",
+           s.embedding::text AS embedding, s."embeddingVersion"
+    FROM nearest JOIN "Song" s ON s.id = nearest.id
+    ORDER BY nearest.ord, nearest.rank
   `,
-		centroid, // Pass the raw number[] array as $1
-		limit, // Pass the limit as $2
+		seedEmbeddings.map((embedding) => `[${embedding.join(',')}]`),
+		perSeedLimit,
 	);
+
+	const bySeed: any[][] = seedEmbeddings.map(() => []);
+	for (const { seedIndex, ...song } of rows) {
+		bySeed[seedIndex - 1]?.push(song);
+	}
+
+	return interleaveBySeed(bySeed, limit, (song) => song.id);
 }
 
 export async function getSongEmbeddings(

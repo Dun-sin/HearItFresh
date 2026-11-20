@@ -1,15 +1,34 @@
 import axios from 'axios';
-import { addEmbeddingToSong, getSong } from './db';
+import { addEmbeddingToSong, clearSongEmbedding, getSong } from './db';
 import { Song } from '../generated/prisma';
 import { SpotifyTrack } from '../types';
-import { getCentroid } from './utils';
+import { getWeightedCentroid } from './utils';
 import { embedSong } from './lyrics';
 import { syncSongThemes } from './themes/persist';
 import { describeSync, planSync } from './themes/versions';
+import {
+	chunkForEmbedding,
+	EMBEDDING_VERSION,
+	prepareLyricsForEmbedding,
+} from './embedding/prepare';
 
-const MAX_TOKENS = 256;
+
+export type EmbeddableRow = {
+	id: string;
+	title: string;
+	lyrics: string | null;
+	embedding: unknown;
+	embeddingVersion: number | null;
+};
 
 let extractor: any = null;
+
+const parseStoredEmbedding = (value: unknown): number[] | null =>
+	typeof value === 'string'
+		? JSON.parse(value)
+		: Array.isArray(value)
+			? value
+			: null;
 
 async function getExtractor() {
 	if (!extractor) {
@@ -18,39 +37,6 @@ async function getExtractor() {
 		extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
 	}
 	return extractor;
-}
-
-/**
- * Splits lyrics into embedding chunks so that no single chunk exceeds the
- * model's 256-token truncation limit. If the token count is <= 256 a single
- * chunk is returned; otherwise the lyrics are split into exactly 2 halves
- * along the nearest line break to the midpoint.
- */
-function getChunks(lyrics: string): string[] {
-	// word-piece-ish token estimate: ~4 chars/token is a safe over-estimate
-	const estimatedTokens = Math.ceil(lyrics.length / 4);
-
-	if (estimatedTokens <= MAX_TOKENS) return [lyrics];
-
-	const lines = lyrics.split('\n');
-	const totalChars = lyrics.length;
-	const mid = totalChars / 2;
-
-	let bestIndex = 0;
-	let bestDistance = Infinity;
-	let running = 0;
-	for (let i = 0; i < lines.length - 1; i++) {
-		running += lines[i].length + 1; // +1 for the newline
-		const distance = Math.abs(running - mid);
-		if (distance < bestDistance) {
-			bestDistance = distance;
-			bestIndex = i + 1;
-		}
-	}
-
-	const firstHalf = lines.slice(0, bestIndex).join('\n').trim();
-	const secondHalf = lines.slice(bestIndex).join('\n').trim();
-	return [firstHalf, secondHalf];
 }
 
 async function getEmbeddingDev(
@@ -98,22 +84,7 @@ export async function processSong(
 	);
 
 	if (existing) {
-		const embeddingData =
-			typeof existing.embedding === 'string'
-				? JSON.parse(existing.embedding)
-				: Array.isArray(existing.embedding)
-					? existing.embedding
-					: null;
-
-		const hasEmbedding = embeddingData !== null;
-
-		if (!hasEmbedding && existing.lyrics) {
-			if (signal?.aborted) throw new Error('Aborted');
-			console.log(`Backfilling embedding for ${existing.title}`);
-			const embedding = await getEmbedding(existing.lyrics, signal);
-			if (signal?.aborted) throw new Error('Aborted');
-			await addEmbeddingToSong(existing.id, embedding);
-		}
+		const embeddingData = await syncSongEmbedding(existing, signal);
 
 		let themes: string[] = existing.themes ?? [];
 
@@ -161,16 +132,42 @@ export async function processSong(
 }
 
 export async function getEmbedding(
-	text: string,
+	lyrics: string,
 	signal?: AbortSignal,
-): Promise<number[]> {
-	const chunks = getChunks(text);
+): Promise<number[] | null> {
+	const chunks = chunkForEmbedding(prepareLyricsForEmbedding(lyrics));
+	if (chunks.length === 0) return null;
+
 	const embeddings = await Promise.all(
-		chunks.map((chunk) =>
+		chunks.map(({ text }) =>
 			process.env.NODE_ENV === 'production'
-				? getEmbeddingProd(chunk, signal)
-				: getEmbeddingDev(chunk, signal),
+				? getEmbeddingProd(text, signal)
+				: getEmbeddingDev(text, signal),
 		),
 	);
-	return getCentroid(embeddings);
+	return getWeightedCentroid(
+		embeddings,
+		chunks.map(({ tokens }) => tokens),
+	);
+}
+
+export async function syncSongEmbedding(
+	row: EmbeddableRow,
+	signal?: AbortSignal,
+): Promise<number[] | null> {
+	const stored = parseStoredEmbedding(row.embedding);
+	if (stored && row.embeddingVersion === EMBEDDING_VERSION) return stored;
+	if (!row.lyrics) return stored;
+
+	if (signal?.aborted) throw new Error('Aborted');
+	console.log(`Re-embedding ${row.title}`);
+	const embedding = await getEmbedding(row.lyrics, signal);
+	if (signal?.aborted) throw new Error('Aborted');
+	if (!embedding) {
+		if (stored) await clearSongEmbedding(row.id);
+		return null;
+	}
+
+	await addEmbeddingToSong(row.id, embedding, EMBEDDING_VERSION);
+	return embedding;
 }

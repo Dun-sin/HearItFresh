@@ -10,7 +10,7 @@ import {
 	DB_SIMILAR_SONGS_LIMIT,
 } from '../utils';
 import { YOUTUBE_QUOTA_EXHAUSTED_ERROR } from '../helpers';
-import { titleKey } from '../songKey';
+import { isAlternateVersion, titleKey } from '../songKey';
 import { inYearRange, hasYearRange, type YearRange } from '../releaseYear/range';
 import { earliestReleaseYears, recordCandidateYears } from '../releaseYear/persist';
 import { getProvider } from '../providers';
@@ -279,7 +279,7 @@ export async function scoreTracks(
 
 	const scoredTracks = await Promise.all(
 		newTracks
-			.filter((track) => !isInstrumental(track.name))
+			.filter((track) => !isInstrumental(track.name) && !isAlternateVersion(track.name))
 			.map((track) =>
 			pLimitInstance(async () => {
 				if (signal?.aborted) return null;

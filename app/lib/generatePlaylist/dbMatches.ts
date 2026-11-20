@@ -1,4 +1,7 @@
+import pLimit from 'p-limit';
 import { findSimilarSongs } from '../db';
+import { syncSongEmbedding } from '../processSong';
+import { isAlternateVersion } from '../songKey';
 import { DB_SIMILAR_SONGS_LIMIT } from '../utils';
 import type { ProviderName } from '../providers/types';
 import { hasActiveThemeFilter } from '../themes/filter';
@@ -21,6 +24,21 @@ import type { PlaylistHistory } from './history';
 
 export type DbMatch = RankedRef & { title: string };
 
+const EMBED_SYNC_CONCURRENCY = 8;
+
+async function currentEmbedding(
+	song: any,
+	signal?: AbortSignal,
+): Promise<number[] | null> {
+	try {
+		return await syncSongEmbedding(song, signal);
+	} catch (err) {
+		if (signal?.aborted) throw err;
+		console.error(`Failed to re-embed ${song.title}, scoring stored embedding:`, err);
+		return parseEmbedding(song.embedding);
+	}
+}
+
 async function scoreDbMatches(
 	dbSimilar: any[],
 	seedEmbeddings: number[][],
@@ -32,10 +50,19 @@ async function scoreDbMatches(
 		paceBudget = createPaceBudget(),
 	}: ScoringFilters,
 ): Promise<DbMatch[]> {
-	const survivors = dbSimilar.flatMap((song: any) => {
-		if (isInstrumental(song.title ?? '')) return [];
+	const limit = pLimit(EMBED_SYNC_CONCURRENCY);
+	const embedded = await Promise.all(
+		dbSimilar
+			.filter(
+				(song: any) =>
+					!isInstrumental(song.title ?? '') && !isAlternateVersion(song.title ?? ''),
+			)
+			.map((song: any) =>
+				limit(async () => ({ song, emb: await currentEmbedding(song, signal) })),
+			),
+	);
 
-		const emb = parseEmbedding(song.embedding);
+	const survivors = embedded.flatMap(({ song, emb }) => {
 		if (!emb) return [];
 
 		const scored = scoreAgainstSeeds(emb, seedEmbeddings);
